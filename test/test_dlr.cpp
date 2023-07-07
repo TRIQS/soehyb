@@ -75,10 +75,10 @@ TEST(dyson_it, dyson_vs_ed_real) {
     Deltatau_re(i, range(N), range(N)) = itops.coefs2eval(Delta_dlr, tgrid[i]/beta);
   }
   std::cout << "Max error: " << max_element(abs((Deltatau - Deltatau_re))) << std::endl;
-  nda::array_const_view<dcomplex,3> Deltat = itops.coefs2vals(Delta_dlr); 
-
-  
-  auto Delta_decomp = hyb_decomp(Delta_dlr,dlr_rf,eps);
+  auto Deltat = itops.coefs2vals(Delta_dlr);
+ 
+  bool check = true;
+  auto Delta_decomp = hyb_decomp(Delta_dlr,dlr_rf,eps,Deltat,dlr_it,check);
 
   auto F = nda::array<dcomplex,3>(N,dim,dim);
   for (int i = 0; i<N;++i) F(i,_,_) = ID_N;
