@@ -102,3 +102,10 @@ hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda:
     V_tilde = V2_tilde;
 }
 
+nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
+    
+    int r = Gt.shape(0);
+    int N = Gt.shape(1);
+    auto Diagram = nda::array<dcomplex,3>(r,N,N);
+    return Diagram;
+}

@@ -62,6 +62,10 @@ class hyb_F {
     The function input is:
         hyb_F:   info about hyb from the class hyb_F;
         D:       diagram topology, encoded in a m*2 array for m-th order diagram;
-        Deltat:  hybridization function on dlr imaginary time grid, r*N*N;
+        Deltat:  hybridization function on dlr imaginary time grid, r*dim*dim;
+        Gt:      Green's function on dlr imaginary time grid,  r*N*N;
+        F, F_dag: dim*N*N array;
+    The function output is:
+        Diagram value on time grid: r*N*N array;
 */
 nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);

@@ -17,6 +17,7 @@ TEST(dyson_it, dyson_vs_ed_real) {
   int Num = 100;   // Size of equidist grid
   const int dim = 3;
   auto ID_N =  eye<dcomplex>(N);
+  auto ID_dim =  eye<dcomplex>(dim);
 
   // Set DLR parameters
   double lambda = 10;
@@ -57,7 +58,7 @@ TEST(dyson_it, dyson_vs_ed_real) {
   for (int i = 0; i <= Num; ++i) {
     Gtau_re(i, range(N), range(N)) = itops.coefs2eval(Gdlr, tgrid[i]/beta);
   }
-  std::cout << "Max error: " << max_element(abs((Gtau - Gtau_re))) << std::endl;
+  std::cout << "Max Gtau error: " << max_element(abs((Gtau - Gtau_re))) << std::endl;
 
   auto Gt = itops.coefs2vals(Gdlr);
   // auto Gt2 = nda::array<dcomplex, 3>(r, dim, dim); 
@@ -67,14 +68,14 @@ TEST(dyson_it, dyson_vs_ed_real) {
   // std::cout << "Max error: " << max_element(abs((Gt - Gt2))) << std::endl; 
 
   auto Deltatau = nda::array<dcomplex, 3>(Num + 1, dim, dim); 
-  for (int i = 0; i <= Num; ++i) Deltatau(i,_,_) = exp(-alpha_2*tgrid(i))*ID_N;
+  for (int i = 0; i <= Num; ++i) Deltatau(i,_,_) = exp(-alpha_2*tgrid(i))*ID_dim;
 
   auto Delta_dlr = itops.fitvals2coefs(tgrid_relative, Deltatau);
   auto Deltatau_re = nda::array<dcomplex, 3>(Num + 1, dim, dim);
   for (int i = 0; i <= Num; ++i) {
     Deltatau_re(i, range(dim), range(dim)) = itops.coefs2eval(Delta_dlr, tgrid[i]/beta);
   }
-  std::cout << "Max error: " << max_element(abs((Deltatau - Deltatau_re))) << std::endl;
+  std::cout << "Max Deltatau error: " << max_element(abs((Deltatau - Deltatau_re))) << std::endl;
   auto Deltat = itops.coefs2vals(Delta_dlr);
  
   bool check = true;
@@ -86,5 +87,6 @@ TEST(dyson_it, dyson_vs_ed_real) {
   auto Delta_F = hyb_F(Delta_decomp, dlr_rf, dlr_it, beta, F, F);
 
   auto D = nda::array<int,2>{{0,2},{1,3}};
+  //auto OCAdiagram = Diagram_calc(Delta_F,D,Deltat, Gt, F,  F);
   
 }
