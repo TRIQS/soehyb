@@ -1,5 +1,6 @@
 #include "strong_cpl.hpp"
 #include <cppdlr/dlr_kernels.hpp>
+#include <nda/blas/tools.hpp>
 
 
 using namespace cppdlr;
@@ -8,16 +9,16 @@ using namespace nda;
 hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_const_view<double> dlr_rf,double eps, nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it, bool check){
     // obtain dlr_rank and dim of hyb function
     int dlr_rank = Delta_dlr.shape(0);
-    int N = Delta_dlr.shape(1);
+    int dim = Delta_dlr.shape(1);
     // prepare for svd
-    auto s_vec = nda::array<double, 1>(N);
-    auto U_local = nda::matrix<dcomplex,F_layout>(N,N);
-    auto VT_local = nda::matrix<dcomplex,F_layout>(N,N);
+    auto s_vec = nda::array<double, 1>(dim);
+    auto U_local = nda::matrix<dcomplex,F_layout>(dim,dim);
+    auto VT_local = nda::matrix<dcomplex,F_layout>(dim,dim);
     nda::array<dcomplex, 2, F_layout> a;
 
-    int max_num_pole = N*dlr_rank;
-    auto U_all = nda::matrix<dcomplex>(N,max_num_pole);
-    auto V_all = nda::matrix<dcomplex>(max_num_pole,N);
+    int max_num_pole = dim*dlr_rank;
+    auto U_all = nda::matrix<dcomplex>(dim,max_num_pole);
+    auto V_all = nda::matrix<dcomplex>(max_num_pole,dim);
     auto w_all = nda::vector<double>(max_num_pole);
 
     //loop over all dlr frequencies, do svd, truncate stuff that are too small
@@ -25,7 +26,7 @@ hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_
     for (int i=0;i<dlr_rank; ++i){
         a = Delta_dlr(i,_,_);
         nda::lapack::gesvd(a,s_vec,U_local,VT_local);
-        for (int d=0; d<N; ++d){
+        for (int d=0; d<dim; ++d){
             if (s_vec(d)>eps){
                 w_all(P) = dlr_rf(i);
                 U_all(_,P) = U_local(_,d)*sqrt(s_vec(d));
@@ -41,13 +42,13 @@ hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_
         int r =Delta_dlr.shape(0);
 
         std::cout<< "calculating error of the decomposition, this step could be slow since we have not made use of matrice multiplications"<<std::endl;
-        auto Deltat_approx =nda::array<dcomplex,3>(r,N,N);
+        auto Deltat_approx =nda::array<dcomplex,3>(r,dim,dim);
 
         Deltat_approx = 0;
         
 
-        for (int a=0;a<N;++a){
-            for (int b =0 ;b<N; ++b){
+        for (int a=0;a<dim;++a){
+            for (int b =0 ;b<dim; ++b){
                 for (int R = 0;  R<P;++R){
                     for (int k=0;k<r;++k) {
                         Deltat_approx(k,a,b) += k_it(dlr_it(k), w(R))*U(R,a)*V(R,b);
@@ -100,3 +101,4 @@ hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda:
     U_tilde = U2_tilde;
     V_tilde = V2_tilde;
 }
+

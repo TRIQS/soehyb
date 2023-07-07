@@ -13,10 +13,10 @@ TEST(dyson_it, dyson_vs_ed_real) {
 
   // Set problem parameters
   double beta = 10; // Inverse temperature
-  const int dim = 2;     // Dimension of Greens function
+  const int N = 2;     // Dimension of Greens function
   int Num = 100;   // Size of equidist grid
-  const int N = 3;
-  auto ID_N =  eye<dcomplex>(3);
+  const int dim = 3;
+  auto ID_N =  eye<dcomplex>(N);
 
   // Set DLR parameters
   double lambda = 10;
@@ -30,7 +30,7 @@ TEST(dyson_it, dyson_vs_ed_real) {
     tgrid(i) = i * h_t;
     tgrid_relative(i) = tgrid(i)/beta;
   }
-  auto Gtau = nda::array<dcomplex, 3>(Num + 1, dim, dim);
+  auto Gtau = nda::array<dcomplex, 3>(Num + 1, N, N);
 
   double alpha_1 = 0.1;
   double alpha_2 = 0.2;
@@ -53,9 +53,9 @@ TEST(dyson_it, dyson_vs_ed_real) {
 
 
   auto Gdlr = itops.fitvals2coefs(tgrid_relative, Gtau);
-  auto Gtau_re = nda::array<dcomplex, 3>(Num + 1, dim, dim);
+  auto Gtau_re = nda::array<dcomplex, 3>(Num + 1, N, N);
   for (int i = 0; i <= Num; ++i) {
-    Gtau_re(i, range(dim), range(dim)) = itops.coefs2eval(Gdlr, tgrid[i]/beta);
+    Gtau_re(i, range(N), range(N)) = itops.coefs2eval(Gdlr, tgrid[i]/beta);
   }
   std::cout << "Max error: " << max_element(abs((Gtau - Gtau_re))) << std::endl;
 
@@ -66,13 +66,13 @@ TEST(dyson_it, dyson_vs_ed_real) {
   // }
   // std::cout << "Max error: " << max_element(abs((Gt - Gt2))) << std::endl; 
 
-  auto Deltatau = nda::array<dcomplex, 3>(Num + 1, N, N); 
+  auto Deltatau = nda::array<dcomplex, 3>(Num + 1, dim, dim); 
   for (int i = 0; i <= Num; ++i) Deltatau(i,_,_) = exp(-alpha_2*tgrid(i))*ID_N;
 
   auto Delta_dlr = itops.fitvals2coefs(tgrid_relative, Deltatau);
-  auto Deltatau_re = nda::array<dcomplex, 3>(Num + 1, N, N);
+  auto Deltatau_re = nda::array<dcomplex, 3>(Num + 1, dim, dim);
   for (int i = 0; i <= Num; ++i) {
-    Deltatau_re(i, range(N), range(N)) = itops.coefs2eval(Delta_dlr, tgrid[i]/beta);
+    Deltatau_re(i, range(dim), range(dim)) = itops.coefs2eval(Delta_dlr, tgrid[i]/beta);
   }
   std::cout << "Max error: " << max_element(abs((Deltatau - Deltatau_re))) << std::endl;
   auto Deltat = itops.coefs2vals(Delta_dlr);
@@ -80,8 +80,8 @@ TEST(dyson_it, dyson_vs_ed_real) {
   bool check = true;
   auto Delta_decomp = hyb_decomp(Delta_dlr,dlr_rf,eps,Deltat,dlr_it,check);
 
-  auto F = nda::array<dcomplex,3>(N,dim,dim);
-  for (int i = 0; i<N;++i) F(i,_,_) = ID_N;
+  auto F = nda::array<dcomplex,3>(dim,N,N);
+  for (int i = 0; i<dim;++i) F(i,_,_) = ID_N;
 
   auto Delta_F = hyb_F(Delta_decomp, dlr_rf, dlr_it, beta, F, F);
 
