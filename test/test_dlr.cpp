@@ -85,8 +85,9 @@ TEST(dyson_it, dyson_vs_ed_real) {
   for (int i = 0; i<dim;++i) F(i,_,_) = ID_N;
 
   auto Delta_F = hyb_F(Delta_decomp, dlr_rf, dlr_it, beta, F, F);
-
+  std::cout<<Delta_F.w0;
   auto D = nda::array<int,2>{{0,2},{1,3}};
-  //auto OCAdiagram = Diagram_calc(Delta_F,D,Deltat, Gt, F,  F);
+  auto OCAdiagram = Diagram_calc(Delta_F,D,Deltat, Gt,dlr_it, F,  F);
+  //std::cout<<OCAdiagram;
   
 }

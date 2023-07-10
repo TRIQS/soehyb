@@ -100,12 +100,65 @@ hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda:
     c = c2;
     U_tilde = U2_tilde;
     V_tilde = V2_tilde;
+    w0 = hyb_decomp.w;
 }
 
-nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
+nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt, nda::vector_const_view<double> dlr_it,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
     
-    int r = Gt.shape(0);
-    int N = Gt.shape(1);
+    //obtain basic parameters
+    int r = Gt.shape(0); // size of time grid
+    int N = Gt.shape(1); // size of G matrices
+    int m = D.shape(0); // order of diagram
+    int P = hyb_F.c.shape(0);
+
+    //initialize diagram
     auto Diagram = nda::array<dcomplex,3>(r,N,N);
+    Diagram = 0;
+
+    //iteration over the terms of 2, · · · , m-th hybridization. Note that 1-st hybridization is not decomposed.
+    int total_num_diagram = pow(P, m-1);
+    for (int num=0;num<total_num_diagram;++num){
+        int num0 = num;
+        //obtain R2, ... , Rm, store as R[1],...,R[m-1]
+        auto R = nda::vector<int>(m);
+        for (int v = 1;v<m;++v){
+            R[v] = num0 % P;
+            num0 = int(num0/P);
+        }
+
+        //Phase 1: construct line object L and point object P;
+        /* Construct line objects, i.e. functions of (t_s-t_{s-1}) for s =1 , ..., 2m-1
+        We store these in L(r,2m,N,N). 
+        We initialize them with Green's functions.
+        */
+        auto L = nda::array<dcomplex,4>(r,2*m,N,N);
+        for (int s=1;s<=2*m-1;++s) L(_,s,_,_) = Gt;
+
+        double constant = 1; // the constant term responsible for the current diagram
+
+        /* Construct point objects, i.e. functions at t_s. 
+        We store these in P(r,2m,N,N)
+        */
+        auto P = nda::array<dcomplex,4>(r,2*m,N,N);
+        for (int v = 1;v<m;++v){
+             
+            P(_,D(v,0),_,_) = hyb_F.V_tilde(_,R(v),_,_);
+            P(_,D(v,1),_,_) = hyb_F.U_tilde(_,R(v),_,_);
+            constant = constant*hyb_F.c(R(v));
+            //when w(R(v))>0, we need to modify the line object, and the constant
+            if (hyb_F.w0(R(v))>0){
+                for (int s = D(v,0)+2; s<D(v,1);++s){
+                    for (int k =0;k<r;++k) L(k,s,_,_) = L(k,s,_,_) * k_it(dlr_it(k),hyb_F.w0(R(v)));
+                    constant = constant * hyb_F.c(R(v));
+                }
+            }
+        }
+
+        //Phase 2: integrate everything out
+        
+
+        
+    }
+    
     return Diagram;
 }
