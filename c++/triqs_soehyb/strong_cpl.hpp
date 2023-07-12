@@ -57,8 +57,10 @@ class hyb_F {
     nda::array<dcomplex,4> U_tilde;
     nda::array<dcomplex,4> V_tilde;
 
-    hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda::vector_const_view<double> dlr_it, double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
+    hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda::vector_const_view<double> dlr_it, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
 };
+
+nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
 
 /* This is the function for evaluating a diagram given its topology D.
     The function input is:
@@ -70,4 +72,4 @@ class hyb_F {
     The function output is:
         Diagram value on time grid: r*N*N array;
 */
-nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt, nda::vector_const_view<double> dlr_it,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
+nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
