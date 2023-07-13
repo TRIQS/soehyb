@@ -156,15 +156,15 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
         (Nothing is done for the vertex connecting to 0. That vertex will be treated differently in the final integration).
         We store these in P(r,2m,N,N).
         */
-        auto P = nda::array<dcomplex,4>(r,2*m,N,N);
-        P = 0;
+        auto P0 = nda::array<dcomplex,4>(r,2*m,N,N);
+        P0 = 0;
         for (int v = 1;v<m;++v){
             constant = constant*hyb_F.c(R(v));
             
             //when w(R(v))>0, we need to modify the line object, and the constant. The point object is assigned to be the identity matrix.
             if (hyb_F.w0(R(v))>0){
-                for (int k=0;k<r;++k) P(k,D(v,0),_,_) = eye<dcomplex>(N); 
-                for (int k=0;k<r;++k) P(k,D(v,1),_,_) = eye<dcomplex>(N);
+                for (int k=0;k<r;++k) P0(k,D(v,0),_,_) = eye<dcomplex>(N); 
+                for (int k=0;k<r;++k) P0(k,D(v,1),_,_) = eye<dcomplex>(N);
                 for (int k=0;k<r;++k) L(k,D(v,0),_,_) = matmul(L(k,D(v,0),_,_),hyb_F.V_tilde(k,R(v),_,_));
                 for (int k=0;k<r;++k) L(k,D(v,1)-1,_,_) = matmul(hyb_F.U_tilde(k,R(v),_,_), L(k,D(v,1)-1,_,_));
                 
@@ -175,26 +175,26 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
             }
             //when w(R(v))<0, we need only to modify the point object.
             else{
-                P(_,D(v,0),_,_) = hyb_F.V_tilde(_,R(v),_,_);
-                P(_,D(v,1),_,_) = hyb_F.U_tilde(_,R(v),_,_);
+                P0(_,D(v,0),_,_) = hyb_F.V_tilde(_,R(v),_,_);
+                P0(_,D(v,1),_,_) = hyb_F.U_tilde(_,R(v),_,_);
             }
         }
         //Phase 2: integrate everything out
         auto T = nda::array<dcomplex,3>(r,N,N); 
         
         // first, calculate P(t1)*G(t1)
-        for (int k = 0;k<r;++k) T(k,_,_) = matmul(P(k,1,_,_),Gt(k,_,_));
+        for (int k = 0;k<r;++k) T(k,_,_) = matmul(P0(k,1,_,_),Gt(k,_,_));
 
         //integrate out indices t1, ..., t(2m-2). In each for loop, first convolution, then multiplication.
         for (int s=1;s<=2*m-2;++s){
-            // integrate ts out by convolution:  integral U/Vtilde(t(s+1)-ts) D(ts) dts
+            // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
             nda::array<dcomplex,3> Lhere = L(_,s,_,_); // Zhen: I am not happy with this copying
             T = itops.tconvolve(beta, Fermion,itops.vals2coefs(Lhere),itops.vals2coefs(T));
 
             //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
             //calculate U/Vtilde(t(s+1))*T(t(s+1))
             if (s+1 != D(0,1)){
-                for (int k = 0;k<r;++k) T(k,_,_) = matmul(P(k,s+1,_,_),T(k,_,_));
+                for (int k = 0;k<r;++k) T(k,_,_) = matmul(P0(k,s+1,_,_),T(k,_,_));
             }
             // Do special things for the vertex connecting to 0:
             //T_k = sum_ab Delta_ab(t) Fdag_a *T_k * F_b
@@ -286,7 +286,7 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> D
         if (hyb_F.w0(R)<0){
             // integrate t2 out: T(t) = int G(t-t2)* T3(t2) dt2
             T = itops.tconvolve(beta, Fermion,itops.vals2coefs(Gt),itops.vals2coefs(T3));
-            //T(t) = Gt(t) * T(t) 
+            //T(t) = Utilde(t) * T(t) 
             for (int k = 0;k<r;++k) T(k,_,_) = matmul(hyb_F.U_tilde(k,R,_,_),T(k,_,_));
         }
         else{
