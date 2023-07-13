@@ -9,6 +9,8 @@
 using namespace cppdlr;
 using namespace nda;
 
+
+
 TEST(dyson_it, dyson_vs_ed_real) {
 
   // --- Problem setup --- //
@@ -23,7 +25,7 @@ TEST(dyson_it, dyson_vs_ed_real) {
 
   // Set DLR parameters
   double lambda = 10;
-  double eps = 1.0e-13;
+  double eps = 1.0e-11;
 
   // Get Green's function on equidist grid
   auto tgrid = nda::vector<double>(Num + 1);
@@ -35,8 +37,8 @@ TEST(dyson_it, dyson_vs_ed_real) {
   }
   auto Gtau = nda::array<dcomplex, 3>(Num + 1, N, N);
 
-  double alpha_1 = 0.1;
-  double alpha_2 = 0.2;
+  double alpha_1 = 0.2;
+  double alpha_2 = 0.1;
 
   auto G_01 = exp(-alpha_1 * tgrid);
   Gtau(range(0, Num + 1), 0, 0) = 0;
@@ -81,40 +83,62 @@ TEST(dyson_it, dyson_vs_ed_real) {
   auto Deltat = itops.coefs2vals(Delta_dlr);
  
   bool check = true;
-  auto Delta_decomp = hyb_decomp(Delta_dlr,dlr_rf,eps,Deltat,dlr_it,check);
+  auto Delta_decomp = hyb_decomp(Delta_dlr,dlr_rf,Deltat,dlr_it,eps);
 
   auto F = nda::array<dcomplex,3>(dim,N,N);
   for (int i = 0; i<dim;++i) F(i,_,_) = ID_N;
 
   auto Delta_F = hyb_F(Delta_decomp, dlr_rf, dlr_it, F, F);
   // std::cout<<Delta_F.c;
-  auto D = nda::array<int,2>{{0,2},{1,3}};
+  // auto D = nda::array<int,2>{{0,2},{1,3}};
+  auto D = nda::array<int,2>{{0,2},{1,4},{3,5}};
   //std::cout<;
-  auto OCAdiagram = OCA_calc(Delta_F,D,Deltat, Gt,itops,beta, F,  F);
-  auto OCAdiagram_2 = Diagram_calc(Delta_F,D,Deltat, Gt,itops,beta, F,  F);
-  std::cout<<"difference between two diagram eval is " << max_element(abs(OCAdiagram - OCAdiagram_2))<<std::endl;
+  //auto OCAdiagram_2 = OCA_calc(Delta_F,Deltat, Gt,itops,beta, F,  F);
+  auto OCAdiagram = Diagram_calc(Delta_F,D,Deltat, Gt,itops,beta, F,  F);
+  //std::cout<<"difference between two diagram eval is " << max_element(abs(OCAdiagram - OCAdiagram_2))<<std::endl;
   auto OCA_dlr = itops.vals2coefs(OCAdiagram);
   auto OCA_tgrid = nda::array<dcomplex, 3>(Num +1,OCA_dlr.shape(1), OCA_dlr.shape(2));
   for (int i = 0; i <= Num; ++i) {
     OCA_tgrid(i, _, _) = itops.coefs2eval(OCA_dlr, tgrid[i]/beta);
   } 
-  
+  std::cout<<OCA_tgrid(_,0,1);
   auto Sigma_true = nda::array<dcomplex,3>(r,OCA_dlr.shape(1), OCA_dlr.shape(2));
 
-  std::cout<<dlr_it;
+  
+  // Sigma_true(_,0,0)=0;
+  // Sigma_true(_,1,1) = 0;
+  // for (int n = 0; n <r; ++n){
+  //   if (dlr_it(n)>0){
+  //     Sigma_true(n,0,1) =  exp(-(alpha_1+alpha_2)*beta*dlr_it(n))*(beta*dlr_it(n)+(exp(-alpha_2*beta*dlr_it(n))-1)/alpha_2)/alpha_2;
+  //     Sigma_true(n,1,0) =  exp(-(alpha_1+alpha_2)*beta*dlr_it(n))*(beta*dlr_it(n)+(exp(-alpha_2*beta*dlr_it(n))-1)/alpha_2)/alpha_2;
+  //   }
+  //   else{
+  //    Sigma_true(n,0,1) =  exp(-(alpha_1+alpha_2)*beta*(dlr_it(n)+1))*(beta*(1+dlr_it(n))+(exp(-alpha_2*beta*(dlr_it(n)+1))-1)/alpha_2)/alpha_2;
+  //     Sigma_true(n,1,0) =  exp(-(alpha_1+alpha_2)*beta*(dlr_it(n)+1))*(beta*(1+dlr_it(n))+(exp(-alpha_2*beta*(dlr_it(n)+1))-1)/alpha_2)/alpha_2; 
+  //   }
+  // }
+  // //std::cout<<Sigma_true(10,_,_);
+  // std::cout<<"eps is "<< eps <<" error of oca diagram is "<<max_element(abs(Sigma_true - OCAdiagram));
+
   Sigma_true(_,0,0)=0;
   Sigma_true(_,1,1) = 0;
   for (int n = 0; n <r; ++n){
     if (dlr_it(n)>0){
-      Sigma_true(n,0,1) =  exp(-(alpha_1+alpha_2)*beta*dlr_it(n))*(beta*dlr_it(n)+(exp(-alpha_2*beta*dlr_it(n))-1)/alpha_2)/alpha_2;
-      Sigma_true(n,1,0) =  exp(-(alpha_1+alpha_2)*beta*dlr_it(n))*(beta*dlr_it(n)+(exp(-alpha_2*beta*dlr_it(n))-1)/alpha_2)/alpha_2;
-    }
+      auto tte = dlr_it(n)*beta; 
+      Sigma_true(n,0,1) =  (1/(2*pow(alpha_2,4))) *exp(-(alpha_1+alpha_2)*tte)*(pow(alpha_2,2)*pow(tte,2)-4*alpha_2*tte-2*exp(-alpha_2*tte)*(alpha_2*tte+3)+6);
+      //Sigma_true(n,0,1) =  exp(-(alpha_1)*tte)*pow(tte,4)/24;
+      Sigma_true(n,1,0) =  Sigma_true(n,0,1);
+  }
     else{
-     Sigma_true(n,0,1) =  exp(-(alpha_1+alpha_2)*beta*(dlr_it(n)+1))*(beta*(1+dlr_it(n))+(exp(-alpha_2*beta*(dlr_it(n)+1))-1)/alpha_2)/alpha_2;
-      Sigma_true(n,1,0) =  exp(-(alpha_1+alpha_2)*beta*(dlr_it(n)+1))*(beta*(1+dlr_it(n))+(exp(-alpha_2*beta*(dlr_it(n)+1))-1)/alpha_2)/alpha_2; 
+      auto tte =beta*( dlr_it(n)+1); 
+    // Sigma_true(n,0,1) =  (1/alpha_2)*exp(-(alpha_1+alpha_2)*tte)*(pow(tte,2)/(2*alpha_2)-2*tte/(pow(alpha_2,2))+3*(1-exp(alpha_2*tte))/(pow(alpha_2,3))-tte*exp(-alpha_2*tte)/(pow(alpha_2,2))  );
+     Sigma_true(n,0,1) =  (1/(2*pow(alpha_2,4))) *exp(-(alpha_1+alpha_2)*tte)*(pow(alpha_2,2)*pow(tte,2)-4*alpha_2*tte-2*exp(-alpha_2*tte)*(alpha_2*tte+3)+6);
+      Sigma_true(n,1,0) =  Sigma_true(n,0,1);
     }
   }
+  std::cout<<std::endl<<OCAdiagram(_,0,1)<<std::endl<<Sigma_true(_,0,1);
   //std::cout<<Sigma_true(10,_,_);
   std::cout<<"eps is "<< eps <<" error of oca diagram is "<<max_element(abs(Sigma_true - OCAdiagram));
+
   
 }

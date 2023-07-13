@@ -8,25 +8,25 @@ using namespace nda;
 
 // dim is size of hybridization matrix,i.e. impurity size (number of single-particle basis of impurity); 
 // N is size of Green's function matrix, i.e. the dimension of impurity Fock space;
+// P is number of terms in the decomposition of the hybridization function Delta
+// r is the size of the time grid, i.e. the DLR rank
 
 /* This is the class for decomposition of a hybridization function. 
     The decomposition is:
         Delta_ab(iv) = sum_R U(a,R)V(b,R)/(iv-w(R))
     Its components are:
-        w:    1*P vector: real-valued poles;
-        U,V: dim*P array: complex-valued; 
+        w:    length of P vector: real-valued poles;
+        U,V: P*dim array: complex-valued; 
     We construct this decomposition using dlr.  
     Input of constructor:
         Delta_dlr: hyb's dlr coefficients;
         dlr_rf:    dlr real frequencies;
         eps:       
-    If we want to evaluate accuaracy of the decomposition, we also need to input:
         Deltat: hyb on dlr imagrinary time grid;
         dlr_it: dlr imaginary time grid
+    Deltat and dlr_it are only used to check the accuracy of the decomposition.
 
     Expecting this construction step to be replaced by pole fitting procedures in the future. 
-
-   
 
 */
 class hyb_decomp {
@@ -34,8 +34,9 @@ class hyb_decomp {
     nda::vector<double> w;
     nda::matrix<dcomplex> U;
     nda::matrix<dcomplex> V;
+    //should add a constructor that one can choose not to calculate the decomposition error
     //hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_const_view<double> dlr_rf, double eps);
-    hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_const_view<double> dlr_rf, double eps, nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it, bool check = false);
+    hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_const_view<double> dlr_rf, nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it, double eps=0);
 };
 
 /* This is the class for constructing U_tilde and V_tilde, based on hyb_decomp and the F matrices.
@@ -60,7 +61,6 @@ class hyb_F {
     hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda::vector_const_view<double> dlr_it, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
 };
 
-nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
 
 /* This is the function for evaluating a diagram given its topology D.
     The function input is:
@@ -73,3 +73,15 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,nda:
         Diagram value on time grid: r*N*N array;
 */
 nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
+
+
+/* This is the function for evaluating the OCA diagram given its topology D.
+    The function input is:
+        hyb_F:   info about hyb from the class hyb_F;
+        Deltat:  hybridization function on dlr imaginary time grid, r*dim*dim;
+        Gt:      Green's function on dlr imaginary time grid,  r*N*N;
+        F, F_dag: dim*N*N array;
+    The function output is:
+        Diagram value on time grid: r*N*N array;
+*/
+nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
