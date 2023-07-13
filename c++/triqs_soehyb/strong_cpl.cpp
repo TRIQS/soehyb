@@ -53,11 +53,10 @@ hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_
     
     //calculate the error of the decomposition
     
-    int r =Delta_dlr.shape(0);
+    int r =Deltat.shape(0);
 
     std::cout<< "calculating error of the decomposition, this step could be slow since we have not made use of matrice multiplications"<<std::endl;
     auto Deltat_approx =nda::array<dcomplex,3>(r,dim,dim);
-
     Deltat_approx = 0;
     
     for (int a=0;a<dim;++a){
@@ -69,7 +68,7 @@ hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_
             }
         }
     }
-        
+    // std::cout<<Deltat<<std::endl<<Deltat_approx; 
     std::cout << "Max error in decomposition of Delta(t): " << max_element(abs((Deltat - Deltat_approx))) << std::endl;
 }
 
