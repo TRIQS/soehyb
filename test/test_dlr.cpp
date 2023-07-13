@@ -2,8 +2,10 @@
 #include "nda/nda.hpp"
 #include <cppdlr/cppdlr.hpp>
 #include <cppdlr/dlr_imtime.hpp>
+#include <functional>
 #include <gtest/gtest.h>
 #include <nda/algorithms.hpp>
+#include <nda/basic_functions.hpp>
 #include <nda/layout/policies.hpp>
 
 using namespace cppdlr;
@@ -11,134 +13,88 @@ using namespace nda;
 
 
 
-TEST(dyson_it, dyson_vs_ed_real) {
+TEST(strong_coupling, OCA_with_diag_hyb) {
 
   // --- Problem setup --- //
 
   // Set problem parameters
-  double beta = 10; // Inverse temperature
-  const int N = 2;     // Dimension of Greens function
+  double beta = 1; // Inverse temperature
+  const int N = 2;     // Dimension of Greens function. Do not change, or you'll have to rewrite G(t)
   int Num = 128;   // Size of equidist grid
-  const int dim = 1;
+  const int dim = 3; //Dimension of hybridization. One can change dim as they want.
   auto ID_N =  eye<dcomplex>(N);
   auto ID_dim =  eye<dcomplex>(dim);
 
   // Set DLR parameters
-  double lambda = 10;
+  double lambda = beta;
   double eps = 1.0e-11;
-
-  // Get Green's function on equidist grid
-  auto tgrid = nda::vector<double>(Num + 1);
-  auto tgrid_relative = nda::vector<double>(Num + 1); 
-  double h_t = beta / Num;
-  for (int i = 0; i <= Num; ++i) {
-    tgrid(i) = i * h_t;
-    tgrid_relative(i) = tgrid(i)/beta;
-  }
-  auto Gtau = nda::array<dcomplex, 3>(Num + 1, N, N);
-
-  double alpha_1 = 0.2;
-  double alpha_2 = 0.1;
-
-  auto G_01 = exp(-alpha_1 * tgrid);
-  Gtau(range(0, Num + 1), 0, 0) = 0;
-  Gtau(range(0, Num + 1), 1, 1) = 0;
-  Gtau(range(0, Num + 1), 0, 1) = G_01;
-  Gtau(range(0, Num + 1), 1, 0) = G_01;
-
-  // --- Build DLR --- //
-
   // Get DLR frequencies
   auto dlr_rf = build_dlr_rf(lambda, eps);
   // Get DLR imaginary time object
   auto itops = imtime_ops(lambda, dlr_rf);
-  auto const &dlr_it = itops.get_itnodes();
-  // std::cout<<dlr_rf;
+  auto const & dlr_it = itops.get_itnodes();
   int r = itops.rank();
 
+  nda::vector<double> dlr_it_actual = dlr_it;
+  for (int i = 0;i<r;++i) {if (dlr_it(i)<0) dlr_it_actual(i) = dlr_it(i)+1; }
 
-  auto Gdlr = itops.fitvals2coefs(tgrid_relative, Gtau);
-  auto Gtau_re = nda::array<dcomplex, 3>(Num + 1, N, N);
-  for (int i = 0; i <= Num; ++i) {
-    Gtau_re(i, range(N), range(N)) = itops.coefs2eval(Gdlr, tgrid[i]/beta);
-  }
-  std::cout << "Max Gtau error: " << max_element(abs((Gtau - Gtau_re))) << std::endl;
 
-  auto Gt = itops.coefs2vals(Gdlr);
-  // auto Gt2 = nda::array<dcomplex, 3>(r, dim, dim); 
-  // for (int i = 0; i <r; ++i) {
-  //   Gt2(i, range(dim), range(dim)) = itops.coefs2eval(Gdlr, dlr_it(i));
-  // }
-  // std::cout << "Max error: " << max_element(abs((Gt - Gt2))) << std::endl; 
+  //parameters in exponential functions we will use
+  double alpha_1 = 0.2;
+  double alpha_2 = 0.1;
+  //construct G(t) = [0, exp(-alpha_1*t); exp(-alpha_1*t) 0]
+  auto Gt = nda::array<dcomplex, 3>(r, N, N);
+  Gt = 0;
+  auto G_01 = exp(-alpha_1*dlr_it_actual);
+  Gt(_,0,1) = G_01;
+  Gt(_,1,0) = G_01;
 
-  auto Deltatau = nda::array<dcomplex, 3>(Num + 1, dim, dim); 
-  for (int i = 0; i <= Num; ++i) Deltatau(i,_,_) = exp(-alpha_2*tgrid(i))*ID_dim;
+  //construct Deltat = exp(-alpha2 * t)
+  auto Deltat = nda::array<dcomplex, 3>(r, dim, dim); 
+  Deltat = 0;
+  for (int i = 0; i < r; ++i) Deltat(i,_,_) = exp(-alpha_2*dlr_it_actual(i))*ID_dim;
 
-  auto Delta_dlr = itops.fitvals2coefs(tgrid_relative, Deltatau);
-  auto Deltatau_re = nda::array<dcomplex, 3>(Num + 1, dim, dim);
-  for (int i = 0; i <= Num; ++i) {
-    Deltatau_re(i, range(dim), range(dim)) = itops.coefs2eval(Delta_dlr, tgrid[i]/beta);
-  }
-  std::cout << "Max Deltatau error: " << max_element(abs((Deltatau - Deltatau_re))) << std::endl;
-  auto Deltat = itops.coefs2vals(Delta_dlr);
+  //construct Gdlr and Delta dlr
+  auto Gdlr = itops.vals2coefs(Gt); 
+  auto Deltadlr = itops.vals2coefs(Deltat);  
  
-  bool check = true;
-  auto Delta_decomp = hyb_decomp(Delta_dlr,dlr_rf,Deltat,dlr_it,eps);
-
+  //decomposition of hybridization
+  auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf,Deltat,dlr_it,eps);
+  //F matrices
   auto F = nda::array<dcomplex,3>(dim,N,N);
   for (int i = 0; i<dim;++i) F(i,_,_) = ID_N;
-
+  
+  //construct U_tilde, V_tilde, c
   auto Delta_F = hyb_F(Delta_decomp, dlr_rf, dlr_it, F, F);
-  // std::cout<<Delta_F.c;
-  // auto D = nda::array<int,2>{{0,2},{1,3}};
-  auto D = nda::array<int,2>{{0,2},{1,4},{3,5}};
-  //std::cout<;
-  //auto OCAdiagram_2 = OCA_calc(Delta_F,Deltat, Gt,itops,beta, F,  F);
-  auto OCAdiagram = Diagram_calc(Delta_F,D,Deltat, Gt,itops,beta, F,  F);
-  //std::cout<<"difference between two diagram eval is " << max_element(abs(OCAdiagram - OCAdiagram_2))<<std::endl;
-  auto OCA_dlr = itops.vals2coefs(OCAdiagram);
-  auto OCA_tgrid = nda::array<dcomplex, 3>(Num +1,OCA_dlr.shape(1), OCA_dlr.shape(2));
-  for (int i = 0; i <= Num; ++i) {
-    OCA_tgrid(i, _, _) = itops.coefs2eval(OCA_dlr, tgrid[i]/beta);
-  } 
-  std::cout<<OCA_tgrid(_,0,1);
-  auto Sigma_true = nda::array<dcomplex,3>(r,OCA_dlr.shape(1), OCA_dlr.shape(2));
+
+  //Test OCA(2nd order) diagram
+  std::cout<< "Testing OCA diagram"<<std::endl;
+  auto D2 = nda::array<int,2>{{0,2},{1,3}};
+  auto OCAdiagram = OCA_calc(Delta_F,Deltat, Gt,itops,beta, F,  F);
+  auto OCAdiagram2 = Diagram_calc(Delta_F,D2,Deltat, Gt,itops,beta, F,  F); 
+  std::cout<< "Difference between OCA_calc and Diagram_calc for OCA diagram is "<< max_element(abs(OCAdiagram - OCAdiagram2)) <<std::endl; 
+  //EXPECT_LT(max_element(abs(OCAdiagram - OCAdiagram2)), 1e-15);
+  //calculate true solution from analytic integrations
+  auto OCA_true = nda::array<dcomplex,3>(Gt.shape()); 
+  OCA_true = 0;
+  for (int i=0;i<r;++i) OCA_true(i,0,1) =(exp(-(alpha_1+alpha_2)*beta*dlr_it_actual(i)))* (beta*dlr_it_actual(i)+(exp(-alpha_2*beta*dlr_it_actual(i))-1)/alpha_2)/alpha_2;
+  OCA_true(_,1,0) = OCA_true(_,0,1);
+  OCA_true = OCA_true * pow(dim,2);
+  std::cout<< "Error of OCA_Diagram is "<< max_element(abs(OCAdiagram - OCA_true)) <<std::endl; 
+  //EXPECT_LT(max_element(abs(OCAdiagram - OCA_true)), 1e-12);
 
   
-  // Sigma_true(_,0,0)=0;
-  // Sigma_true(_,1,1) = 0;
-  // for (int n = 0; n <r; ++n){
-  //   if (dlr_it(n)>0){
-  //     Sigma_true(n,0,1) =  exp(-(alpha_1+alpha_2)*beta*dlr_it(n))*(beta*dlr_it(n)+(exp(-alpha_2*beta*dlr_it(n))-1)/alpha_2)/alpha_2;
-  //     Sigma_true(n,1,0) =  exp(-(alpha_1+alpha_2)*beta*dlr_it(n))*(beta*dlr_it(n)+(exp(-alpha_2*beta*dlr_it(n))-1)/alpha_2)/alpha_2;
-  //   }
-  //   else{
-  //    Sigma_true(n,0,1) =  exp(-(alpha_1+alpha_2)*beta*(dlr_it(n)+1))*(beta*(1+dlr_it(n))+(exp(-alpha_2*beta*(dlr_it(n)+1))-1)/alpha_2)/alpha_2;
-  //     Sigma_true(n,1,0) =  exp(-(alpha_1+alpha_2)*beta*(dlr_it(n)+1))*(beta*(1+dlr_it(n))+(exp(-alpha_2*beta*(dlr_it(n)+1))-1)/alpha_2)/alpha_2; 
-  //   }
-  // }
-  // //std::cout<<Sigma_true(10,_,_);
-  // std::cout<<"eps is "<< eps <<" error of oca diagram is "<<max_element(abs(Sigma_true - OCAdiagram));
 
-  Sigma_true(_,0,0)=0;
-  Sigma_true(_,1,1) = 0;
-  for (int n = 0; n <r; ++n){
-    if (dlr_it(n)>0){
-      auto tte = dlr_it(n)*beta; 
-      Sigma_true(n,0,1) =  (1/(2*pow(alpha_2,4))) *exp(-(alpha_1+alpha_2)*tte)*(pow(alpha_2,2)*pow(tte,2)-4*alpha_2*tte-2*exp(-alpha_2*tte)*(alpha_2*tte+3)+6);
-      //Sigma_true(n,0,1) =  exp(-(alpha_1)*tte)*pow(tte,4)/24;
-      Sigma_true(n,1,0) =  Sigma_true(n,0,1);
-  }
-    else{
-      auto tte =beta*( dlr_it(n)+1); 
-    // Sigma_true(n,0,1) =  (1/alpha_2)*exp(-(alpha_1+alpha_2)*tte)*(pow(tte,2)/(2*alpha_2)-2*tte/(pow(alpha_2,2))+3*(1-exp(alpha_2*tte))/(pow(alpha_2,3))-tte*exp(-alpha_2*tte)/(pow(alpha_2,2))  );
-     Sigma_true(n,0,1) =  (1/(2*pow(alpha_2,4))) *exp(-(alpha_1+alpha_2)*tte)*(pow(alpha_2,2)*pow(tte,2)-4*alpha_2*tte-2*exp(-alpha_2*tte)*(alpha_2*tte+3)+6);
-      Sigma_true(n,1,0) =  Sigma_true(n,0,1);
-    }
-  }
-  std::cout<<std::endl<<OCAdiagram(_,0,1)<<std::endl<<Sigma_true(_,0,1);
-  //std::cout<<Sigma_true(10,_,_);
-  std::cout<<"eps is "<< eps <<" error of oca diagram is "<<max_element(abs(Sigma_true - OCAdiagram));
+  //Test third order diagram
+  auto D3 = nda::array<int,2>{{0,2},{1,4},{3,5}};
+  std::cout<< "Testing third order diagram with topology: "<<D3<<std::endl; 
+  auto diagram_3rd_order = Diagram_calc(Delta_F,D3,Deltat, Gt,itops,beta, F,  F);
+  //construct analytic solution
+  auto diagram_true = nda::array<dcomplex,3>(Gt.shape());  
+  diagram_true = 0;
+  for (int i=0;i<r;++i) diagram_true(i,0,1) = (1/(2*pow(alpha_2,4))) *exp(-(alpha_1+alpha_2)*beta*dlr_it_actual(i))*(pow(alpha_2,2)*pow(beta*dlr_it_actual(i),2)-4*alpha_2*beta*dlr_it_actual(i)-2*exp(-alpha_2*beta*dlr_it_actual(i))*(alpha_2*beta*dlr_it_actual(i)+3)+6);
 
-  
+  diagram_true(_,1,0) = diagram_true(_,0,1);
+  diagram_true = diagram_true * pow(dim,D3.shape(0));
+  std::cout<<"Error of oca diagram is "<<max_element(abs(diagram_true - diagram_3rd_order)) <<std::endl;
 }
