@@ -7,38 +7,38 @@
 using namespace cppdlr;
 using namespace nda;
 
-// dim is size of hybridization matrix,i.e. impurity size (number of single-particle basis of impurity); 
+// n is size of hybridization matrix,i.e. impurity size (number of single-particle basis of impurity); 
 // N is size of Green's function matrix, i.e. the dimension of impurity Fock space;
 // P is number of terms in the decomposition of the hybridization function Delta
 // r is the size of the time grid, i.e. the DLR rank
 
-hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_const_view<double> dlr_rf, nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it ,double eps){
-    // obtain dlr_rank and dim of hyb function
-    int p = Delta_dlr.shape(0);
-    int dim = Delta_dlr.shape(1);
+hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Matrices, nda::vector_const_view<double> poles, nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it ,double eps){
+    // obtain dlr_rank and n of hyb function
+    int p = Matrices.shape(0);
+    int n = Matrices.shape(1);
 
     // prepare for svd
-    auto s_vec = nda::array<double, 1>(dim);
-    auto U_local = nda::matrix<dcomplex,F_layout>(dim,dim);
-    auto VT_local = nda::matrix<dcomplex,F_layout>(dim,dim);
-    auto a =  nda::array<dcomplex, 2, F_layout>(dim,dim);
+    auto s_vec = nda::array<double, 1>(n);
+    auto U_local = nda::matrix<dcomplex,F_layout>(n,n);
+    auto VT_local = nda::matrix<dcomplex,F_layout>(n,n);
+    auto a =  nda::array<dcomplex, 2, F_layout>(n,n);
     
     //obtain max number of poles 
-    int max_num_pole = dim*p;
+    int max_num_pole = n*p;
 
     //prepare places to store w, U, V
-    auto U_all = nda::matrix<dcomplex>(dim,max_num_pole);
-    auto V_all = nda::matrix<dcomplex>(max_num_pole,dim);
+    auto U_all = nda::matrix<dcomplex>(n,max_num_pole);
+    auto V_all = nda::matrix<dcomplex>(max_num_pole,n);
     auto w_all = nda::vector<double>(max_num_pole);
 
     //loop over all dlr frequencies, do svd, truncate singular value that are too small
     int P = 0;
     for (int i=0;i<p; ++i){
-        a = Delta_dlr(i,_,_); // I am not happy about making a copy here
+        a = Matrices(i,_,_); // I am not happy about making a copy here
         nda::lapack::gesvd(a,s_vec,U_local,VT_local);
-        for (int d=0; d<dim; ++d){
+        for (int d=0; d<n; ++d){
             if (s_vec(d)>eps){
-                w_all(P) = dlr_rf(i);
+                w_all(P) = poles(i);
                 U_all(_,P) = U_local(_,d)*sqrt(s_vec(d));
                 V_all(P,_) = VT_local(d,_)*sqrt(s_vec(d));
                 P +=1;
@@ -49,7 +49,7 @@ hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_
     U = transpose(U_all(_,range(P))); //transpose U to get the shape that we want
     V = V_all(range(P),_);
 
-    if (real(U(0,0))<0) U = -U; else V = -V; //This minus sign is added because cppdlr kernel k_it(t,w) = -K(t,w).
+    //if (real(U(0,0))<0) U = -U; else V = -V; //This minus sign is added because cppdlr kernel k_it(t,w) = -K(t,w).
     
     //calculate the error of the decomposition   
     //TODO make this a private function
@@ -57,14 +57,14 @@ hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_
 
     
     std::cout<< "calculating error of the decomposition of hybridization"<<std::endl;
-    auto Deltat_approx =nda::array<dcomplex,3>(r,dim,dim);
+    auto Deltat_approx =nda::array<dcomplex,3>(r,n,n);
     Deltat_approx = 0;
     
     for (int k=0;k<r;++k){
         for (int R = 0;  R<P;++R){
-            for (int a=0;a<dim;++a) {
-                for (int b =0 ;b<dim; ++b){
-                    Deltat_approx(k,a,b) += -k_it(dlr_it(k), w(R))*U(R,a)*V(R,b);
+            for (int a=0;a<n;++a) {
+                for (int b =0 ;b<n; ++b){
+                    Deltat_approx(k,a,b) += k_it(dlr_it(k), w(R))*U(R,a)*V(R,b);
                 }
             }
         }
@@ -93,22 +93,22 @@ hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda:
     
     //Finally construct Utilde, Vtilde, and c
     c = nda::vector<double>(P);
-    U_tilde = nda::array<dcomplex,4>(r,P,N,N);
+    U_tilde = nda::array<dcomplex,4>(P,r,N,N);
     U_tilde = 0;
-    V_tilde = nda::array<dcomplex,4>(r,P,N,N);
+    V_tilde = nda::array<dcomplex,4>(P,r,N,N);
     V_tilde = 0;
 
     for (int R=0;R<P;++R){
        for (int k=0;k<r;++k){
-            U_tilde(k,R,_,_)= -k_it(dlr_it(k),hyb_decomp.w(R))*U_c(R,_,_);
+            U_tilde(R,k,_,_)= k_it(dlr_it(k),hyb_decomp.w(R))*U_c(R,_,_);
        }
        if (hyb_decomp.w(R)<0){
-            for (int k=0;k<r;++k) V_tilde(k,R,_,_) = -k_it(dlr_it(k),-hyb_decomp.w(R))*V_c(R,_,_);
-            c(R) = -1/k_it(0,-hyb_decomp.w(R));
+            for (int k=0;k<r;++k) V_tilde(R,k,_,_) = k_it(dlr_it(k),-hyb_decomp.w(R))*V_c(R,_,_);
+            c(R) = 1/k_it(0,-hyb_decomp.w(R));
        }
        else {
-            for (int k=0;k<r;++k) V_tilde(k,R,_,_) = -k_it(dlr_it(k),hyb_decomp.w(R))*V_c(R,_,_);
-            c(R) = -1/k_it(0,hyb_decomp.w(R)); 
+            for (int k=0;k<r;++k) V_tilde(R,k,_,_) = k_it(dlr_it(k),hyb_decomp.w(R))*V_c(R,_,_);
+            c(R) = 1/k_it(0,hyb_decomp.w(R)); 
        }
     }
     w = hyb_decomp.w;
@@ -124,7 +124,7 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
     int P = hyb_F.c.shape(0);
-    int dim = F.shape(0);
+    int n = F.shape(0);
     
 
     //initialize diagram
@@ -148,9 +148,9 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
         We store these in L(r,2m,N,N). 
         We initialize them with Green's functions.
         */
-        auto L = nda::array<dcomplex,4>(r,2*m,N,N);
-        L = 0;
-        for (int s=1;s<=2*m-1;++s) L(_,s,_,_) = Gt;
+        auto line = nda::array<dcomplex,4>(2*m,r,N,N);
+        line = 0;
+        for (int s=1;s<=2*m-1;++s) line(s,_,_,_) = Gt;
         double constant = 1; // the constant term responsible for the current diagram
 
         /* Construct point objects, i.e. functions at t_s. Also update line objects.
@@ -158,55 +158,54 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
         (Nothing is done for the vertex connecting to 0. That vertex will be treated differently in the final integration).
         We store these in P(r,2m,N,N).
         */
-        auto P0 = nda::array<dcomplex,4>(r,2*m,N,N);
-        P0 = 0;
+        auto vertex = nda::array<dcomplex,4>(2*m,r,N,N);
+        vertex = 0;
         for (int v = 1;v<m;++v){
             constant = constant*hyb_F.c(R(v));
             
             //when w(R(v))>0, we need to modify the line object, and the constant. The point object is assigned to be the identity matrix.
             if (hyb_F.w(R(v))>0){
                 for (int k=0;k<r;++k){
-                    P0(k,D(v,0),_,_) = eye<dcomplex>(N); 
-                    P0(k,D(v,1),_,_) = eye<dcomplex>(N);
-                    L(k,D(v,0),_,_) = matmul(L(k,D(v,0),_,_),hyb_F.V_tilde(k,R(v),_,_));
-                    L(k,D(v,1)-1,_,_) = matmul(hyb_F.U_tilde(k,R(v),_,_), L(k,D(v,1)-1,_,_));
+                    vertex(D(v,0),k,_,_) = eye<dcomplex>(N); 
+                    vertex(D(v,1),k,_,_) = eye<dcomplex>(N);
+                    line(D(v,0),k,_,_) = matmul(line(D(v,0),k,_,_),hyb_F.V_tilde(R(v),k,_,_));
+                    line(D(v,1)-1,k,_,_) = matmul(hyb_F.U_tilde(R(v),k,_,_), line(D(v,1)-1,k,_,_));
                 } 
           
                 for (int s = D(v,0)+1; s<D(v,1)-1;++s){
-                    for (int k =0;k<r;++k) L(k,s,_,_) = L(k,s,_,_) * (-k_it(dlr_it(k),hyb_F.w(R(v))));
+                    for (int k =0;k<r;++k) line(s,k,_,_) = line(s,k,_,_) * (k_it(dlr_it(k),hyb_F.w(R(v))));
                     constant = constant * hyb_F.c(R(v));
                 }
             }
             //when w(R(v))<0, we need only to modify the point object.
             else{
-                P0(_,D(v,0),_,_) = hyb_F.V_tilde(_,R(v),_,_);
-                P0(_,D(v,1),_,_) = hyb_F.U_tilde(_,R(v),_,_);
+                vertex(D(v,0),_,_,_) = hyb_F.V_tilde(R(v),_,_,_);
+                vertex(D(v,1),_,_,_) = hyb_F.U_tilde(R(v),_,_,_);
             }
         }
         //Phase 2: integrate everything out
         auto T = nda::array<dcomplex,3>(r,N,N); 
         
         // first, calculate P(t1)*G(t1)
-        for (int k = 0;k<r;++k) T(k,_,_) = matmul(P0(k,1,_,_),Gt(k,_,_));
+        for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(1,k,_,_),Gt(k,_,_));
 
         //integrate out indices t1, ..., t(2m-2). In each for loop, first convolution, then multiplication.
         for (int s=1;s<=2*m-2;++s){
             // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
-            nda::array<dcomplex,3> Lhere = L(_,s,_,_); // Zhen: I am not happy with this copying
-            T = itops.tconvolve(beta, Fermion,itops.vals2coefs(Lhere),itops.vals2coefs(T));
+            T = itops.tconvolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T));
 
             //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
             //calculate U/Vtilde(t(s+1))*T(t(s+1))
             if (s+1 != D(0,1)){
-                for (int k = 0;k<r;++k) T(k,_,_) = matmul(P0(k,s+1,_,_),T(k,_,_));
+                for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(s+1,k,_,_),T(k,_,_));
             }
             // Do special things for the vertex connecting to 0:
             //T_k = sum_ab Delta_ab(t) Fdag_a *T_k * F_b
             else {
-                auto T2 = nda::array<dcomplex,4>(dim,r,N,N);
+                auto T2 = nda::array<dcomplex,4>(n,r,N,N);
                 T2=0;
                 // T2(b,ts) = T(ts)*F_b
-                for (int b =0;b<dim;++b){
+                for (int b =0;b<n;++b){
                     for (int k=0;k<r;++k) T2(b,k,_,_) = matmul(T(k,_,_),F(b,_,_));
                 }
                 // T2(a,ts) = sum_b Delta(ts)_ab * T2(b,ts)
@@ -220,7 +219,7 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
                 // T = sum_a Fdag_a T2(a,ts) 
                 T = 0; 
                 for (int k=0;k<r;++k){
-                    for (int a = 0;a<dim;++a){
+                    for (int a = 0;a<n;++a){
                         T(k,_,_) = T(k,_,_)+matmul(F_dag(a,_,_),T2(a,k,_,_));
                     }
                 } 
@@ -241,7 +240,7 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> D
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
     int P = hyb_F.c.shape(0);
-    int dim = F.shape(0);
+    int n = F.shape(0);
     
 
     //initialize diagram
@@ -253,21 +252,21 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> D
         // first integrate out t1
         if (hyb_F.w(R)<0){
             // T(t1) = Vtilde(t1)*G(t1)
-            for (int k = 0;k<r;++k) T(k,_,_) = matmul(hyb_F.V_tilde(k,R,_,_),Gt(k,_,_));
+            for (int k = 0;k<r;++k) T(k,_,_) = matmul(hyb_F.V_tilde(R,k,_,_),Gt(k,_,_));
             // integrate t1 out: int G(t2-t1)* T(t1) dt1
             T = itops.tconvolve(beta, Fermion,itops.vals2coefs(Gt),itops.vals2coefs(T));
         }
         else{
             // T(t2-t1) = G(t2-t1) * Vtilde(t2-t1)
-            for (int k = 0;k<r;++k) T(k,_,_) = matmul(Gt(k,_,_),hyb_F.V_tilde(k,R,_,_));
+            for (int k = 0;k<r;++k) T(k,_,_) = matmul(Gt(k,_,_),hyb_F.V_tilde(R,k,_,_));
             // integrate t1 out: int T(t2-t1)* G(t1) dt1
             T = itops.tconvolve(beta, Fermion,itops.vals2coefs(T),itops.vals2coefs(Gt)); 
         }
         //next, calculate T3(k) = sum_ab Delta_ab(t_k) * Fdag_a * T(k) * F_b
-        auto T2 = nda::array<dcomplex,4>(dim,r,N,N);
+        auto T2 = nda::array<dcomplex,4>(n,r,N,N);
         T2=0;
         // T2(b,k) = T(k)*F(b)
-        for (int b =0;b<dim;++b){
+        for (int b =0;b<n;++b){
             for (int k=0;k<r;++k) T2(b,k,_,_) = matmul(T(k,_,_),F(b,_,_));
         }
         // T2(a,k) = sum_b Delta_ab(t_k) * T2(b,k)
@@ -282,7 +281,7 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> D
         auto T3 =  nda::array<dcomplex,3>(r,N,N);
         T3 = 0; 
         for (int k=0;k<r;++k){
-            for (int a = 0;a<dim;++a){
+            for (int a = 0;a<n;++a){
                 T3(k,_,_) = T3(k,_,_)+matmul(F_dag(a,_,_),T2(a,k,_,_));
             }
         }
@@ -291,11 +290,11 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> D
             // integrate t2 out: T(t) = int G(t-t2)* T3(t2) dt2
             T = itops.tconvolve(beta, Fermion,itops.vals2coefs(Gt),itops.vals2coefs(T3));
             //T(t) = Utilde(t) * T(t) 
-            for (int k = 0;k<r;++k) T(k,_,_) = matmul(hyb_F.U_tilde(k,R,_,_),T(k,_,_));
+            for (int k = 0;k<r;++k) T(k,_,_) = matmul(hyb_F.U_tilde(R,k,_,_),T(k,_,_));
         }
         else{
             // T(t-t2) = Utilde(t-t2) * Gt(t-t2)
-            for (int k = 0;k<r;++k) T(k,_,_) = matmul(hyb_F.U_tilde(k,R,_,_),Gt(k,_,_));
+            for (int k = 0;k<r;++k) T(k,_,_) = matmul(hyb_F.U_tilde(R,k,_,_),Gt(k,_,_));
             // integrate t2 out: T(t) = int T(t-t2)* T3(t2) dt2 
             T = itops.tconvolve(beta, Fermion,itops.vals2coefs(T),itops.vals2coefs(T3)); 
         }

@@ -19,11 +19,11 @@ using namespace nda;
         U,V: P*dim array: complex-valued; 
     We construct this decomposition using dlr.  
     Input of constructor:
-        Delta_dlr: hyb's dlr coefficients;
-        dlr_rf:    dlr real frequencies;
-        eps:       
+        Matrices: Matrices corresponding to poles; e.g. Delta_dlr;
+        Poles:  real frequencies;                  e.g. dlr_rf;
         Deltat: hyb on dlr imagrinary time grid;
         dlr_it: dlr imaginary time grid
+        eps = 0
     Deltat and dlr_it are only used to check the accuracy of the decomposition.
 
     Expecting this construction step to be replaced by pole fitting procedures in the future. 
@@ -36,12 +36,12 @@ class hyb_decomp {
     nda::matrix<dcomplex> V;
     //should add a constructor that one can choose not to calculate the decomposition error
     //hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_const_view<double> dlr_rf, double eps);
-    hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_const_view<double> dlr_rf, nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it, double eps=0);
+    hyb_decomp(nda::array_const_view<dcomplex,3> Matrices, nda::vector_const_view<double> poles, nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it, double eps=0);
 };
 
 /* This is the class for constructing U_tilde and V_tilde, based on hyb_decomp and the F matrices.
     Its components are:
-        U_tilde, V_tilde, both of size (r,P,N,N)
+        U_tilde, V_tilde, both of size (P,r,N,N)
         c, of size (1,P)
         w of size (1,P)
     Input of constructor:
