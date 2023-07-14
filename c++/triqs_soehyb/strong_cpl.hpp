@@ -13,7 +13,7 @@ using namespace nda;
 
 /* This is the class for decomposition of a hybridization function. 
     The decomposition is:
-        Delta_ab(iv) = sum_R U(a,R)V(b,R)/(iv-w(R))
+        Delta_ab(iv) = sum_R U(R,a)V(R,b)/(iv-w(R))
     Its components are:
         w:    length of P vector: real-valued poles;
         U,V: P*dim array: complex-valued; 
@@ -54,7 +54,7 @@ class hyb_decomp {
 class hyb_F {
     public:
     nda::vector<double> c;
-    nda::vector<double> w0;
+    nda::vector<double> w;
     nda::array<dcomplex,4> U_tilde;
     nda::array<dcomplex,4> V_tilde;
 

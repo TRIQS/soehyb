@@ -27,8 +27,8 @@ TEST(strong_coupling, OCA_with_diag_hyb) {
   auto ID_dim =  eye<dcomplex>(dim);
 
   // Set DLR parameters
-  double lambda = beta;
-  double eps = 1.0e-16;
+  double lambda = beta*5;
+  double eps = 1.0e-12;
   // Get DLR frequencies
   auto dlr_rf = build_dlr_rf(lambda, eps);
   // Get DLR imaginary time object

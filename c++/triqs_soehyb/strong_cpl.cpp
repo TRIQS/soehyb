@@ -14,17 +14,17 @@ using namespace nda;
 
 hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_const_view<double> dlr_rf, nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it ,double eps){
     // obtain dlr_rank and dim of hyb function
-    int dlr_rank = Delta_dlr.shape(0);
+    int p = Delta_dlr.shape(0);
     int dim = Delta_dlr.shape(1);
 
     // prepare for svd
     auto s_vec = nda::array<double, 1>(dim);
     auto U_local = nda::matrix<dcomplex,F_layout>(dim,dim);
     auto VT_local = nda::matrix<dcomplex,F_layout>(dim,dim);
-    nda::array<dcomplex, 2, F_layout> a;
+    auto a =  nda::array<dcomplex, 2, F_layout>(dim,dim);
     
     //obtain max number of poles 
-    int max_num_pole = dim*dlr_rank;
+    int max_num_pole = dim*p;
 
     //prepare places to store w, U, V
     auto U_all = nda::matrix<dcomplex>(dim,max_num_pole);
@@ -33,7 +33,7 @@ hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_
 
     //loop over all dlr frequencies, do svd, truncate singular value that are too small
     int P = 0;
-    for (int i=0;i<dlr_rank; ++i){
+    for (int i=0;i<p; ++i){
         a = Delta_dlr(i,_,_); // I am not happy about making a copy here
         nda::lapack::gesvd(a,s_vec,U_local,VT_local);
         for (int d=0; d<dim; ++d){
@@ -51,18 +51,19 @@ hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_
 
     if (real(U(0,0))<0) U = -U; else V = -V; //This minus sign is added because cppdlr kernel k_it(t,w) = -K(t,w).
     
-    //calculate the error of the decomposition
-    
+    //calculate the error of the decomposition   
+    //TODO make this a private function
     int r =Deltat.shape(0);
 
-    std::cout<< "calculating error of the decomposition, this step could be slow since we have not made use of matrice multiplications"<<std::endl;
+    
+    std::cout<< "calculating error of the decomposition of hybridization"<<std::endl;
     auto Deltat_approx =nda::array<dcomplex,3>(r,dim,dim);
     Deltat_approx = 0;
     
-    for (int a=0;a<dim;++a){
-        for (int b =0 ;b<dim; ++b){
-            for (int R = 0;  R<P;++R){
-                for (int k=0;k<r;++k) {
+    for (int k=0;k<r;++k){
+        for (int R = 0;  R<P;++R){
+            for (int a=0;a<dim;++a) {
+                for (int b =0 ;b<dim; ++b){
                     Deltat_approx(k,a,b) += -k_it(dlr_it(k), w(R))*U(R,a)*V(R,b);
                 }
             }
@@ -81,6 +82,7 @@ hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda:
     int r = dlr_it.shape(0); 
     int vec_len = N*N;
 
+    //TODO: change to arraymult
     auto F_reshape = reshape(F,F.shape(0),vec_len);
     auto F_dag_reshape = reshape(F_dag,F_dag.shape(0),vec_len);
 
@@ -90,27 +92,26 @@ hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda:
     
     
     //Finally construct Utilde, Vtilde, and c
-    nda::vector<double> c2(P);
-    nda::array<dcomplex,4> U2_tilde(r,P,N,N);
-    nda::array<dcomplex,4> V2_tilde(r,P,N,N);
+    c = nda::vector<double>(P);
+    U_tilde = nda::array<dcomplex,4>(r,P,N,N);
+    U_tilde = 0;
+    V_tilde = nda::array<dcomplex,4>(r,P,N,N);
+    V_tilde = 0;
 
     for (int R=0;R<P;++R){
        for (int k=0;k<r;++k){
-            U2_tilde(k,R,_,_)= -k_it(dlr_it(k),hyb_decomp.w(R))*U_c(R,_,_);
+            U_tilde(k,R,_,_)= -k_it(dlr_it(k),hyb_decomp.w(R))*U_c(R,_,_);
        }
        if (hyb_decomp.w(R)<0){
-            for (int k=0;k<r;++k) V2_tilde(k,R,_,_) = -k_it(dlr_it(k),-hyb_decomp.w(R))*V_c(R,_,_);
-            c2(R) = -1/k_it(0,-hyb_decomp.w(R));
+            for (int k=0;k<r;++k) V_tilde(k,R,_,_) = -k_it(dlr_it(k),-hyb_decomp.w(R))*V_c(R,_,_);
+            c(R) = -1/k_it(0,-hyb_decomp.w(R));
        }
        else {
-            for (int k=0;k<r;++k) V2_tilde(k,R,_,_) = -k_it(dlr_it(k),hyb_decomp.w(R))*V_c(R,_,_);
-            c2(R) = -1/k_it(0,hyb_decomp.w(R)); 
+            for (int k=0;k<r;++k) V_tilde(k,R,_,_) = -k_it(dlr_it(k),hyb_decomp.w(R))*V_c(R,_,_);
+            c(R) = -1/k_it(0,hyb_decomp.w(R)); 
        }
     }
-    c = c2;
-    U_tilde = U2_tilde;
-    V_tilde = V2_tilde;
-    w0 = hyb_decomp.w;
+    w = hyb_decomp.w;
 }
 
 
@@ -134,6 +135,7 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
     int total_num_diagram = pow(P, m-1);
     for (int num=0;num<total_num_diagram;++num){
         int num0 = num;
+        //TODO: change to 0...m-2
         //obtain R2, ... , Rm, store as R[1],...,R[m-1]
         auto R = nda::vector<int>(m);
         for (int v = 1;v<m;++v){
@@ -162,14 +164,16 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
             constant = constant*hyb_F.c(R(v));
             
             //when w(R(v))>0, we need to modify the line object, and the constant. The point object is assigned to be the identity matrix.
-            if (hyb_F.w0(R(v))>0){
-                for (int k=0;k<r;++k) P0(k,D(v,0),_,_) = eye<dcomplex>(N); 
-                for (int k=0;k<r;++k) P0(k,D(v,1),_,_) = eye<dcomplex>(N);
-                for (int k=0;k<r;++k) L(k,D(v,0),_,_) = matmul(L(k,D(v,0),_,_),hyb_F.V_tilde(k,R(v),_,_));
-                for (int k=0;k<r;++k) L(k,D(v,1)-1,_,_) = matmul(hyb_F.U_tilde(k,R(v),_,_), L(k,D(v,1)-1,_,_));
-                
+            if (hyb_F.w(R(v))>0){
+                for (int k=0;k<r;++k){
+                    P0(k,D(v,0),_,_) = eye<dcomplex>(N); 
+                    P0(k,D(v,1),_,_) = eye<dcomplex>(N);
+                    L(k,D(v,0),_,_) = matmul(L(k,D(v,0),_,_),hyb_F.V_tilde(k,R(v),_,_));
+                    L(k,D(v,1)-1,_,_) = matmul(hyb_F.U_tilde(k,R(v),_,_), L(k,D(v,1)-1,_,_));
+                } 
+          
                 for (int s = D(v,0)+1; s<D(v,1)-1;++s){
-                    for (int k =0;k<r;++k) L(k,s,_,_) = L(k,s,_,_) * (-k_it(dlr_it(k),hyb_F.w0(R(v))));
+                    for (int k =0;k<r;++k) L(k,s,_,_) = L(k,s,_,_) * (-k_it(dlr_it(k),hyb_F.w(R(v))));
                     constant = constant * hyb_F.c(R(v));
                 }
             }
@@ -247,7 +251,7 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> D
         auto T = nda::array<dcomplex,3>(r,N,N); 
         T = 0;
         // first integrate out t1
-        if (hyb_F.w0(R)<0){
+        if (hyb_F.w(R)<0){
             // T(t1) = Vtilde(t1)*G(t1)
             for (int k = 0;k<r;++k) T(k,_,_) = matmul(hyb_F.V_tilde(k,R,_,_),Gt(k,_,_));
             // integrate t1 out: int G(t2-t1)* T(t1) dt1
@@ -283,7 +287,7 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> D
             }
         }
         //finally integrate out t2
-        if (hyb_F.w0(R)<0){
+        if (hyb_F.w(R)<0){
             // integrate t2 out: T(t) = int G(t-t2)* T3(t2) dt2
             T = itops.tconvolve(beta, Fermion,itops.vals2coefs(Gt),itops.vals2coefs(T3));
             //T(t) = Utilde(t) * T(t) 
