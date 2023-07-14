@@ -97,17 +97,21 @@ hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda:
     U_tilde = 0;
     V_tilde = nda::array<dcomplex,4>(P,r,N,N);
     V_tilde = 0;
+    K_matrix = nda::array<double,2>(P,r);
+    for (int R=0;R<P;++R){
+       for (int k=0;k<r;++k) K_matrix(R,k) = k_it(dlr_it(k),hyb_decomp.w(R)); 
+    }
 
     for (int R=0;R<P;++R){
        for (int k=0;k<r;++k){
-            U_tilde(R,k,_,_)= k_it(dlr_it(k),hyb_decomp.w(R))*U_c(R,_,_);
+            U_tilde(R,k,_,_)= K_matrix(R,k)*U_c(R,_,_);
        }
        if (hyb_decomp.w(R)<0){
             for (int k=0;k<r;++k) V_tilde(R,k,_,_) = k_it(dlr_it(k),-hyb_decomp.w(R))*V_c(R,_,_);
             c(R) = 1/k_it(0,-hyb_decomp.w(R));
        }
        else {
-            for (int k=0;k<r;++k) V_tilde(R,k,_,_) = k_it(dlr_it(k),hyb_decomp.w(R))*V_c(R,_,_);
+            for (int k=0;k<r;++k) V_tilde(R,k,_,_) = K_matrix(R,k)*V_c(R,_,_);
             c(R) = 1/k_it(0,hyb_decomp.w(R)); 
        }
     }
@@ -171,9 +175,10 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
                     line(D(v,0),k,_,_) = matmul(line(D(v,0),k,_,_),hyb_F.V_tilde(R(v),k,_,_));
                     line(D(v,1)-1,k,_,_) = matmul(hyb_F.U_tilde(R(v),k,_,_), line(D(v,1)-1,k,_,_));
                 } 
+
           
                 for (int s = D(v,0)+1; s<D(v,1)-1;++s){
-                    for (int k =0;k<r;++k) line(s,k,_,_) = line(s,k,_,_) * (k_it(dlr_it(k),hyb_F.w(R(v))));
+                    for (int k =0;k<r;++k) line(s,k,_,_) = line(s,k,_,_) *hyb_F.K_matrix(R(v),k);
                     constant = constant * hyb_F.c(R(v));
                 }
             }

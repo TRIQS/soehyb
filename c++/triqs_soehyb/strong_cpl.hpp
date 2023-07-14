@@ -44,6 +44,7 @@ class hyb_decomp {
         U_tilde, V_tilde, both of size (P,r,N,N)
         c, of size (1,P)
         w of size (1,P)
+        K_matrix of size (P,r)
     Input of constructor:
         hyb_decomp: from the class hyb_decomp;
         dlr_rf: dlr real frequencies;
@@ -57,6 +58,7 @@ class hyb_F {
     nda::vector<double> w;
     nda::array<dcomplex,4> U_tilde;
     nda::array<dcomplex,4> V_tilde;
+    nda::array<double,2> K_matrix;
 
     hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda::vector_const_view<double> dlr_it, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
 };
