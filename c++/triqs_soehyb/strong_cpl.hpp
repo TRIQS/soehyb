@@ -91,3 +91,7 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> D
 
 //This is a function for multiplying matrix-valued functions Ft and Gt, and store the result on Gt
 void multiplicate_onto(nda::array_const_view<dcomplex,3> Ft, nda::array_view<dcomplex,3> Gt);
+
+void cut_hybridization(int v,int &Rv, nda::array_const_view<int,2> D, double &constant, hyb_F &hyb_F, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex,int &r, int &N);
+
+void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat, int &n, int &r, int &N);

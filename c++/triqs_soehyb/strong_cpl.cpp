@@ -150,38 +150,12 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
         line = 0;
         for (int s=1;s<=2*m-1;++s) line(s,_,_,_) = Gt;
         double constant = 1; // the constant term responsible for the current diagram
-
-        /* Construct point objects, i.e. functions at t_s. Also update line objects.
-        This is done by iterating over the 1st,2nd, ..., (m-1)-th interaction lines. 
-        (Nothing is done for the vertex connecting to 0. That vertex will be treated differently in the final integration).
-        We store these in P(r,2m,N,N).
-        */
+        //construct vertex object
         auto vertex = nda::array<dcomplex,4>(2*m,r,N,N);
         vertex = 0;
-        for (int v = 1;v<m;++v){
-            constant *= hyb_F.c(R(v));
-            
-            //when w(R(v))>0, we need to modify the line object, and the constant. The point object is assigned to be the identity matrix.
-            if (hyb_F.w(R(v))>0){
-                for (int k=0;k<r;++k){
-                    vertex(D(v,0),k,_,_) = eye<dcomplex>(N); 
-                    vertex(D(v,1),k,_,_) = eye<dcomplex>(N);
-                    line(D(v,0),k,_,_) = matmul(line(D(v,0),k,_,_),hyb_F.V_tilde(R(v),k,_,_));
-                    line(D(v,1)-1,k,_,_) = matmul(hyb_F.U_tilde(R(v),k,_,_), line(D(v,1)-1,k,_,_));
-                } 
 
-          
-                for (int s = D(v,0)+1; s<D(v,1)-1;++s){
-                    for (int k =0;k<r;++k) line(s,k,_,_) *= hyb_F.K_matrix(R(v),k);
-                    constant *= hyb_F.c(R(v));
-                }
-            }
-            //when w(R(v))<0, we need only to modify the point object.
-            else{
-                vertex(D(v,0),_,_,_) = hyb_F.V_tilde(R(v),_,_,_);
-                vertex(D(v,1),_,_,_) = hyb_F.U_tilde(R(v),_,_,_);
-            }
-        }
+        //Cutting 1,2, ..., (m-1)-th hybridization lines.
+        for (int v = 1;v<m;++v) cut_hybridization(v,R(v), D, constant, hyb_F, line, vertex, r, N);
         //Phase 2: integrate everything out
         auto T = nda::array<dcomplex,3>(r,N,N); 
         
@@ -192,39 +166,10 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
         for (int s=1;s<=2*m-2;++s){
             // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
             T = itops.tconvolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T));
-
             //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
-            //calculate U/Vtilde(t(s+1))*T(t(s+1))
-            if (s+1 != D(0,1)){
-                //for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(s+1,k,_,_),T(k,_,_));
-                multiplicate_onto(vertex(s+1,_,_,_),T);
-            }
-            // Do special things for the vertex connecting to 0:
-            //T_k = sum_ab Delta_ab(t) Fdag_a *T_k * F_b
-            else {
-                auto T2 = nda::array<dcomplex,4>(n,r,N,N);
-                T2=0;
-                // T2(b,ts) = T(ts)*F_b
-                for (int b =0;b<n;++b){
-                    for (int k=0;k<r;++k) T2(b,k,_,_) = matmul(T(k,_,_),F(b,_,_));
-                }
-                // T2(a,ts) = sum_b Delta(ts)_ab * T2(b,ts)
-                for (int k=0;k<r;++k){
-                    for (int M=0;M<N;++M){
-                        for (int M2 = 0;M2<N;++M2){
-                            T2(_,k,M,M2) = matvecmul(Deltat(k,_,_),T2(_,k,M,M2));
-                        }
-                    }
-                }
-                // T = sum_a Fdag_a T2(a,ts) 
-                T = 0; 
-                for (int k=0;k<r;++k){
-                    for (int a = 0;a<n;++a){
-                        T(k,_,_) = T(k,_,_)+matmul(F_dag(a,_,_),T2(a,k,_,_));
-                    }
-                } 
-            }
-          
+            //Do special things for the vertex connecting to 0.
+            if (s+1 != D(0,1)) multiplicate_onto(vertex(s+1,_,_,_),T);
+            else special_summation(T, F, F_dag, Deltat, n, r, N);
         }
        Diagram = Diagram + T*constant;
     }
@@ -263,45 +208,66 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> D
             T = itops.tconvolve(beta, Fermion,itops.vals2coefs(T),itops.vals2coefs(Gt)); 
         }
         //next, calculate T3(k) = sum_ab Delta_ab(t_k) * Fdag_a * T(k) * F_b
-        auto T2 = nda::array<dcomplex,4>(n,r,N,N);
-        T2=0;
-        // T2(b,k) = T(k)*F(b)
-        for (int b =0;b<n;++b){
-            for (int k=0;k<r;++k) T2(b,k,_,_) = matmul(T(k,_,_),F(b,_,_));
-        }
-        // T2(a,k) = sum_b Delta_ab(t_k) * T2(b,k)
-        for (int k=0;k<r;++k){
-            for (int M=0;M<N;++M){
-                for (int M2 = 0;M2<N;++M2){
-                    T2(_,k,M,M2) = matvecmul(Deltat(k,_,_),T2(_,k,M,M2));
-                }
-            }
-        }
-        //T3(k) = sum_a Fdag_a T2(a,k)
-        auto T3 =  nda::array<dcomplex,3>(r,N,N);
-        T3 = 0; 
-        for (int k=0;k<r;++k){
-            for (int a = 0;a<n;++a){
-                T3(k,_,_) = T3(k,_,_)+matmul(F_dag(a,_,_),T2(a,k,_,_));
-            }
-        }
+        special_summation(T, F, F_dag, Deltat, n, r, N); 
         //finally integrate out t2
         if (hyb_F.w(R)<0){
             // integrate t2 out: T(t) = int G(t-t2)* T3(t2) dt2
-            T = itops.tconvolve(beta, Fermion,itops.vals2coefs(Gt),itops.vals2coefs(T3));
+            T = itops.tconvolve(beta, Fermion,itops.vals2coefs(Gt),itops.vals2coefs(T));
             //T(t) = Utilde(t) * T(t) 
             for (int k = 0;k<r;++k) T(k,_,_) = matmul(hyb_F.U_tilde(R,k,_,_),T(k,_,_));
         }
         else{
             // T(t-t2) = Utilde(t-t2) * Gt(t-t2)
-            for (int k = 0;k<r;++k) T(k,_,_) = matmul(hyb_F.U_tilde(R,k,_,_),Gt(k,_,_));
+            auto T3 = nda::array<dcomplex,3>(r,N,N);  
+            for (int k = 0;k<r;++k) T3(k,_,_) = matmul(hyb_F.U_tilde(R,k,_,_),Gt(k,_,_));
             // integrate t2 out: T(t) = int T(t-t2)* T3(t2) dt2 
-            T = itops.tconvolve(beta, Fermion,itops.vals2coefs(T),itops.vals2coefs(T3)); 
+            T = itops.tconvolve(beta, Fermion,itops.vals2coefs(T3),itops.vals2coefs(T)); 
         }
         Diagram = Diagram + T*hyb_F.c(R);
     }
     return Diagram;
 }
+void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &constant,  hyb_F &hyb_F, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex,int &r, int &N){
+   constant *= hyb_F.c(Rv);
+            //when w(R(v))>0, we need to modify the line object, and the constant. The point object is assigned to be the identity matrix.
+            if (hyb_F.w(Rv)>0){
+                for (int k=0;k<r;++k){
+                    vertex(D(v,0),k,_,_) = eye<dcomplex>(N); 
+                    vertex(D(v,1),k,_,_) = eye<dcomplex>(N);
+                    line(D(v,0),k,_,_) = matmul(line(D(v,0),k,_,_),hyb_F.V_tilde(Rv,k,_,_));
+                    line(D(v,1)-1,k,_,_) = matmul(hyb_F.U_tilde(Rv,k,_,_), line(D(v,1)-1,k,_,_));
+                } 
+                for (int s = D(v,0)+1; s<D(v,1)-1;++s){
+                    for (int k =0;k<r;++k) line(s,k,_,_) *= hyb_F.K_matrix(Rv,k);
+                    constant *= hyb_F.c(Rv);
+                }
+            }
+            //when w(R(v))<0, we need only to modify the point object.
+            else{
+                vertex(D(v,0),_,_,_) = hyb_F.V_tilde(Rv,_,_,_);
+                vertex(D(v,1),_,_,_) = hyb_F.U_tilde(Rv,_,_,_);
+            } 
+}
+void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat, int &n, int &r, int &N){
+    auto T2 = nda::array<dcomplex,4>(n,r,N,N);
+    T2=0;
+    // T2(b,ts) = T(ts)*F_b
+    for (int b =0;b<n;++b){
+        for (int k=0;k<r;++k) T2(b,k,_,_) = matmul(T(k,_,_),F(b,_,_));
+    }
+    // T2(a,ts) = sum_b Delta(ts)_ab * T2(b,ts)
+    for (int k=0;k<r;++k){
+        for (int M=0;M<N;++M){
+            for (int M2 = 0;M2<N;++M2) T2(_,k,M,M2) = matvecmul(Deltat(k,_,_),T2(_,k,M,M2));
+        }
+    }
+    // T = sum_a Fdag_a T2(a,ts) 
+    T = 0; 
+    for (int k=0;k<r;++k){
+        for (int a = 0;a<n;++a) T(k,_,_) = T(k,_,_)+matmul(F_dag(a,_,_),T2(a,k,_,_));
+    }  
+}
+
 void multiplicate_onto(nda::array_const_view<dcomplex,3> Ft, nda::array_view<dcomplex,3> Gt){
     int r = Gt.shape(0);
     for (int k = 0;k<r;++k) Gt(k,_,_) = matmul(Ft(k,_,_),Gt(k,_,_));
