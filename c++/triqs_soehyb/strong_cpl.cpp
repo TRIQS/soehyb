@@ -12,7 +12,7 @@ using namespace nda;
 // P is number of terms in the decomposition of the hybridization function Delta
 // r is the size of the time grid, i.e. the DLR rank
 
-hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Matrices, nda::vector_const_view<double> poles, nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it ,double eps){
+hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Matrices, nda::vector_const_view<double> poles,double eps){
     // obtain dlr_rank and n of hyb function
     int p = Matrices.shape(0);
     int n = Matrices.shape(1);
@@ -50,11 +50,12 @@ hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Matrices, nda::vector_c
     V = V_all(range(P),_);
 
     //if (real(U(0,0))<0) U = -U; else V = -V; //This minus sign is added because cppdlr kernel k_it(t,w) = -K(t,w).
-    
-    //calculate the error of the decomposition   
-    //TODO make this a private function
-    int r =Deltat.shape(0);
 
+}
+void hyb_decomp::check_accuracy(nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it){
+    int r =Deltat.shape(0);
+    int n = Deltat.shape(1);
+    int P = U.shape(0);
     
     std::cout<< "calculating error of the decomposition of hybridization"<<std::endl;
     auto Deltat_approx =nda::array<dcomplex,3>(r,n,n);
@@ -70,9 +71,8 @@ hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Matrices, nda::vector_c
         }
     }
     // std::cout<<Deltat<<std::endl<<Deltat_approx; 
-    std::cout << "Max error in decomposition of Delta(t): " << max_element(abs((Deltat - Deltat_approx))) << std::endl;
+    std::cout << "Max error in decomposition of Delta(t): " << max_element(abs((Deltat - Deltat_approx))) << std::endl; 
 }
-
 
 hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda::vector_const_view<double> dlr_it, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
     if (F.shape(0)!= hyb_decomp.U.shape(1) ) throw std::runtime_error("F matrices not in the right format, or F matrices and hybridization shape do not match");

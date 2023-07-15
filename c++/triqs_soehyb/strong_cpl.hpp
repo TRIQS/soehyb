@@ -36,7 +36,8 @@ class hyb_decomp {
     nda::matrix<dcomplex> V;
     //should add a constructor that one can choose not to calculate the decomposition error
     //hyb_decomp(nda::array_const_view<dcomplex,3> Delta_dlr, nda::vector_const_view<double> dlr_rf, double eps);
-    hyb_decomp(nda::array_const_view<dcomplex,3> Matrices, nda::vector_const_view<double> poles, nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it, double eps=0);
+    hyb_decomp(nda::array_const_view<dcomplex,3> Matrices, nda::vector_const_view<double> poles,  double eps=0);
+    void check_accuracy(nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it);
 };
 
 /* This is the class for constructing U_tilde and V_tilde, based on hyb_decomp and the F matrices.

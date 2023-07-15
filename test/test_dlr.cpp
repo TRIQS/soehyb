@@ -61,7 +61,8 @@ TEST(strong_coupling, OCA_with_diag_hyb) {
   auto Deltadlr = itops.vals2coefs(Deltat);  
  
   //decomposition of hybridization
-  auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf,Deltat,dlr_it,eps);
+  auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf);
+  Delta_decomp.check_accuracy(Deltat, dlr_it);
   //F matrices
   auto F = nda::array<dcomplex,3>(dim,N,N);
   for (int i = 0; i<dim;++i) F(i,_,_) = ID_N;
@@ -148,7 +149,8 @@ TEST(strong_coupling, OCA_with_diag_hyb) {
   pol(0) =  alpha_2*beta;
   nda::array<dcomplex,3> A(1,dim,dim);
   A(0,_,_) = ID_dim/k_it(0,alpha_2*beta);
-  auto Delta_decomp_simple = hyb_decomp(A,pol,Deltat,dlr_it,eps);
+  auto Delta_decomp_simple = hyb_decomp(A,pol);
+  Delta_decomp_simple.check_accuracy(Deltat, dlr_it);
   auto Delta_F_simple = hyb_F(Delta_decomp_simple, dlr_rf, dlr_it, F, F);
   begin = std::chrono::high_resolution_clock::now();
   auto OCAdiagram_simple = Diagram_calc(Delta_F_simple,D2,Deltat, Gt,itops,beta, F,  F);
