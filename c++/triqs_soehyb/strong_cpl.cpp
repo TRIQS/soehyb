@@ -82,13 +82,8 @@ hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda:
     int r = dlr_it.shape(0); 
     int vec_len = N*N;
 
-    //TODO: change to arraymult
-    auto F_reshape = reshape(F,F.shape(0),vec_len);
-    auto F_dag_reshape = reshape(F_dag,F_dag.shape(0),vec_len);
-
-    // construct U_c, V_c:
-    auto U_c = reshape(matmul(hyb_decomp.U,F_dag_reshape),P,N,N);
-    auto V_c = reshape(matmul(hyb_decomp.V,F_reshape),P,N,N);
+    auto U_c = arraymult(hyb_decomp.U,F_dag);
+    auto V_c = arraymult(hyb_decomp.V,F); 
     
     
     //Finally construct Utilde, Vtilde, and c
@@ -139,7 +134,6 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
     int total_num_diagram = pow(P, m-1);
     for (int num=0;num<total_num_diagram;++num){
         int num0 = num;
-        //TODO: change to 0...m-2
         //obtain R2, ... , Rm, store as R[1],...,R[m-1]
         auto R = nda::vector<int>(m);
         for (int v = 1;v<m;++v){
@@ -165,7 +159,7 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
         auto vertex = nda::array<dcomplex,4>(2*m,r,N,N);
         vertex = 0;
         for (int v = 1;v<m;++v){
-            constant = constant*hyb_F.c(R(v));
+            constant *= hyb_F.c(R(v));
             
             //when w(R(v))>0, we need to modify the line object, and the constant. The point object is assigned to be the identity matrix.
             if (hyb_F.w(R(v))>0){
@@ -178,8 +172,8 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
 
           
                 for (int s = D(v,0)+1; s<D(v,1)-1;++s){
-                    for (int k =0;k<r;++k) line(s,k,_,_) = line(s,k,_,_) *hyb_F.K_matrix(R(v),k);
-                    constant = constant * hyb_F.c(R(v));
+                    for (int k =0;k<r;++k) line(s,k,_,_) *= hyb_F.K_matrix(R(v),k);
+                    constant *= hyb_F.c(R(v));
                 }
             }
             //when w(R(v))<0, we need only to modify the point object.
@@ -202,7 +196,8 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
             //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
             //calculate U/Vtilde(t(s+1))*T(t(s+1))
             if (s+1 != D(0,1)){
-                for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(s+1,k,_,_),T(k,_,_));
+                //for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(s+1,k,_,_),T(k,_,_));
+                multiplicate_onto(vertex(s+1,_,_,_),T);
             }
             // Do special things for the vertex connecting to 0:
             //T_k = sum_ab Delta_ab(t) Fdag_a *T_k * F_b
@@ -306,4 +301,8 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> D
         Diagram = Diagram + T*hyb_F.c(R);
     }
     return Diagram;
+}
+void multiplicate_onto(nda::array_const_view<dcomplex,3> Ft, nda::array_view<dcomplex,3> Gt){
+    int r = Gt.shape(0);
+    for (int k = 0;k<r;++k) Gt(k,_,_) = matmul(Ft(k,_,_),Gt(k,_,_));
 }

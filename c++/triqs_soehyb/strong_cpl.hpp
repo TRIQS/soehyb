@@ -87,3 +87,6 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
         Diagram value on time grid: r*N*N array;
 */
 nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
+
+//This is a function for multiplying matrix-valued functions Ft and Gt, and store the result on Gt
+void multiplicate_onto(nda::array_const_view<dcomplex,3> Ft, nda::array_view<dcomplex,3> Gt);
