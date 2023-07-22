@@ -39,7 +39,7 @@ TEST(strong_coupling, exponential_functions) {
 
     //parameters in exponential functions we will use
     double alpha_1 = 0.5;
-    double alpha_2 = 0;
+    double alpha_2 = 0.1;
     //construct G(t) = [0, exp(-alpha_1*t); exp(-alpha_1*t) 0], Deltat = exp(-alpha2 * t)
     auto Gt = nda::array<dcomplex, 3>(r, N, N);
     auto Deltat = nda::array<dcomplex, 3>(r, dim, dim); 
@@ -48,28 +48,39 @@ TEST(strong_coupling, exponential_functions) {
     //construct Gdlr and Delta dlr
     auto Gdlr = itops.vals2coefs(Gt); 
     auto Deltadlr = itops.vals2coefs(Deltat);  
+    //reflect Deltat
+    auto Deltat_reflect  = itops.reflect(Deltat); 
+    auto Deltadlr_reflect = itops.vals2coefs(Deltat_reflect);
  
     //decomposition of hybridization
     auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf);
     Delta_decomp.check_accuracy(Deltat, dlr_it);
+    auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf);
+    Delta_decomp_reflect.check_accuracy(Deltat_reflect, dlr_it);
     //F matrices
     auto F = nda::array<dcomplex,3>(dim,N,N);
+    
     for (int i = 0; i<dim;++i) F(i,_,_) = eye<dcomplex>(N);
+    auto F_dag = F;
   
     //construct U_tilde, V_tilde, c
-    auto Delta_F = hyb_F(Delta_decomp, dlr_rf, dlr_it, F, F);
-
+    auto Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag);
+    auto Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);
+    
+    bool backward = false;
+    auto fb2 =  nda::vector<int>(2); fb2=0;
+    auto fb3 =  nda::vector<int>(3); fb3=0;
     //Test OCA(2nd order) diagram
     std::cout<< "Testing OCA diagram..."<<std::endl;
-    auto OCAdiagram = OCA_calc(Delta_F,Deltat, Gt,itops,beta, F,  F);
+    auto OCAdiagram = Sigma_OCA_calc(Delta_F,Deltat,Deltat, Gt,itops,beta, F,  F,backward);
     auto D2 = nda::array<int,2>{{0,2},{1,3}};// Diagram topology
     
     auto begin = std::chrono::high_resolution_clock::now();
-    auto OCAdiagram2 = Diagram_calc(Delta_F,D2,Deltat, Gt,itops,beta, F,  F);
+    auto OCAdiagram2 = Sigma_Diagram_calc(Delta_F,Delta_F_reflect,D2,Deltat, Deltat,Gt,itops,beta, F,  F,fb2,backward);
     auto end = std::chrono::high_resolution_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     double t2 =  elapsed.count();
-
+    
     std::cout<< "Difference between OCA_calc and Diagram_calc for OCA diagram is "<< max_element(abs(OCAdiagram - OCAdiagram2)) <<std::endl; 
     auto OCA_true = OCAtrue(alpha_1, alpha_2,  beta, dlr_it_actual, r,  N, dim);
     std::cout<< "Error of OCA_Diagram is "<< max_element(abs(OCAdiagram - OCA_true)) <<std::endl; 
@@ -80,7 +91,7 @@ TEST(strong_coupling, exponential_functions) {
     std::cout<< "Testing third order diagram... "<<std::endl; 
     auto D3 = nda::array<int,2>{{0,2},{1,4},{3,5}};
     begin = std::chrono::high_resolution_clock::now();
-    auto diagram_3rd_order = Diagram_calc(Delta_F,D3,Deltat, Gt,itops,beta, F,  F);
+    auto diagram_3rd_order = Sigma_Diagram_calc(Delta_F,Delta_F_reflect,D3,Deltat,Deltat, Gt,itops,beta, F,  F,fb3,backward);
     end = std::chrono::high_resolution_clock::now();
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     double t3 =  elapsed.count();
@@ -89,6 +100,8 @@ TEST(strong_coupling, exponential_functions) {
     int P = Delta_F.w.shape(0);
     std::cout<<"r here is "<< r <<", P here is "<< P <<". The theoretical complexity is P^(m-1)*(m*r^2+n*r)"<<std::endl;
     std::cout<<"Time spent for m=2, 3 diagram is "<< t2/1000 << ", "<< t3/1000<< " seconds"<<std::endl;
+    // auto OCA_all = Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D3, Deltat, Deltat_reflect, Gt,itops, beta, F,  F_dag);
+
 }
 
 
@@ -117,10 +130,15 @@ TEST(strong_coupling, high_order_diagrams) {
     auto Gt = nda::array<dcomplex, 3>(r, N, N);
     auto Deltat = nda::array<dcomplex, 3>(r, dim, dim); 
     construct_G_and_Delta(Gt,  Deltat, dlr_it_actual, beta, alpha_1, 0.0, r);
+    
 
     //construct Gdlr and Delta dlr
     auto Gdlr = itops.vals2coefs(Gt); 
-    auto Deltadlr = itops.vals2coefs(Deltat);  
+    auto Deltadlr = itops.vals2coefs(Deltat);
+
+    //reflect Deltat
+    auto Deltat_reflect  = itops.reflect(Deltat); 
+    auto Deltadlr_reflect = itops.vals2coefs(Deltat_reflect);
   
  
     auto F = nda::array<dcomplex,3>(dim,N,N);
@@ -168,25 +186,33 @@ TEST(strong_coupling, high_order_diagrams) {
 
     auto Delta_decomp_simple = hyb_decomp(A,pol);
     Delta_decomp_simple.check_accuracy(Deltat, dlr_it);
+    bool backward = false;
+    auto fb2 =  nda::vector<int>(2); fb2=0;
+    auto fb3 =  nda::vector<int>(3); fb3=0;
+    auto fb4 =  nda::vector<int>(4); fb4=0;
+    auto fb5 =  nda::vector<int>(5); fb5=0;
+    auto fb6 =  nda::vector<int>(6); fb6=0;
+    auto fb7 =  nda::vector<int>(7); fb7=0;
+    auto fb8 =  nda::vector<int>(8); fb8=0;
 
     auto Delta_F_simple = hyb_F(Delta_decomp_simple, dlr_rf, dlr_it, F, F);
     //calculating diagrams
     auto begin = std::chrono::high_resolution_clock::now();
-    auto OCAdiagram_simple = Diagram_calc(Delta_F_simple,D2,Deltat, Gt,itops,beta, F,  F);
+    auto OCAdiagram_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D2,Deltat,Deltat, Gt,itops,beta, F,  F, fb2,backward);
     auto end = std::chrono::high_resolution_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     double t2_simple =  elapsed.count(); 
     std::cout<< "Error of OCA_Diagram is "<< max_element(abs(OCAdiagram_simple - OCA_true))<<"; maximum of diagram is "<< max_element(abs(OCA_true)) <<std::endl; 
     
     begin = std::chrono::high_resolution_clock::now();
-    auto diagram_3rd_order_simple = Diagram_calc(Delta_F_simple,D3,Deltat, Gt,itops,beta, F,  F);
+    auto diagram_3rd_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D3,Deltat,Deltat, Gt,itops,beta, F,  F,fb3,backward);
     end = std::chrono::high_resolution_clock::now();
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     double t3_simple =  elapsed.count();
     std::cout<< "Error of 3rd order Diagram is "<< max_element(abs(diagram_3rd_order_simple - diagram_3rd_order_true)) <<"; maximum of diagram is "<< max_element(abs(diagram_3rd_order_true))<<std::endl; 
     
     begin = std::chrono::high_resolution_clock::now();
-    auto diagram_4th_order_simple = Diagram_calc(Delta_F_simple,D4,Deltat, Gt,itops,beta, F,  F);
+    auto diagram_4th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D4,Deltat,Deltat, Gt,itops,beta, F,  F,fb4,backward);
     end = std::chrono::high_resolution_clock::now();
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     double t4_simple =  elapsed.count();
@@ -194,34 +220,33 @@ TEST(strong_coupling, high_order_diagrams) {
     std::cout<< "Error of 4th order Diagram is "<< max_element(abs(diagram_4th_order_simple - diagram_4th_order_true)) <<"; maximum of diagram is "<< max_element(abs(diagram_4th_order_true))<<std::endl; 
  
     begin = std::chrono::high_resolution_clock::now();
-    auto diagram_5th_order_simple = Diagram_calc(Delta_F_simple,D5,Deltat, Gt,itops,beta, F,  F);
+    auto diagram_5th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D5,Deltat,Deltat, Gt,itops,beta, F,  F,fb5,backward);
     end = std::chrono::high_resolution_clock::now();
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     double t5_simple =  elapsed.count();
     std::cout<< "Error of 5th order Diagram is "<< max_element(abs(diagram_5th_order_simple - diagram_5th_order_true))<<"; maximum of diagram is "<< max_element(abs(diagram_5th_order_true)) <<std::endl; 
 
     begin = std::chrono::high_resolution_clock::now();
-    auto diagram_6th_order_simple = Diagram_calc(Delta_F_simple,D6,Deltat, Gt,itops,beta, F,  F);
+    auto diagram_6th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D6,Deltat,Deltat, Gt,itops,beta, F,  F,fb6,backward);
     end = std::chrono::high_resolution_clock::now();
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     double t6_simple =  elapsed.count();
     std::cout<< "Error of 6th order Diagram is "<< max_element(abs(diagram_6th_order_simple - diagram_6th_order_true))<<"; maximum of diagram is "<< max_element(abs(diagram_6th_order_true)) <<std::endl; 
 
     begin = std::chrono::high_resolution_clock::now();
-    auto diagram_7th_order_simple = Diagram_calc(Delta_F_simple,D7,Deltat, Gt,itops,beta, F,  F);
+    auto diagram_7th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D7,Deltat,Deltat, Gt,itops,beta, F,  F,fb7,backward);
     end = std::chrono::high_resolution_clock::now();
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     double t7_simple =  elapsed.count();
     std::cout<< "Error of 7th order Diagram is "<< max_element(abs(diagram_7th_order_simple - diagram_7th_order_true)) <<"; maximum of diagram is "<< max_element(abs(diagram_7th_order_true))<<std::endl; 
 
     begin = std::chrono::high_resolution_clock::now(); 
-    auto diagram_8th_order_simple = Diagram_calc(Delta_F_simple,D8,Deltat, Gt,itops,beta, F,  F);
+    auto diagram_8th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D8,Deltat,Deltat, Gt,itops,beta, F,  F,fb8,backward);
     end = std::chrono::high_resolution_clock::now();
     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     double t8_simple =  elapsed.count();  
 
     std::cout<< "Error of 8th order Diagram is "<< max_element(abs(diagram_8th_order_simple - diagram_8th_order_true)) <<"; maximum of diagram is "<< max_element(abs(diagram_8th_order_true))<<std::endl; 
-
  
     std::cout<<"Time spent in seconds"<<std::endl;
     std::cout<<"m=2      "<<t2_simple/1000<<std::endl;

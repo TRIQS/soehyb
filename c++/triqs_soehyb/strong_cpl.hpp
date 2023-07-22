@@ -72,11 +72,18 @@ class hyb_F {
         Deltat:  hybridization function on dlr imaginary time grid, r*dim*dim;
         Gt:      Green's function on dlr imaginary time grid,  r*N*N;
         F, F_dag: dim*N*N array;
+        fb, backward: tools for indicating whether we are summing over forward/backward. fb: m*1 
     The function output is:
         Diagram value on time grid: r*N*N array;
 */
-nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
+nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb, bool backward= true);
 
+
+/*
+This is the function for diagram evaluation with a given topology, which sum over all forward and backward diagrams.
+This is the function to be wrapped by python.
+*/
+nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
 
 /* This is the function for evaluating the OCA diagram given its topology D.
     The function input is:
@@ -87,11 +94,18 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
     The function output is:
         Diagram value on time grid: r*N*N array;
 */
-nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
+nda::array<dcomplex,3> Sigma_OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag, bool backward = true);
+
+
+
+
+
 
 //This is a function for multiplying matrix-valued functions Ft and Gt, and store the result on Gt
 void multiplicate_onto(nda::array_const_view<dcomplex,3> Ft, nda::array_view<dcomplex,3> Gt);
 
-void cut_hybridization(int v,int &Rv, nda::array_const_view<int,2> D, double &constant, hyb_F &hyb_F, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex,int &r, int &N);
+//void cut_hybridization(int v,int &Rv, nda::array_const_view<int,2> D, double &constant, hyb_F &hyb_F_self, hyb_F &hyb_F_reflect, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex,int &r, int &N);
+void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &constant,  nda::array_const_view<dcomplex, 3>U_tilde_here,  nda::array_const_view<dcomplex, 3>V_tilde_here, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex, double & chere, double & w_here,nda::array_const_view<double,1> K_matrix_here, int &r, int &N);
 
-void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat, int &n, int &r, int &N);
+void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat, nda::array_const_view<dcomplex,3> Deltat_reflect,int &n, int &r, int &N, bool backward= true);
+

@@ -1,6 +1,7 @@
 #include "strong_cpl.hpp"
 #include <cppdlr/dlr_kernels.hpp>
 #include <nda/blas/tools.hpp>
+#include <nda/declarations.hpp>
 #include <nda/linalg/matmul.hpp>
 
 
@@ -113,16 +114,35 @@ hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda:
     w = hyb_decomp.w;
 }
 
+nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
+    int r = Gt.shape(0); // size of time grid
+    int N = Gt.shape(1); // size of G matrices
+    int m = D.shape(0); // order of diagram
+    auto Diagram = nda::array<dcomplex,3>(r,N,N);
+    Diagram = 0;
+    int total_num_fb_diagram = pow(2, m-1);
+    for (int num=0;num<total_num_fb_diagram;++num){
+        int num0 = num;
+        auto fb = nda::vector<int>(m);
+        for (int v = 1;v<m;++v){
+            fb[v] = num0 % 2;
+            num0 = int(num0/2);
+        }
+        std::cout<<fb<<std::endl;
+        Diagram += Sigma_Diagram_calc(hyb_F_self,hyb_F_reflect,D,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag,  fb, true);
+    }
+    return Diagram;
+}
 
 
 
-nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
+nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag, nda::vector_const_view<int> fb, bool backward){
     auto const &dlr_it = itops.get_itnodes();  
     //obtain basic parameters
     int r = Gt.shape(0); // size of time grid
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
-    int P = hyb_F.c.shape(0);
+    int P = hyb_F_self.c.shape(0);
     int n = F.shape(0);
     
 
@@ -155,7 +175,11 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
         vertex = 0;
 
         //Cutting 1,2, ..., (m-1)-th hybridization lines.
-        for (int v = 1;v<m;++v) cut_hybridization(v,R(v), D, constant, hyb_F, line, vertex, r, N);
+        //for (int v = 1;v<m;++v) cut_hybridization(v,R(v), D, constant, hyb_F_self,hyb_F_reflect, line, vertex, r, N);
+        for (int v = 1;v<m;++v) {
+            if (fb(v)==0)  cut_hybridization(v,R(v), D, constant, hyb_F_self.U_tilde(R(v),_,_,_),hyb_F_self.V_tilde(R(v),_,_,_), line, vertex,hyb_F_self.c(R(v)),hyb_F_self.w(R(v)),hyb_F_self.K_matrix(R(v),_) ,r, N);
+            else cut_hybridization(v,R(v), D, constant, hyb_F_reflect.U_tilde(R(v),_,_,_),hyb_F_reflect.V_tilde(R(v),_,_,_), line, vertex,hyb_F_reflect.c(R(v)),hyb_F_reflect.w(R(v)),hyb_F_reflect.K_matrix(R(v),_) ,r, N); 
+        }
         //Phase 2: integrate everything out
         auto T = nda::array<dcomplex,3>(r,N,N); 
         
@@ -169,7 +193,7 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
             //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
             //Do special things for the vertex connecting to 0.
             if (s+1 != D(0,1)) multiplicate_onto(vertex(s+1,_,_,_),T);
-            else special_summation(T, F, F_dag, Deltat, n, r, N);
+            else special_summation(T, F, F_dag, Deltat,Deltat_reflect, n, r, N, backward);
         }
        Diagram = Diagram + T*constant;
     }
@@ -177,7 +201,7 @@ nda::array<dcomplex,3> Diagram_calc(hyb_F &hyb_F,nda::array_const_view<int,2> D,
     return Diagram;
 }
 
-nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
+nda::array<dcomplex,3> Sigma_OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag, bool backward){
     auto const D = nda::array<int,2>{{0,2},{1,3}}; 
     auto const &dlr_it = itops.get_itnodes();  
     //obtain basic parameters
@@ -186,12 +210,13 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> D
     int m = D.shape(0); // order of diagram
     int P = hyb_F.c.shape(0);
     int n = F.shape(0);
-    
 
+    
     //initialize diagram
     auto Diagram = nda::array<dcomplex,3>(r,N,N);
     Diagram = 0;
     for (int R=0;R<P;++R){
+
         auto T = nda::array<dcomplex,3>(r,N,N); 
         T = 0;
         // first integrate out t1
@@ -208,13 +233,17 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> D
             T = itops.tconvolve(beta, Fermion,itops.vals2coefs(T),itops.vals2coefs(Gt)); 
         }
         //next, calculate T3(k) = sum_ab Delta_ab(t_k) * Fdag_a * T(k) * F_b
-        special_summation(T, F, F_dag, Deltat, n, r, N); 
+        special_summation(T, F, F_dag, Deltat,Deltat_reflect, n, r, N,backward); 
+        
         //finally integrate out t2
         if (hyb_F.w(R)<0){
             // integrate t2 out: T(t) = int G(t-t2)* T3(t2) dt2
             T = itops.tconvolve(beta, Fermion,itops.vals2coefs(Gt),itops.vals2coefs(T));
+            
             //T(t) = Utilde(t) * T(t) 
+            
             for (int k = 0;k<r;++k) T(k,_,_) = matmul(hyb_F.U_tilde(R,k,_,_),T(k,_,_));
+           // std::cout<<T<<std::endl;
         }
         else{
             // T(t-t2) = Utilde(t-t2) * Gt(t-t2)
@@ -224,31 +253,33 @@ nda::array<dcomplex,3> OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> D
             T = itops.tconvolve(beta, Fermion,itops.vals2coefs(T3),itops.vals2coefs(T)); 
         }
         Diagram = Diagram + T*hyb_F.c(R);
+        
     }
     return Diagram;
 }
-void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &constant,  hyb_F &hyb_F, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex,int &r, int &N){
-   constant *= hyb_F.c(Rv);
+//void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &constant,  hyb_F &hyb_F_self,  hyb_F &hyb_F_reflect, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex,int &r, int &N){
+void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &constant,  nda::array_const_view<dcomplex, 3>U_tilde_here,  nda::array_const_view<dcomplex, 3>V_tilde_here, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex, double & chere, double & w_here,nda::array_const_view<double,1> K_matrix_here, int &r, int &N){
+   constant *= chere;
             //when w(R(v))>0, we need to modify the line object, and the constant. The point object is assigned to be the identity matrix.
-            if (hyb_F.w(Rv)>0){
+            if (w_here>0){
                 for (int k=0;k<r;++k){
                     vertex(D(v,0),k,_,_) = eye<dcomplex>(N); 
                     vertex(D(v,1),k,_,_) = eye<dcomplex>(N);
-                    line(D(v,0),k,_,_) = matmul(line(D(v,0),k,_,_),hyb_F.V_tilde(Rv,k,_,_));
-                    line(D(v,1)-1,k,_,_) = matmul(hyb_F.U_tilde(Rv,k,_,_), line(D(v,1)-1,k,_,_));
+                    line(D(v,0),k,_,_) = matmul(line(D(v,0),k,_,_),V_tilde_here(k,_,_));
+                    line(D(v,1)-1,k,_,_) = matmul(U_tilde_here(k,_,_), line(D(v,1)-1,k,_,_));
                 } 
                 for (int s = D(v,0)+1; s<D(v,1)-1;++s){
-                    for (int k =0;k<r;++k) line(s,k,_,_) *= hyb_F.K_matrix(Rv,k);
-                    constant *= hyb_F.c(Rv);
+                    for (int k =0;k<r;++k) line(s,k,_,_) *=K_matrix_here(k);
+                    constant *= chere;
                 }
             }
             //when w(R(v))<0, we need only to modify the point object.
             else{
-                vertex(D(v,0),_,_,_) = hyb_F.V_tilde(Rv,_,_,_);
-                vertex(D(v,1),_,_,_) = hyb_F.U_tilde(Rv,_,_,_);
+                vertex(D(v,0),_,_,_) =V_tilde_here;
+                vertex(D(v,1),_,_,_) = U_tilde_here;
             } 
 }
-void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat, int &n, int &r, int &N){
+void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect, int &n, int &r, int &N, bool backward){
     auto T2 = nda::array<dcomplex,4>(n,r,N,N);
     T2=0;
     // T2(b,ts) = T(ts)*F_b
@@ -262,10 +293,26 @@ void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcom
         }
     }
     // T = sum_a Fdag_a T2(a,ts) 
-    T = 0; 
+    auto T3 = nda::array<dcomplex,3>(T.shape());
     for (int k=0;k<r;++k){
-        for (int a = 0;a<n;++a) T(k,_,_) = T(k,_,_)+matmul(F_dag(a,_,_),T2(a,k,_,_));
+        for (int a = 0;a<n;++a) T3(k,_,_) = T3(k,_,_)+matmul(F_dag(a,_,_),T2(a,k,_,_));
     }  
+    if (backward==true){
+        T2=0;
+        for (int b =0;b<n;++b){
+           for (int k=0;k<r;++k) T2(b,k,_,_) = matmul(T(k,_,_),F_dag(b,_,_));
+        }
+        for (int k=0;k<r;++k){
+            for (int M=0;M<N;++M){
+                for (int M2 = 0;M2<N;++M2) T2(_,k,M,M2) = matvecmul(Deltat_reflect(k,_,_),T2(_,k,M,M2));
+            }
+        }
+        // T = sum_a Fdag_a T2(a,ts) 
+        for (int k=0;k<r;++k){
+            for (int a = 0;a<n;++a) T3(k,_,_) = T3(k,_,_)+matmul(F(a,_,_),T2(a,k,_,_));
+        }  
+    }
+    T = T3;
 }
 
 void multiplicate_onto(nda::array_const_view<dcomplex,3> Ft, nda::array_view<dcomplex,3> Gt){
