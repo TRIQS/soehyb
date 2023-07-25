@@ -97,13 +97,14 @@ nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F
 nda::array<dcomplex,3> Sigma_OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag, bool backward = true);
 
 
+nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb, bool backward= true);
 
 
 
 
 //This is a function for multiplying matrix-valued functions Ft and Gt, and store the result on Gt
 void multiplicate_onto(nda::array_const_view<dcomplex,3> Ft, nda::array_view<dcomplex,3> Gt);
-
+void multiplicate_onto_left(nda::array_view<dcomplex,3> Ft, nda::array_const_view<dcomplex,3> Gt);
 //void cut_hybridization(int v,int &Rv, nda::array_const_view<int,2> D, double &constant, hyb_F &hyb_F_self, hyb_F &hyb_F_reflect, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex,int &r, int &N);
 void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &constant,  nda::array_const_view<dcomplex, 3>U_tilde_here,  nda::array_const_view<dcomplex, 3>V_tilde_here, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex, double & chere, double & w_here,nda::array_const_view<double,1> K_matrix_here, int &r, int &N);
 

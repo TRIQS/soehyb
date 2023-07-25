@@ -114,24 +114,99 @@ hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda:
     w = hyb_decomp.w;
 }
 
-nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
+nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb, bool backward){
+    auto const &dlr_it = itops.get_itnodes();  
+    //obtain basic parameters
     int r = Gt.shape(0); // size of time grid
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
-    auto Diagram = nda::array<dcomplex,3>(r,N,N);
+    int P = hyb_F_self.c.shape(0);
+    int n = F.shape(0);
+    
+
+    //initialize diagram
+    auto Diagram = nda::array<dcomplex,3>(r,n,n);
     Diagram = 0;
-    int total_num_fb_diagram = pow(2, m-1);
-    for (int num=0;num<total_num_fb_diagram;++num){
+    //iteration over the terms of 2, · · · , m-th hybridization. Note that 1-st hybridization is not decomposed.
+    int total_num_diagram = pow(P, m-1);
+    for (int num=0;num<total_num_diagram;++num){
         int num0 = num;
-        auto fb = nda::vector<int>(m);
+        //obtain R2, ... , Rm, store as R[1],...,R[m-1]
+        auto R = nda::vector<int>(m);
         for (int v = 1;v<m;++v){
-            fb[v] = num0 % 2;
-            num0 = int(num0/2);
+            R[v] = num0 % P;
+            num0 = int(num0/P);
         }
-        std::cout<<fb<<std::endl;
-        Diagram += Sigma_Diagram_calc(hyb_F_self,hyb_F_reflect,D,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag,  fb, true);
-    }
-    return Diagram;
+        //Phase 1: construct line object L and point object P;
+        //This is done exactly the same as in Sigma diagrams
+        auto line = nda::array<dcomplex,4>(2*m,r,N,N);
+        line = 0;
+        for (int s=1;s<=2*m-1;++s) line(s,_,_,_) = Gt;
+        double constant = 1; 
+        auto vertex = nda::array<dcomplex,4>(2*m,r,N,N);
+        vertex = 0;
+
+        
+        for (int v = 1;v<m;++v) {
+            if (fb(v)==0)  cut_hybridization(v,R(v), D, constant, hyb_F_self.U_tilde(R(v),_,_,_),hyb_F_self.V_tilde(R(v),_,_,_), line, vertex,hyb_F_self.c(R(v)),hyb_F_self.w(R(v)),hyb_F_self.K_matrix(R(v),_) ,r, N);
+            else cut_hybridization(v,R(v), D, constant, hyb_F_reflect.U_tilde(R(v),_,_,_),hyb_F_reflect.V_tilde(R(v),_,_,_), line, vertex,hyb_F_reflect.c(R(v)),hyb_F_reflect.w(R(v)),hyb_F_reflect.K_matrix(R(v),_) ,r, N); 
+        } 
+        //TODO: the integrating part of G diagrams. Have to figure out what is happening here.
+        
+        //Phase 2: integrate out the stuff on the right
+        auto T = nda::array<dcomplex,3>(r,N,N); 
+        
+        // first, calculate P(t1)*G(t1)
+        for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(1,k,_,_),Gt(k,_,_));
+
+        //integrate out the stuff on the right. In each for loop, first convolution, then multiplication.
+        for (int s=1;s<D(0,1);++s){
+            // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
+            T = itops.tconvolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T));
+            //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
+            //Do special things for the vertex connecting to 0.
+            if (s+1 != D(0,1)) multiplicate_onto(vertex(s+1,_,_,_),T);
+        }
+
+        //Phase 2.5: integrate out the stuff on the right
+        //First, change the vertex objects from v(t)->v(beta-t)
+        for (int s=2*m-1;s>D(0,1);--s) vertex(s,_,_,_) = itops.reflect(vertex(s,_,_,_));
+        auto T_left = nda::array<dcomplex,3>(r,N,N); 
+        
+        // first, calculate P(t1)*G(t1)
+        for (int k = 0;k<r;++k) T_left(k,_,_) = matmul(Gt(k,_,_),vertex(2*m-1,k,_,_));
+
+        //integrate out the stuff on the right. In each for loop, first convolution, then multiplication.
+        for (int s=2*m-2;s>D(0,1);--s){
+            // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
+            T_left = itops.tconvolve(beta, Fermion,itops.vals2coefs(T_left),itops.vals2coefs(line(s,_,_,_)));
+            //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
+            //Do special things for the vertex connecting to 0.
+            if (s-1 != D(0,1)) multiplicate_onto_left(T_left,vertex(s-1,_,_,_));
+        }
+        //revert back from (beta-t) to t
+        T_left = itops.reflect(T_left); 
+
+        auto GF_dag = nda::array<dcomplex,4>(n,r,N,N);
+        auto GF = nda::array<dcomplex,4>(n,r,N,N);
+        auto GF_left_dag = nda::array<dcomplex,4>(n,r,N,N);
+        auto GF_left = nda::array<dcomplex,4>(n,r,N,N);
+        for (int b=0;b<n;++b){
+            for (int k = 0;k<r;++k) GF_dag(b,k,_,_) = matmul(T(k,_,_), F_dag(b,_,_));
+            for (int k = 0;k<r;++k) GF(b,k,_,_) = matmul(T(k,_,_), F(b,_,_));
+            for (int k = 0;k<r;++k) GF_left_dag(b,k,_,_) = matmul(T_left(k,_,_), F_dag(b,_,_));
+            for (int k = 0;k<r;++k) GF_left(b,k,_,_) = matmul(T_left(k,_,_), F(b,_,_));  
+        }
+        for (int b=0;b<n;++b){
+            for (int a=0;a<n;++a){
+                for (int k = 0;k<r;++k){
+                    Diagram(k,a,b) += trace(matmul(GF_left(a,k,_,_),GF_dag(b,k,_,_)));
+                    Diagram(k,a,b) += trace(matmul(GF_left_dag(a,k,_,_),GF(b,k,_,_))); 
+                }
+            }
+        }
+    }   
+    return Diagram; 
 }
 
 
@@ -201,6 +276,26 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
     return Diagram;
 }
 
+nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
+    int r = Gt.shape(0); // size of time grid
+    int N = Gt.shape(1); // size of G matrices
+    int m = D.shape(0); // order of diagram
+    auto Diagram = nda::array<dcomplex,3>(r,N,N);
+    Diagram = 0;
+    int total_num_fb_diagram = pow(2, m-1);
+    for (int num=0;num<total_num_fb_diagram;++num){
+        int num0 = num;
+        auto fb = nda::vector<int>(m);
+        for (int v = 1;v<m;++v){
+            fb[v] = num0 % 2;
+            num0 = int(num0/2);
+        }
+        std::cout<<fb<<std::endl;
+        Diagram += Sigma_Diagram_calc(hyb_F_self,hyb_F_reflect,D,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag,  fb, true);
+    }
+    return Diagram;
+}
+
 nda::array<dcomplex,3> Sigma_OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag, bool backward){
     auto const D = nda::array<int,2>{{0,2},{1,3}}; 
     auto const &dlr_it = itops.get_itnodes();  
@@ -257,6 +352,11 @@ nda::array<dcomplex,3> Sigma_OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomple
     }
     return Diagram;
 }
+
+
+
+
+
 //void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &constant,  hyb_F &hyb_F_self,  hyb_F &hyb_F_reflect, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex,int &r, int &N){
 void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &constant,  nda::array_const_view<dcomplex, 3>U_tilde_here,  nda::array_const_view<dcomplex, 3>V_tilde_here, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex, double & chere, double & w_here,nda::array_const_view<double,1> K_matrix_here, int &r, int &N){
    constant *= chere;
@@ -318,4 +418,8 @@ void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcom
 void multiplicate_onto(nda::array_const_view<dcomplex,3> Ft, nda::array_view<dcomplex,3> Gt){
     int r = Gt.shape(0);
     for (int k = 0;k<r;++k) Gt(k,_,_) = matmul(Ft(k,_,_),Gt(k,_,_));
+}
+void multiplicate_onto_left(nda::array_view<dcomplex,3> Ft, nda::array_const_view<dcomplex,3> Gt){
+    int r = Gt.shape(0);
+    for (int k = 0;k<r;++k) Ft(k,_,_) = matmul(Ft(k,_,_),Gt(k,_,_));
 }
