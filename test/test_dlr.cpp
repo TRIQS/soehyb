@@ -218,7 +218,7 @@ TEST(strong_coupling, high_order_diagrams) {
     double t4_simple =  elapsed.count();
     //std::cout<<"Difference of 4th order diagram between two methods is "<<max_element(abs(diagram_4th_order_simple - diagram_4th_order)) <<std::endl;
     std::cout<< "Error of 4th order Diagram is "<< max_element(abs(diagram_4th_order_simple - diagram_4th_order_true)) <<"; maximum of diagram is "<< max_element(abs(diagram_4th_order_true))<<std::endl; 
- 
+    
     begin = std::chrono::high_resolution_clock::now();
     auto diagram_5th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D5,Deltat,Deltat, Gt,itops,beta, F,  F,fb5,backward);
     end = std::chrono::high_resolution_clock::now();

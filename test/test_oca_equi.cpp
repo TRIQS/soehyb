@@ -100,6 +100,9 @@ double oca_equi_error(const int Num){
         Sigma(range(0,dim),range(0,dim),n) = tmp_matr; 
     } 
     //max(abs(Sigma-Sigma_real))
+    std::cout<<Sigma_true(0,1,range(Num+1));
+    std::cout<<Sigma_true(range(dim),range(dim),10);
+
     return max_element(abs(Sigma-Sigma_true));
 }
 int main(){
@@ -107,7 +110,7 @@ int main(){
     std::cout<<"Grid-size| "<< "|Error| " << "|log(Error)/log(2)\n";
     int Num;
     double error_Num;
-    for (int i=2;i<200;i*=2){
+    for (int i=128;i<200;i*=2){
         Num = i;
         error_Num = oca_equi_error(Num);
         std::cout<<Num << "   ";

@@ -220,10 +220,17 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
     int P = hyb_F_self.c.shape(0);
     int n = F.shape(0);
     
+    
 
     //initialize diagram
     auto Diagram = nda::array<dcomplex,3>(r,N,N);
     Diagram = 0;
+
+    if (m==1){
+        Diagram = Gt;
+        special_summation(Diagram, F, F_dag, Deltat,Deltat_reflect, n, r, N, backward); 
+        return Diagram;
+    }
 
     //iteration over the terms of 2, · · · , m-th hybridization. Note that 1-st hybridization is not decomposed.
     int total_num_diagram = pow(P, m-1);
@@ -290,7 +297,7 @@ nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F
             fb[v] = num0 % 2;
             num0 = int(num0/2);
         }
-        std::cout<<fb<<std::endl;
+       // std::cout<<fb<<std::endl;
         Diagram += Sigma_Diagram_calc(hyb_F_self,hyb_F_reflect,D,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag,  fb, true);
     }
     return Diagram;
@@ -394,6 +401,7 @@ void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcom
     }
     // T = sum_a Fdag_a T2(a,ts) 
     auto T3 = nda::array<dcomplex,3>(T.shape());
+    T3=0;
     for (int k=0;k<r;++k){
         for (int a = 0;a<n;++a) T3(k,_,_) = T3(k,_,_)+matmul(F_dag(a,_,_),T2(a,k,_,_));
     }  
