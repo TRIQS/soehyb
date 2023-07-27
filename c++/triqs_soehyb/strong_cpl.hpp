@@ -104,7 +104,7 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
 
 //This is a function for multiplying matrix-valued functions Ft and Gt, and store the result on Gt
 void multiplicate_onto(nda::array_const_view<dcomplex,3> Ft, nda::array_view<dcomplex,3> Gt);
-void multiplicate_onto_left(nda::array_const_view<dcomplex,3> Ft, nda::array_view<dcomplex,3> Gt);
+void multiplicate_onto_left(nda::array_view<dcomplex,3> Ft, nda::array_const_view<dcomplex,3> Gt);
 //void cut_hybridization(int v,int &Rv, nda::array_const_view<int,2> D, double &constant, hyb_F &hyb_F_self, hyb_F &hyb_F_reflect, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex,int &r, int &N);
 void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &constant,  nda::array_const_view<dcomplex, 3>U_tilde_here,  nda::array_const_view<dcomplex, 3>V_tilde_here, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex, double & chere, double & w_here,nda::array_const_view<double,1> K_matrix_here, int &r, int &N);
 
