@@ -162,7 +162,7 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
         //integrate out the stuff on the right. In each for loop, first convolution, then multiplication.
         for (int s=1;s<D(0,1);++s){
             // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
-            T = itops.tconvolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T));
+            T = itops.convolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T),TIME_ORDERED);
             //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
             //Do special things for the vertex connecting to 0.
             if (s+1 != D(0,1)) multiplicate_onto(vertex(s+1,_,_,_),T);
@@ -179,7 +179,7 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
         //integrate out the stuff on the right. In each for loop, first convolution, then multiplication.
         for (int s=2*m-2;s>D(0,1);--s){
             // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
-            T_left = itops.tconvolve(beta, Fermion,itops.vals2coefs(T_left),itops.vals2coefs(line(s,_,_,_)));
+            T_left = itops.convolve(beta, Fermion,itops.vals2coefs(T_left),itops.vals2coefs(line(s,_,_,_)),TIME_ORDERED);
             //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
             //Do special things for the vertex connecting to 0.
             if (s-1 != D(0,1)) multiplicate_onto_left(T_left,vertex(s-1,_,_,_));
@@ -271,7 +271,7 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
         //integrate out indices t1, ..., t(2m-2). In each for loop, first convolution, then multiplication.
         for (int s=1;s<=2*m-2;++s){
             // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
-            T = itops.tconvolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T));
+            T = itops.convolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T),TIME_ORDERED);
             //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
             //Do special things for the vertex connecting to 0.
             if (s+1 != D(0,1)) multiplicate_onto(vertex(s+1,_,_,_),T);
@@ -326,13 +326,13 @@ nda::array<dcomplex,3> Sigma_OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomple
             // T(t1) = Vtilde(t1)*G(t1)
             for (int k = 0;k<r;++k) T(k,_,_) = matmul(hyb_F.V_tilde(R,k,_,_),Gt(k,_,_));
             // integrate t1 out: int G(t2-t1)* T(t1) dt1
-            T = itops.tconvolve(beta, Fermion,itops.vals2coefs(Gt),itops.vals2coefs(T));
+            T = itops.convolve(beta, Fermion,itops.vals2coefs(Gt),itops.vals2coefs(T),TIME_ORDERED);
         }
         else{
             // T(t2-t1) = G(t2-t1) * Vtilde(t2-t1)
             for (int k = 0;k<r;++k) T(k,_,_) = matmul(Gt(k,_,_),hyb_F.V_tilde(R,k,_,_));
             // integrate t1 out: int T(t2-t1)* G(t1) dt1
-            T = itops.tconvolve(beta, Fermion,itops.vals2coefs(T),itops.vals2coefs(Gt)); 
+            T = itops.convolve(beta, Fermion,itops.vals2coefs(T),itops.vals2coefs(Gt),TIME_ORDERED); 
         }
         //next, calculate T3(k) = sum_ab Delta_ab(t_k) * Fdag_a * T(k) * F_b
         special_summation(T, F, F_dag, Deltat,Deltat_reflect, n, r, N,backward); 
@@ -340,7 +340,7 @@ nda::array<dcomplex,3> Sigma_OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomple
         //finally integrate out t2
         if (hyb_F.w(R)<0){
             // integrate t2 out: T(t) = int G(t-t2)* T3(t2) dt2
-            T = itops.tconvolve(beta, Fermion,itops.vals2coefs(Gt),itops.vals2coefs(T));
+            T = itops.convolve(beta, Fermion,itops.vals2coefs(Gt),itops.vals2coefs(T),TIME_ORDERED);
             
             //T(t) = Utilde(t) * T(t) 
             
@@ -352,7 +352,7 @@ nda::array<dcomplex,3> Sigma_OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomple
             auto T3 = nda::array<dcomplex,3>(r,N,N);  
             for (int k = 0;k<r;++k) T3(k,_,_) = matmul(hyb_F.U_tilde(R,k,_,_),Gt(k,_,_));
             // integrate t2 out: T(t) = int T(t-t2)* T3(t2) dt2 
-            T = itops.tconvolve(beta, Fermion,itops.vals2coefs(T3),itops.vals2coefs(T)); 
+            T = itops.convolve(beta, Fermion,itops.vals2coefs(T3),itops.vals2coefs(T),TIME_ORDERED); 
         }
         Diagram = Diagram + T*hyb_F.c(R);
         

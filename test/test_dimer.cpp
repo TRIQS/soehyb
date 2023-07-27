@@ -126,7 +126,7 @@ TEST(strong_coupling, dimer) {
 
     auto h_bath = nda::array<dcomplex,2>(2,2);h_bath=0;
     h_bath(0,1) = -tp; h_bath(1,0) = -tp;
-    auto Deltat = make_regular(2* free_gf(beta, itops, 0,h_bath)* pow(t,2));
+    auto Deltat = make_regular(2* free_gf(beta, itops,h_bath,0)* pow(t,2));
 
     int N_S = 4;
     auto c0_S_dag = nda::array<dcomplex,2>(N_S,N_S); c0_dag = 0;
@@ -218,14 +218,7 @@ nda::array<dcomplex,3> ppsc_free_greens_tau(nda::vector_const_view<double> tau_i
 //     }
 //     return G_iaa_new; 
 // }
-// nda::array<dcomplex, 3> dyson_dlr_integrodiff(imtime_ops &itops,nda::array_view<dcomplex,2>H, nda::array<dcomplex, 3> Sigma_xaa,nda::vector_const_view<double> dlr_rf, double beta){
-//     int na = H.shape(0);
-//     nda::array<dcomplex,2> I_aa = eye<dcomplex>(na);
-//     int n = dlr_rf.shape(0);
-//     auto const T_lx = itops.get_cf2it();
-    
 
-// }
 
 
 nda::array<dcomplex,3> NCA(nda::array_view<dcomplex,3> Deltat,nda::array_view<dcomplex,3> Deltat_reflect,nda::array<dcomplex,3> G_iaa,nda::array_const_view<dcomplex,3> F,nda::array_const_view<dcomplex,3> F_dag){
