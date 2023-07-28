@@ -114,6 +114,27 @@ hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda:
     w = hyb_decomp.w;
 }
 
+nda::array<dcomplex,3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
+    int r = Gt.shape(0); // size of time grid
+    int n = Deltat.shape(1); // size of G matrices
+    int m = D.shape(0); // order of diagram
+    auto Diagram = nda::array<dcomplex,3>(r,n,n);
+    Diagram = 0;
+    int total_num_fb_diagram = pow(2, m-1);
+    for (int num=0;num<total_num_fb_diagram;++num){
+        int num0 = num;
+        auto fb = nda::vector<int>(m);
+        for (int v = 1;v<m;++v){
+            fb[v] = num0 % 2;
+            num0 = int(num0/2);
+        }
+       // std::cout<<fb<<std::endl;
+        Diagram += G_Diagram_calc(hyb_F_self,hyb_F_reflect,D,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag,  fb, true);
+    }
+    return Diagram;
+}
+
+
 nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb, bool backward){
     auto const &dlr_it = itops.get_itnodes();  
     //obtain basic parameters
@@ -127,8 +148,15 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
     //initialize diagram
     auto Diagram = nda::array<dcomplex,3>(r,n,n);
     Diagram = 0;
+    if (m==1){
+        double constant = 1.0;
+        final_evaluation(Diagram,Gt,itops.reflect(Gt),F,F_dag,n,r,N,constant);
+        return Diagram;
+    }
+
     //iteration over the terms of 2, · · · , m-th hybridization. Note that 1-st hybridization is not decomposed.
     int total_num_diagram = pow(P, m-1);
+    
     for (int num=0;num<total_num_diagram;++num){
         int num0 = num;
         //obtain R2, ... , Rm, store as R[1],...,R[m-1]
@@ -177,7 +205,7 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
         for (int k = 0;k<r;++k) T_left(k,_,_) = matmul(Gt(k,_,_),vertex(2*m-1,k,_,_));
 
         //integrate out the stuff on the right. In each for loop, first convolution, then multiplication.
-        for (int s=2*m-2;s>D(0,1);--s){
+        for (int s=2*m-1;s>D(0,1);--s){
             // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
             T_left = itops.convolve(beta, Fermion,itops.vals2coefs(T_left),itops.vals2coefs(line(s,_,_,_)),TIME_ORDERED);
             //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
@@ -187,28 +215,50 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
         //revert back from (beta-t) to t
         T_left = itops.reflect(T_left); 
 
-        auto GF_dag = nda::array<dcomplex,4>(n,r,N,N);
-        auto GF = nda::array<dcomplex,4>(n,r,N,N);
-        auto GF_left_dag = nda::array<dcomplex,4>(n,r,N,N);
-        auto GF_left = nda::array<dcomplex,4>(n,r,N,N);
-        for (int b=0;b<n;++b){
-            for (int k = 0;k<r;++k) GF_dag(b,k,_,_) = matmul(T(k,_,_), F_dag(b,_,_));
-            for (int k = 0;k<r;++k) GF(b,k,_,_) = matmul(T(k,_,_), F(b,_,_));
-            for (int k = 0;k<r;++k) GF_left_dag(b,k,_,_) = matmul(T_left(k,_,_), F_dag(b,_,_));
-            for (int k = 0;k<r;++k) GF_left(b,k,_,_) = matmul(T_left(k,_,_), F(b,_,_));  
-        }
-        for (int b=0;b<n;++b){
-            for (int a=0;a<n;++a){
-                for (int k = 0;k<r;++k){
-                    Diagram(k,a,b) += trace(matmul(GF_left(a,k,_,_),GF_dag(b,k,_,_)));
-                    Diagram(k,a,b) += trace(matmul(GF_left_dag(a,k,_,_),GF(b,k,_,_))); 
-                }
-            }
-        }
+        final_evaluation(Diagram,T,T_left,F,F_dag,n,r,N,constant);
+
+        // auto GF_dag = nda::array<dcomplex,4>(n,r,N,N);
+        // // auto GF = nda::array<dcomplex,4>(n,r,N,N);
+        // // auto GF_left_dag = nda::array<dcomplex,4>(n,r,N,N);
+        // auto GF_left = nda::array<dcomplex,4>(n,r,N,N);
+        // for (int b=0;b<n;++b){
+        //     for (int k = 0;k<r;++k) GF_dag(b,k,_,_) = matmul(T(k,_,_), F_dag(b,_,_));
+        //     // for (int k = 0;k<r;++k) GF(b,k,_,_) = matmul(T(k,_,_), F(b,_,_));
+        //     // for (int k = 0;k<r;++k) GF_left_dag(b,k,_,_) = matmul(T_left(k,_,_), F_dag(b,_,_));
+        //     for (int k = 0;k<r;++k) GF_left(b,k,_,_) = matmul(T_left(k,_,_), F(b,_,_));  
+        // }
+        // for (int b=0;b<n;++b){
+        //     for (int a=0;a<n;++a){
+        //         for (int k = 0;k<r;++k){
+        //             Diagram(k,a,b) += constant* trace(matmul(GF_left(a,k,_,_),GF_dag(b,k,_,_)));
+        //             // Diagram(k,a,b) += trace(matmul(GF_left_dag(a,k,_,_),GF(b,k,_,_))); 
+        //         }
+        //     }
+        // }
     }   
     return Diagram; 
 }
-
+void final_evaluation(nda::array_view<dcomplex,3> Diagram, nda::array_const_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> T_left, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,int &n, int &r, int &N, double &constant){
+    
+    auto GF_dag = nda::array<dcomplex,4>(n,r,N,N);
+    // auto GF = nda::array<dcomplex,4>(n,r,N,N);
+    // auto GF_left_dag = nda::array<dcomplex,4>(n,r,N,N);
+    auto GF_left = nda::array<dcomplex,4>(n,r,N,N);
+    for (int b=0;b<n;++b){
+        for (int k = 0;k<r;++k) GF_dag(b,k,_,_) = matmul(T(k,_,_), F_dag(b,_,_));
+        // for (int k = 0;k<r;++k) GF(b,k,_,_) = matmul(T(k,_,_), F(b,_,_));
+        // for (int k = 0;k<r;++k) GF_left_dag(b,k,_,_) = matmul(T_left(k,_,_), F_dag(b,_,_));
+        for (int k = 0;k<r;++k) GF_left(b,k,_,_) = matmul(T_left(k,_,_), F(b,_,_));  
+    }
+    for (int b=0;b<n;++b){
+        for (int a=0;a<n;++a){
+            for (int k = 0;k<r;++k){
+                Diagram(k,a,b) += constant* trace(matmul(GF_left(a,k,_,_),GF_dag(b,k,_,_)));
+                // Diagram(k,a,b) += trace(matmul(GF_left_dag(a,k,_,_),GF(b,k,_,_))); 
+            }
+        }
+    } 
+}
 
 
 nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag, nda::vector_const_view<int> fb, bool backward){

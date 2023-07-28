@@ -121,8 +121,8 @@ TEST(strong_coupling, dimer) {
     auto G00_dlr = itops.vals2coefs(G00);
     auto G01_dlr = itops.vals2coefs(G01);
 
-    std::cout<<std::setprecision(8)<<itops.coefs2eval(G00_dlr, 0)<<std::endl;
-    std::cout<<itops.coefs2eval(G01_dlr, 0)<<std::endl;
+    // std::cout<<std::setprecision(8)<<itops.coefs2eval(G00_dlr, 0)<<std::endl;
+    // std::cout<<itops.coefs2eval(G01_dlr, 0)<<std::endl;
 
     auto h_bath = nda::array<dcomplex,2>(2,2);h_bath=0;
     h_bath(0,1) = -tp; h_bath(1,0) = -tp;
@@ -166,15 +166,55 @@ TEST(strong_coupling, dimer) {
     Delta_decomp_reflect.check_accuracy(Deltat_reflect, dlr_it);
     auto Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag);
     auto Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);
+    double eta;
+    double Z_S;
     
     auto G_S_tau = G0_S_tau;
     auto D_NCA = nda::array<int,2>{{0,1}};// Diagram topology
-    auto NCAdiagram = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_NCA,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag);
     auto D2 = nda::array<int,2>{{0,2},{1,3}};
-    auto OCAdiagram = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D2,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag);
+    nda::array<dcomplex,3> G_S_tau_old = 0.0*G_S_tau; 
+    for (int ppsc_iter = 0; ppsc_iter<100;++ppsc_iter){
+       
+        if (max_element(abs(G_S_tau_old-G_S_tau))<1e-10) break;
+        auto NCAdiagram = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_NCA,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag);
     
-    auto Sigma_dlr = itops.vals2coefs(make_regular(NCAdiagram+OCAdiagram));
-    std::cout<<itops.coefs2eval(Sigma_dlr, 1.0/32.0);
+        auto OCAdiagram = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D2,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag);
+        auto Sigma_t = make_regular(NCAdiagram+OCAdiagram);
+      //  std::cout<<"Sigma(t) is"<<Sigma_t(0,_,_)<<std::endl;
+        auto Sigma_dlr = itops.vals2coefs(Sigma_t);//));
+    
+        auto dys = dyson_it(beta, itops, H_S, 0, true);
+        auto G_new_tau   = dys.solve(Sigma_t);  
+        auto G_new_dlr = itops.vals2coefs(G_new_tau);
+      //  std::cout<<itops.coefs2eval(G_new_dlr, 0.0/32.0)<<std::endl;
+       // std::cout<<itops.coefs2eval(G_new_dlr, 3.0/32.0);
+        Z_S= -real(trace(itops.coefs2eval(G_new_dlr,1.0)));//should be changed
+        eta = log(Z_S)/beta;
+       // std::cout<<Z_S;
+        H_S += eta*nda::eye<dcomplex>(H_S.shape(0));
+        G_S_tau_old = G_S_tau;
+        for (int k=0;k<r;++k){
+            G_new_tau(k,_,_) =  G_new_tau(k,_,_) * exp(-tau_actual(k)*eta);
+        }
+        G_S_tau = 0.5*G_S_tau + 0.5* G_new_tau;
+         std::cout<<"iter "<<ppsc_iter<<" , diff is "<<max_element(abs(G_S_tau_old-G_S_tau))<<std::endl;
+    }
+    auto G_S_dlr = itops.vals2coefs(G_S_tau);
+    std::cout<<itops.coefs2eval(G_S_dlr,1.33817298e-04/32.0); 
+    std::cout<<itops.coefs2eval(G_S_dlr,5.03068549e-02/32.0);
+    std::cout<<itops.coefs2eval(G_S_dlr,2.67856053e+00/32.0);
+    auto g_S_NCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D_NCA,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag);
+    std::cout<<make_regular(g_S_NCA(0,_,_));
+    auto g_S_OCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D2,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag);
+    auto g_S_OCA_dlr = itops.vals2coefs(make_regular(g_S_OCA));
+    std::cout<<itops.coefs2eval(g_S_OCA_dlr,1.33817298e-04/32.0); 
+    std::cout<<itops.coefs2eval(g_S_OCA_dlr,5.03068549e-02/32.0);
+    std::cout<<itops.coefs2eval(g_S_OCA_dlr,2.67856053e+00/32.0)<<std::endl;
+
+
+    for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S_NCA(i,0,0))<<" ";
+    std::cout<<std::endl;
+    for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S_NCA(i,0,0)-2*g_S_OCA(i,0,0))<<" "; 
 }
 
 nda::array<dcomplex,3> ppsc_free_greens_tau(nda::vector_const_view<double> tau_i, nda::array_view<dcomplex,2> H_S, double beta){

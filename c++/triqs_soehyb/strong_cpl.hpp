@@ -84,7 +84,7 @@ This is the function for diagram evaluation with a given topology, which sum ove
 This is the function to be wrapped by python.
 */
 nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
-
+nda::array<dcomplex,3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
 /* This is the function for evaluating the OCA diagram given its topology D.
     The function input is:
         hyb_F:   info about hyb from the class hyb_F;
@@ -110,3 +110,4 @@ void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &con
 
 void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat, nda::array_const_view<dcomplex,3> Deltat_reflect,int &n, int &r, int &N, bool backward= true);
 
+void final_evaluation(nda::array_view<dcomplex,3> Diagram, nda::array_const_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> T_left, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,int &n, int &r, int &N, double &constant);
