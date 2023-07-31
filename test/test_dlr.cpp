@@ -260,6 +260,81 @@ TEST(strong_coupling, high_order_diagrams) {
 
 }
 
+
+
+TEST(strong_coupling, G_diagrams) {
+    // Set problem parameters
+    double beta = 2; // Inverse temperature
+    const int N = 2;     // Dimension of Greens function. Do not change, or you'll have to rewrite G(t)
+    int Num = 128;   // Size of equidist grid
+    const int dim = 1; //Dimension of hybridization. One can change dim as they want.
+        
+    // Set DLR parameters
+    double lambda = beta*5;
+    double eps = 1.0e-12;
+    auto dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
+    auto itops = imtime_ops(lambda, dlr_rf); // Get DLR imaginary time object
+    auto const & dlr_it = itops.get_itnodes();
+    int r = itops.rank();
+
+    nda::vector<double> dlr_it_actual = dlr_it;
+    for (int i = 0;i<r;++i) {if (dlr_it(i)<0) dlr_it_actual(i) = dlr_it(i)+1; }
+
+
+    //parameters in exponential functions we will use
+    double alpha_1 = 0.5;
+    double alpha_2 = 0.0;
+    //construct G(t) = [0, exp(-alpha_1*t); exp(-alpha_1*t) 0], Deltat = exp(-alpha2 * t)
+    auto Gt = nda::array<dcomplex, 3>(r, N, N);
+    auto Deltat = nda::array<dcomplex, 3>(r, dim, dim); 
+    construct_G_and_Delta(Gt,  Deltat, dlr_it_actual, beta, alpha_1, alpha_2, r);
+    
+
+    //construct Gdlr and Delta dlr
+    auto Gdlr = itops.vals2coefs(Gt); 
+    auto Deltadlr = itops.vals2coefs(Deltat);
+
+    //reflect Deltat
+    auto Deltat_reflect  = itops.reflect(Deltat); 
+    auto Deltadlr_reflect = itops.vals2coefs(Deltat_reflect);
+  
+ 
+    auto F = nda::array<dcomplex,3>(dim,N,N);
+    for (int i = 0; i<dim;++i) F(i,_,_) = eye<dcomplex>(N);
+
+    // Diagram topology that we will try
+    auto D2 = nda::array<int,2>{{0,2},{1,3}};
+    auto D3 = nda::array<int,2>{{0,2},{1,4},{3,5}};
+        
+    //construct true solutions
+    auto G_OCA_true_00 = nda::array<dcomplex,3>(Gt.shape(0),1,1); 
+    G_OCA_true_00 = 0;
+    for (int i=0;i<r;++i) G_OCA_true_00(i,0,0) = beta*beta * dlr_it_actual(i)*(1-dlr_it_actual(i)) * exp(-1.0)*dim*N;
+    
+
+        
+    nda::array<double,1> pol(1);
+    pol(0) =  0.0*beta;
+    nda::array<dcomplex,3> A(1,dim,dim);
+    A(0,_,_) = eye<dcomplex>(dim)/k_it(0,0.0*beta);
+
+    auto Delta_decomp_simple = hyb_decomp(A,pol);
+    Delta_decomp_simple.check_accuracy(Deltat, dlr_it);
+    bool backward = false;
+    auto fb2 =  nda::vector<int>(2); fb2=0;
+    auto fb3 =  nda::vector<int>(3); fb3=0;
+
+
+    auto Delta_F_simple = hyb_F(Delta_decomp_simple, dlr_rf, dlr_it, F, F);
+    //calculating diagrams
+    auto G_OCAdiagram_simple = G_Diagram_calc(Delta_F_simple,Delta_F_simple,D2,Deltat,Deltat, Gt,itops,beta, F,  F, fb2);
+   // auto G_OCAdiagram_simple = G_OCA_calc(Delta_F_simple,Delta_F_simple,Deltat,Deltat, Gt,itops,beta, F,  F, fb2);
+
+
+    std::cout<<max_element(abs(G_OCAdiagram_simple(_,0,0)-G_OCA_true_00(_,0,0)));
+
+}
+
 void construct_G_and_Delta(nda::array_view<dcomplex, 3> Gt,nda::array_view<dcomplex, 3> Deltat,nda::vector_const_view<double> dlr_it_actual,const double &beta,const double &alpha_1,const double &alpha_2, int &r){
     Gt = 0;
     auto G_01 = exp(-alpha_1*beta*dlr_it_actual);
