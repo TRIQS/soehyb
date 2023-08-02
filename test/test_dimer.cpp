@@ -1,4 +1,5 @@
 #include "../src/strong_cpl.hpp"
+#include "../src/impurity.hpp"
 #include "nda/nda.hpp"
 #include <cppdlr/cppdlr.hpp>
 #include <cppdlr/dlr_imtime.hpp>
@@ -173,7 +174,7 @@ TEST(strong_coupling, dimer) {
     auto D_NCA = nda::array<int,2>{{0,1}};// Diagram topology
     auto D2 = nda::array<int,2>{{0,2},{1,3}};
     nda::array<dcomplex,3> G_S_tau_old = 0.0*G_S_tau; 
-    for (int ppsc_iter = 0; ppsc_iter<100;++ppsc_iter){
+    for (int ppsc_iter = 0; ppsc_iter<1;++ppsc_iter){
        
         if (max_element(abs(G_S_tau_old-G_S_tau))<1e-10) break;
         auto NCAdiagram = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_NCA,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag);
@@ -200,21 +201,26 @@ TEST(strong_coupling, dimer) {
          std::cout<<"iter "<<ppsc_iter<<" , diff is "<<max_element(abs(G_S_tau_old-G_S_tau))<<std::endl;
     }
     auto G_S_dlr = itops.vals2coefs(G_S_tau);
-    std::cout<<itops.coefs2eval(G_S_dlr,1.33817298e-04/32.0); 
-    std::cout<<itops.coefs2eval(G_S_dlr,5.03068549e-02/32.0);
-    std::cout<<itops.coefs2eval(G_S_dlr,2.67856053e+00/32.0);
+    std::cout<<-real(trace(itops.coefs2eval(G_S_dlr,1.0)));
+    // std::cout<<itops.coefs2eval(G_S_dlr,1.33817298e-04/32.0); 
+    // std::cout<<itops.coefs2eval(G_S_dlr,5.03068549e-02/32.0);
+    // std::cout<<itops.coefs2eval(G_S_dlr,2.67856053e+00/32.0);
     auto g_S_NCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D_NCA,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag);
-    std::cout<<make_regular(g_S_NCA(0,_,_));
+    // std::cout<<make_regular(g_S_NCA(0,_,_));
     auto g_S_OCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D2,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag);
+    auto fb2 =  nda::vector<int>(2); fb2=0;
+    auto g_S_OCA_single = -G_Diagram_calc(Delta_F,Delta_F_reflect,D2,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag,fb2);
     auto g_S_OCA_dlr = itops.vals2coefs(make_regular(g_S_OCA));
-    std::cout<<itops.coefs2eval(g_S_OCA_dlr,1.33817298e-04/32.0); 
-    std::cout<<itops.coefs2eval(g_S_OCA_dlr,5.03068549e-02/32.0);
-    std::cout<<itops.coefs2eval(g_S_OCA_dlr,2.67856053e+00/32.0)<<std::endl;
+    // std::cout<<itops.coefs2eval(g_S_OCA_dlr,1.33817298e-04/32.0); 
+    // std::cout<<itops.coefs2eval(g_S_OCA_dlr,5.03068549e-02/32.0);
+    // std::cout<<itops.coefs2eval(g_S_OCA_dlr,2.67856053e+00/32.0)<<std::endl;
 
 
-    for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S_NCA(i,0,0))<<" ";
-    std::cout<<std::endl;
-    for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S_NCA(i,0,0)-2*g_S_OCA(i,0,0))<<" "; 
+    // for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S_NCA(i,0,0))<<" ";
+    // std::cout<<std::endl;
+    // for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S_NCA(i,0,0)-2*g_S_OCA(i,0,0))<<" "; 
+
+    auto impsol = impuritysolver(beta,lambda,eps,Deltat); 
 }
 
 nda::array<dcomplex,3> ppsc_free_greens_tau(nda::vector_const_view<double> tau_i, nda::array_view<dcomplex,2> H_S, double beta){

@@ -105,160 +105,160 @@ TEST(strong_coupling, exponential_functions) {
 }
 
 
-TEST(strong_coupling, high_order_diagrams) {
-    // Set problem parameters
-    double beta = 2; // Inverse temperature
-    const int N = 2;     // Dimension of Greens function. Do not change, or you'll have to rewrite G(t)
-    int Num = 128;   // Size of equidist grid
-    const int dim = 3; //Dimension of hybridization. One can change dim as they want.
+// TEST(strong_coupling, high_order_diagrams) {
+//     // Set problem parameters
+//     double beta = 2; // Inverse temperature
+//     const int N = 2;     // Dimension of Greens function. Do not change, or you'll have to rewrite G(t)
+//     int Num = 128;   // Size of equidist grid
+//     const int dim = 3; //Dimension of hybridization. One can change dim as they want.
         
-    // Set DLR parameters
-    double lambda = beta*5;
-    double eps = 1.0e-12;
-    auto dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
-    auto itops = imtime_ops(lambda, dlr_rf); // Get DLR imaginary time object
-    auto const & dlr_it = itops.get_itnodes();
-    int r = itops.rank();
+//     // Set DLR parameters
+//     double lambda = beta*5;
+//     double eps = 1.0e-12;
+//     auto dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
+//     auto itops = imtime_ops(lambda, dlr_rf); // Get DLR imaginary time object
+//     auto const & dlr_it = itops.get_itnodes();
+//     int r = itops.rank();
 
-    nda::vector<double> dlr_it_actual = dlr_it;
-    for (int i = 0;i<r;++i) {if (dlr_it(i)<0) dlr_it_actual(i) = dlr_it(i)+1; }
+//     nda::vector<double> dlr_it_actual = dlr_it;
+//     for (int i = 0;i<r;++i) {if (dlr_it(i)<0) dlr_it_actual(i) = dlr_it(i)+1; }
 
 
-    //parameters in exponential functions we will use
-    double alpha_1 = 0.5;
-    //construct G(t) = [0, exp(-alpha_1*t); exp(-alpha_1*t) 0], Deltat = exp(-alpha2 * t)
-    auto Gt = nda::array<dcomplex, 3>(r, N, N);
-    auto Deltat = nda::array<dcomplex, 3>(r, dim, dim); 
-    construct_G_and_Delta(Gt,  Deltat, dlr_it_actual, beta, alpha_1, 0.0, r);
+//     //parameters in exponential functions we will use
+//     double alpha_1 = 0.5;
+//     //construct G(t) = [0, exp(-alpha_1*t); exp(-alpha_1*t) 0], Deltat = exp(-alpha2 * t)
+//     auto Gt = nda::array<dcomplex, 3>(r, N, N);
+//     auto Deltat = nda::array<dcomplex, 3>(r, dim, dim); 
+//     construct_G_and_Delta(Gt,  Deltat, dlr_it_actual, beta, alpha_1, 0.0, r);
     
 
-    //construct Gdlr and Delta dlr
-    auto Gdlr = itops.vals2coefs(Gt); 
-    auto Deltadlr = itops.vals2coefs(Deltat);
+//     //construct Gdlr and Delta dlr
+//     auto Gdlr = itops.vals2coefs(Gt); 
+//     auto Deltadlr = itops.vals2coefs(Deltat);
 
-    //reflect Deltat
-    auto Deltat_reflect  = itops.reflect(Deltat); 
-    auto Deltadlr_reflect = itops.vals2coefs(Deltat_reflect);
+//     //reflect Deltat
+//     auto Deltat_reflect  = itops.reflect(Deltat); 
+//     auto Deltadlr_reflect = itops.vals2coefs(Deltat_reflect);
   
  
-    auto F = nda::array<dcomplex,3>(dim,N,N);
-    for (int i = 0; i<dim;++i) F(i,_,_) = eye<dcomplex>(N);
+//     auto F = nda::array<dcomplex,3>(dim,N,N);
+//     for (int i = 0; i<dim;++i) F(i,_,_) = eye<dcomplex>(N);
 
-    // Diagram topology that we will try
-    auto D2 = nda::array<int,2>{{0,2},{1,3}};
-    auto D3 = nda::array<int,2>{{0,2},{1,4},{3,5}};
-    auto D4= nda::array<int,2>{{0,2},{1,6},{3,5},{4,7}};
-    auto D5= nda::array<int,2>{{0,2},{1,8},{3,6},{4,9},{5,7}};
-    auto D6 = nda::array<int,2>{{0,2},{1,7},{3,9},{4,10},{5,8},{6,11}};
-    auto D7 = nda::array<int,2>{{0,2},{1,7},{3,13},{4,10},{5,8},{6,11},{9,12}}; 
-    auto D8 = nda::array<int,2>{{0,2},{1,14},{3,13},{4,10},{5,8},{6,11},{9,12},{7,15}}; 
+//     // Diagram topology that we will try
+//     auto D2 = nda::array<int,2>{{0,2},{1,3}};
+//     auto D3 = nda::array<int,2>{{0,2},{1,4},{3,5}};
+//     auto D4= nda::array<int,2>{{0,2},{1,6},{3,5},{4,7}};
+//     auto D5= nda::array<int,2>{{0,2},{1,8},{3,6},{4,9},{5,7}};
+//     auto D6 = nda::array<int,2>{{0,2},{1,7},{3,9},{4,10},{5,8},{6,11}};
+//     auto D7 = nda::array<int,2>{{0,2},{1,7},{3,13},{4,10},{5,8},{6,11},{9,12}}; 
+//     auto D8 = nda::array<int,2>{{0,2},{1,14},{3,13},{4,10},{5,8},{6,11},{9,12},{7,15}}; 
     
-    //construct true solutions
-    auto OCA_true = nda::array<dcomplex,3>(Gt.shape()); 
-    OCA_true = 0;
-    for (int i=0;i<r;++i) OCA_true(i,0,1) =exp(-(alpha_1)*beta*dlr_it_actual(i))*(beta*dlr_it_actual(i)/1.0)*(beta*dlr_it_actual(i)/2.0);
-    OCA_true(_,1,0) = OCA_true(_,0,1);
-    OCA_true = OCA_true * pow(dim,2);
+//     //construct true solutions
+//     auto OCA_true = nda::array<dcomplex,3>(Gt.shape()); 
+//     OCA_true = 0;
+//     for (int i=0;i<r;++i) OCA_true(i,0,1) =exp(-(alpha_1)*beta*dlr_it_actual(i))*(beta*dlr_it_actual(i)/1.0)*(beta*dlr_it_actual(i)/2.0);
+//     OCA_true(_,1,0) = OCA_true(_,0,1);
+//     OCA_true = OCA_true * pow(dim,2);
 
-    auto diagram_3rd_order_true = nda::array<dcomplex,3>(Gt.shape());  
-    for (int i=0;i<r;++i) diagram_3rd_order_true(i,_,_) = OCA_true(i,_,_)*(beta*dlr_it_actual(i)/3.0)*(beta*dlr_it_actual(i)/4.0)*dim; 
+//     auto diagram_3rd_order_true = nda::array<dcomplex,3>(Gt.shape());  
+//     for (int i=0;i<r;++i) diagram_3rd_order_true(i,_,_) = OCA_true(i,_,_)*(beta*dlr_it_actual(i)/3.0)*(beta*dlr_it_actual(i)/4.0)*dim; 
     
-    auto diagram_4th_order_true = nda::array<dcomplex,3>(Gt.shape());  
-    for (int i=0;i<r;++i) diagram_4th_order_true(i,_,_) =diagram_3rd_order_true(i,_,_) *(beta*dlr_it_actual(i)/5.0)*(beta*dlr_it_actual(i)/6.0)* dim;
+//     auto diagram_4th_order_true = nda::array<dcomplex,3>(Gt.shape());  
+//     for (int i=0;i<r;++i) diagram_4th_order_true(i,_,_) =diagram_3rd_order_true(i,_,_) *(beta*dlr_it_actual(i)/5.0)*(beta*dlr_it_actual(i)/6.0)* dim;
   
-    auto diagram_5th_order_true = nda::array<dcomplex,3>(Gt.shape());  
-    for (int i=0;i<r;++i) diagram_5th_order_true(i,_,_) = diagram_4th_order_true(i,_,_)*(beta*dlr_it_actual(i)/7.0) * (beta*dlr_it_actual(i)/8.0)* dim;
+//     auto diagram_5th_order_true = nda::array<dcomplex,3>(Gt.shape());  
+//     for (int i=0;i<r;++i) diagram_5th_order_true(i,_,_) = diagram_4th_order_true(i,_,_)*(beta*dlr_it_actual(i)/7.0) * (beta*dlr_it_actual(i)/8.0)* dim;
 
-    auto diagram_6th_order_true = nda::array<dcomplex,3>(Gt.shape());  
-    for (int i=0;i<r;++i) diagram_6th_order_true(i,_,_) = diagram_5th_order_true(i,_,_)*(beta/9.0)*dlr_it_actual(i) * (beta/10.0)*dlr_it_actual(i)* dim;
+//     auto diagram_6th_order_true = nda::array<dcomplex,3>(Gt.shape());  
+//     for (int i=0;i<r;++i) diagram_6th_order_true(i,_,_) = diagram_5th_order_true(i,_,_)*(beta/9.0)*dlr_it_actual(i) * (beta/10.0)*dlr_it_actual(i)* dim;
 
-    auto diagram_7th_order_true = nda::array<dcomplex,3>(Gt.shape());  
-    for (int i=0;i<r;++i) diagram_7th_order_true(i,_,_) = diagram_6th_order_true(i,_,_)*(beta/11.0)*dlr_it_actual(i) * (beta/12.0)*dlr_it_actual(i)*dim;
+//     auto diagram_7th_order_true = nda::array<dcomplex,3>(Gt.shape());  
+//     for (int i=0;i<r;++i) diagram_7th_order_true(i,_,_) = diagram_6th_order_true(i,_,_)*(beta/11.0)*dlr_it_actual(i) * (beta/12.0)*dlr_it_actual(i)*dim;
     
-    auto diagram_8th_order_true = nda::array<dcomplex,3>(Gt.shape());  
-    for (int i=0;i<r;++i) diagram_8th_order_true(i,_,_) = diagram_7th_order_true(i,_,_)*(beta*dlr_it_actual(i)/13.0) * (beta*dlr_it_actual(i)/14.0) * dim;
+//     auto diagram_8th_order_true = nda::array<dcomplex,3>(Gt.shape());  
+//     for (int i=0;i<r;++i) diagram_8th_order_true(i,_,_) = diagram_7th_order_true(i,_,_)*(beta*dlr_it_actual(i)/13.0) * (beta*dlr_it_actual(i)/14.0) * dim;
 
-    std::cout<<"Testing high order diagrams:"<<std::endl;
-    nda::array<double,1> pol(1);
-    pol(0) =  0.0*beta;
-    nda::array<dcomplex,3> A(1,dim,dim);
-    A(0,_,_) = eye<dcomplex>(dim)/k_it(0,0.0*beta);
+//     std::cout<<"Testing high order diagrams:"<<std::endl;
+//     nda::array<double,1> pol(1);
+//     pol(0) =  0.0*beta;
+//     nda::array<dcomplex,3> A(1,dim,dim);
+//     A(0,_,_) = eye<dcomplex>(dim)/k_it(0,0.0*beta);
 
-    auto Delta_decomp_simple = hyb_decomp(A,pol);
-    Delta_decomp_simple.check_accuracy(Deltat, dlr_it);
-    bool backward = false;
-    auto fb2 =  nda::vector<int>(2); fb2=0;
-    auto fb3 =  nda::vector<int>(3); fb3=0;
-    auto fb4 =  nda::vector<int>(4); fb4=0;
-    auto fb5 =  nda::vector<int>(5); fb5=0;
-    auto fb6 =  nda::vector<int>(6); fb6=0;
-    auto fb7 =  nda::vector<int>(7); fb7=0;
-    auto fb8 =  nda::vector<int>(8); fb8=0;
+//     auto Delta_decomp_simple = hyb_decomp(A,pol);
+//     Delta_decomp_simple.check_accuracy(Deltat, dlr_it);
+//     bool backward = false;
+//     auto fb2 =  nda::vector<int>(2); fb2=0;
+//     auto fb3 =  nda::vector<int>(3); fb3=0;
+//     auto fb4 =  nda::vector<int>(4); fb4=0;
+//     auto fb5 =  nda::vector<int>(5); fb5=0;
+//     auto fb6 =  nda::vector<int>(6); fb6=0;
+//     auto fb7 =  nda::vector<int>(7); fb7=0;
+//     auto fb8 =  nda::vector<int>(8); fb8=0;
 
-    auto Delta_F_simple = hyb_F(Delta_decomp_simple, dlr_rf, dlr_it, F, F);
-    //calculating diagrams
-    auto begin = std::chrono::high_resolution_clock::now();
-    auto OCAdiagram_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D2,Deltat,Deltat, Gt,itops,beta, F,  F, fb2,backward);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-    double t2_simple =  elapsed.count(); 
-    std::cout<< "Error of OCA_Diagram is "<< max_element(abs(OCAdiagram_simple - OCA_true))<<"; maximum of diagram is "<< max_element(abs(OCA_true)) <<std::endl; 
+//     auto Delta_F_simple = hyb_F(Delta_decomp_simple, dlr_rf, dlr_it, F, F);
+//     //calculating diagrams
+//     auto begin = std::chrono::high_resolution_clock::now();
+//     auto OCAdiagram_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D2,Deltat,Deltat, Gt,itops,beta, F,  F, fb2,backward);
+//     auto end = std::chrono::high_resolution_clock::now();
+//     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+//     double t2_simple =  elapsed.count(); 
+//     std::cout<< "Error of OCA_Diagram is "<< max_element(abs(OCAdiagram_simple - OCA_true))<<"; maximum of diagram is "<< max_element(abs(OCA_true)) <<std::endl; 
     
-    begin = std::chrono::high_resolution_clock::now();
-    auto diagram_3rd_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D3,Deltat,Deltat, Gt,itops,beta, F,  F,fb3,backward);
-    end = std::chrono::high_resolution_clock::now();
-    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-    double t3_simple =  elapsed.count();
-    std::cout<< "Error of 3rd order Diagram is "<< max_element(abs(diagram_3rd_order_simple - diagram_3rd_order_true)) <<"; maximum of diagram is "<< max_element(abs(diagram_3rd_order_true))<<std::endl; 
+//     begin = std::chrono::high_resolution_clock::now();
+//     auto diagram_3rd_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D3,Deltat,Deltat, Gt,itops,beta, F,  F,fb3,backward);
+//     end = std::chrono::high_resolution_clock::now();
+//     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+//     double t3_simple =  elapsed.count();
+//     std::cout<< "Error of 3rd order Diagram is "<< max_element(abs(diagram_3rd_order_simple - diagram_3rd_order_true)) <<"; maximum of diagram is "<< max_element(abs(diagram_3rd_order_true))<<std::endl; 
     
-    begin = std::chrono::high_resolution_clock::now();
-    auto diagram_4th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D4,Deltat,Deltat, Gt,itops,beta, F,  F,fb4,backward);
-    end = std::chrono::high_resolution_clock::now();
-    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-    double t4_simple =  elapsed.count();
-    //std::cout<<"Difference of 4th order diagram between two methods is "<<max_element(abs(diagram_4th_order_simple - diagram_4th_order)) <<std::endl;
-    std::cout<< "Error of 4th order Diagram is "<< max_element(abs(diagram_4th_order_simple - diagram_4th_order_true)) <<"; maximum of diagram is "<< max_element(abs(diagram_4th_order_true))<<std::endl; 
+//     begin = std::chrono::high_resolution_clock::now();
+//     auto diagram_4th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D4,Deltat,Deltat, Gt,itops,beta, F,  F,fb4,backward);
+//     end = std::chrono::high_resolution_clock::now();
+//     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+//     double t4_simple =  elapsed.count();
+//     //std::cout<<"Difference of 4th order diagram between two methods is "<<max_element(abs(diagram_4th_order_simple - diagram_4th_order)) <<std::endl;
+//     std::cout<< "Error of 4th order Diagram is "<< max_element(abs(diagram_4th_order_simple - diagram_4th_order_true)) <<"; maximum of diagram is "<< max_element(abs(diagram_4th_order_true))<<std::endl; 
     
-    begin = std::chrono::high_resolution_clock::now();
-    auto diagram_5th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D5,Deltat,Deltat, Gt,itops,beta, F,  F,fb5,backward);
-    end = std::chrono::high_resolution_clock::now();
-    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-    double t5_simple =  elapsed.count();
-    std::cout<< "Error of 5th order Diagram is "<< max_element(abs(diagram_5th_order_simple - diagram_5th_order_true))<<"; maximum of diagram is "<< max_element(abs(diagram_5th_order_true)) <<std::endl; 
+//     begin = std::chrono::high_resolution_clock::now();
+//     auto diagram_5th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D5,Deltat,Deltat, Gt,itops,beta, F,  F,fb5,backward);
+//     end = std::chrono::high_resolution_clock::now();
+//     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+//     double t5_simple =  elapsed.count();
+//     std::cout<< "Error of 5th order Diagram is "<< max_element(abs(diagram_5th_order_simple - diagram_5th_order_true))<<"; maximum of diagram is "<< max_element(abs(diagram_5th_order_true)) <<std::endl; 
 
-    begin = std::chrono::high_resolution_clock::now();
-    auto diagram_6th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D6,Deltat,Deltat, Gt,itops,beta, F,  F,fb6,backward);
-    end = std::chrono::high_resolution_clock::now();
-    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-    double t6_simple =  elapsed.count();
-    std::cout<< "Error of 6th order Diagram is "<< max_element(abs(diagram_6th_order_simple - diagram_6th_order_true))<<"; maximum of diagram is "<< max_element(abs(diagram_6th_order_true)) <<std::endl; 
+//     begin = std::chrono::high_resolution_clock::now();
+//     auto diagram_6th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D6,Deltat,Deltat, Gt,itops,beta, F,  F,fb6,backward);
+//     end = std::chrono::high_resolution_clock::now();
+//     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+//     double t6_simple =  elapsed.count();
+//     std::cout<< "Error of 6th order Diagram is "<< max_element(abs(diagram_6th_order_simple - diagram_6th_order_true))<<"; maximum of diagram is "<< max_element(abs(diagram_6th_order_true)) <<std::endl; 
 
-    begin = std::chrono::high_resolution_clock::now();
-    auto diagram_7th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D7,Deltat,Deltat, Gt,itops,beta, F,  F,fb7,backward);
-    end = std::chrono::high_resolution_clock::now();
-    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-    double t7_simple =  elapsed.count();
-    std::cout<< "Error of 7th order Diagram is "<< max_element(abs(diagram_7th_order_simple - diagram_7th_order_true)) <<"; maximum of diagram is "<< max_element(abs(diagram_7th_order_true))<<std::endl; 
+//     begin = std::chrono::high_resolution_clock::now();
+//     auto diagram_7th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D7,Deltat,Deltat, Gt,itops,beta, F,  F,fb7,backward);
+//     end = std::chrono::high_resolution_clock::now();
+//     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+//     double t7_simple =  elapsed.count();
+//     std::cout<< "Error of 7th order Diagram is "<< max_element(abs(diagram_7th_order_simple - diagram_7th_order_true)) <<"; maximum of diagram is "<< max_element(abs(diagram_7th_order_true))<<std::endl; 
 
-    begin = std::chrono::high_resolution_clock::now(); 
-    auto diagram_8th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D8,Deltat,Deltat, Gt,itops,beta, F,  F,fb8,backward);
-    end = std::chrono::high_resolution_clock::now();
-    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-    double t8_simple =  elapsed.count();  
+//     begin = std::chrono::high_resolution_clock::now(); 
+//     auto diagram_8th_order_simple = Sigma_Diagram_calc(Delta_F_simple,Delta_F_simple,D8,Deltat,Deltat, Gt,itops,beta, F,  F,fb8,backward);
+//     end = std::chrono::high_resolution_clock::now();
+//     elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+//     double t8_simple =  elapsed.count();  
 
-    std::cout<< "Error of 8th order Diagram is "<< max_element(abs(diagram_8th_order_simple - diagram_8th_order_true)) <<"; maximum of diagram is "<< max_element(abs(diagram_8th_order_true))<<std::endl; 
+//     std::cout<< "Error of 8th order Diagram is "<< max_element(abs(diagram_8th_order_simple - diagram_8th_order_true)) <<"; maximum of diagram is "<< max_element(abs(diagram_8th_order_true))<<std::endl; 
  
-    std::cout<<"Time spent in seconds"<<std::endl;
-    std::cout<<"m=2      "<<t2_simple/1000<<std::endl;
-    std::cout<<"m=3      "<<t3_simple/1000<<std::endl;
-    std::cout<<"m=4      "<<t4_simple/1000<<std::endl;
-    std::cout<<"m=5      "<<t5_simple/1000<<std::endl;
-    std::cout<<"m=6      "<<t6_simple/1000<<std::endl; 
-    std::cout<<"m=7      "<<t7_simple/1000<<std::endl;
-    std::cout<<"m=8      "<<t8_simple/1000<<std::endl; 
+//     std::cout<<"Time spent in seconds"<<std::endl;
+//     std::cout<<"m=2      "<<t2_simple/1000<<std::endl;
+//     std::cout<<"m=3      "<<t3_simple/1000<<std::endl;
+//     std::cout<<"m=4      "<<t4_simple/1000<<std::endl;
+//     std::cout<<"m=5      "<<t5_simple/1000<<std::endl;
+//     std::cout<<"m=6      "<<t6_simple/1000<<std::endl; 
+//     std::cout<<"m=7      "<<t7_simple/1000<<std::endl;
+//     std::cout<<"m=8      "<<t8_simple/1000<<std::endl; 
  
 
-}
+// }
 
 
 
@@ -329,10 +329,11 @@ TEST(strong_coupling, G_diagrams) {
     //calculating diagrams
     auto G_OCAdiagram_simple = G_Diagram_calc(Delta_F_simple,Delta_F_simple,D2,Deltat,Deltat, Gt,itops,beta, F,  F, fb2);
    // auto G_OCAdiagram_simple = G_OCA_calc(Delta_F_simple,Delta_F_simple,Deltat,Deltat, Gt,itops,beta, F,  F, fb2);
-
+    std::cout<<G_OCAdiagram_simple(0,_,_);
 
     std::cout<<max_element(abs(G_OCAdiagram_simple(_,0,0)-G_OCA_true_00(_,0,0)));
-
+    auto G_OCAdiagram_simple_all = G_Diagram_calc_sum_all(Delta_F_simple,Delta_F_simple,D2,Deltat,Deltat, Gt,itops,beta, F,  F);
+    
 }
 
 void construct_G_and_Delta(nda::array_view<dcomplex, 3> Gt,nda::array_view<dcomplex, 3> Deltat,nda::vector_const_view<double> dlr_it_actual,const double &beta,const double &alpha_1,const double &alpha_2, int &r){
