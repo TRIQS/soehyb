@@ -156,7 +156,7 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
 
     //iteration over the terms of 2, · · · , m-th hybridization. Note that 1-st hybridization is not decomposed.
     int total_num_diagram = pow(P, m-1);
-    
+
     for (int num=0;num<total_num_diagram;++num){
         int num0 = num;
         //obtain R2, ... , Rm, store as R[1],...,R[m-1]
@@ -174,7 +174,6 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
         auto vertex = nda::array<dcomplex,4>(2*m,r,N,N);
         vertex = 0;
 
-        
         for (int v = 1;v<m;++v) {
             if (fb(v)==0)  cut_hybridization(v,R(v), D, constant, hyb_F_self.U_tilde(R(v),_,_,_),hyb_F_self.V_tilde(R(v),_,_,_), line, vertex,hyb_F_self.c(R(v)),hyb_F_self.w(R(v)),hyb_F_self.K_matrix(R(v),_) ,r, N);
             else cut_hybridization(v,R(v), D, constant, hyb_F_reflect.U_tilde(R(v),_,_,_),hyb_F_reflect.V_tilde(R(v),_,_,_), line, vertex,hyb_F_reflect.c(R(v)),hyb_F_reflect.w(R(v)),hyb_F_reflect.K_matrix(R(v),_) ,r, N); 
@@ -184,21 +183,25 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
         //Phase 2: integrate out the stuff on the right
         auto T = nda::array<dcomplex,3>(r,N,N); 
         
-        // first, calculate P(t1)*G(t1)
+        // first, calculate P(t1)*G(t1)   
         for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(1,k,_,_),Gt(k,_,_));
 
         //integrate out the stuff on the right. In each for loop, first convolution, then multiplication.
         for (int s=1;s<D(0,1);++s){
             // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
+            
             T = itops.convolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T),TIME_ORDERED);
+
             //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
             //Do special things for the vertex connecting to 0.
             if (s+1 != D(0,1)) multiplicate_onto(vertex(s+1,_,_,_),T);
         }
+        
 
         //Phase 2.5: integrate out the stuff on the right
         //First, change the vertex objects from v(t)->v(beta-t)
         for (int s=2*m-1;s>D(0,1);--s) vertex(s,_,_,_) = itops.reflect(vertex(s,_,_,_));
+        
         auto T_left = nda::array<dcomplex,3>(r,N,N); 
         
         // first, calculate P(t1)*G(t1)
@@ -207,7 +210,7 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
         //integrate out the stuff on the right. In each for loop, first convolution, then multiplication.
         for (int s=2*m-1;s>D(0,1);--s){
             // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
-            T_left = itops.convolve(beta, Fermion,itops.vals2coefs(T_left),itops.vals2coefs(line(s,_,_,_)),TIME_ORDERED);
+            T_left = itops.convolve(beta, Fermion,itops.vals2coefs(T_left),itops.vals2coefs(line(s-1,_,_,_)),TIME_ORDERED);
             //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
             //Do special things for the vertex connecting to 0.
             if (s-1 != D(0,1)) multiplicate_onto_left(T_left,vertex(s-1,_,_,_));
@@ -305,7 +308,7 @@ nda::array<dcomplex,3> G_OCA_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::ar
         //integrate out the stuff on the right. In each for loop, first convolution, then multiplication.
         
         // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
-        T_left = itops.convolve(beta, Fermion,itops.vals2coefs(T_left),itops.vals2coefs(line(3,_,_,_)),TIME_ORDERED);
+        T_left = itops.convolve(beta, Fermion,itops.vals2coefs(T_left),itops.vals2coefs(line(2,_,_,_)),TIME_ORDERED);
             
         //revert back from (beta-t) to t
         T_left = itops.reflect(T_left);
