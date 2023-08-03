@@ -179,7 +179,7 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
             else cut_hybridization(v,R(v), D, constant, hyb_F_reflect.U_tilde(R(v),_,_,_),hyb_F_reflect.V_tilde(R(v),_,_,_), line, vertex,hyb_F_reflect.c(R(v)),hyb_F_reflect.w(R(v)),hyb_F_reflect.K_matrix(R(v),_) ,r, N); 
         } 
         //TODO: the integrating part of G diagrams. Have to figure out what is happening here.
-        
+
         //Phase 2: integrate out the stuff on the right
         auto T = nda::array<dcomplex,3>(r,N,N); 
         
