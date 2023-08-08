@@ -60,8 +60,9 @@ class hyb_F {
     nda::array<dcomplex,4> U_tilde;
     nda::array<dcomplex,4> V_tilde;
     nda::array<double,2> K_matrix;
-
+    
     hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda::vector_const_view<double> dlr_it, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
+    hyb_F() = default;    
 };
 
 

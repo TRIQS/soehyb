@@ -148,84 +148,17 @@ TEST(strong_coupling, dimer) {
     auto G0_S_tau = ppsc_free_greens_tau(tau_actual, H_S, beta);
 
     auto G0_S_dlr = itops.vals2coefs(G0_S_tau);
-   
-    auto Deltat_reflect = itops.reflect(Deltat);
-    // auto Sigma_NCA = NCA(Deltat,Deltat_reflect, G0_S_tau,F,F_dag);
-    
 
-    auto Deltadlr = itops.vals2coefs(Deltat); 
-    auto Deltadlr_reflect = itops.vals2coefs(Deltat_reflect);
-   // auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf);
-   // auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf);
-    auto Delta_M = nda::array<dcomplex,3>{{{0.5,0.5},{0.5,0.5}},{{0.5,-0.5},{-0.5,0.5}}}; 
-    Delta_M =Delta_M*2*t*t;
-    auto Delta_p = nda::vector<double> {-tp,tp}; 
-    Delta_p *= beta;
-    nda::vector<double> Delta_p_reflect = -Delta_p;
-    auto Delta_decomp = hyb_decomp(Delta_M,Delta_p);
-    auto Delta_decomp_reflect = hyb_decomp(Delta_M,Delta_p_reflect);
-    Delta_decomp.check_accuracy(Deltat, dlr_it);
-    Delta_decomp_reflect.check_accuracy(Deltat_reflect, dlr_it);
-    auto Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag);
-    auto Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);
-    double eta;
-    double Z_S;
-    
-    auto G_S_tau = G0_S_tau;
-    
-    auto D_NCA = nda::array<int,2>{{0,1}};// Diagram topology
-    auto D2 = nda::array<int,2>{{0,2},{1,3}};
-    nda::array<dcomplex,3> G_S_tau_old = 0.0*G_S_tau; 
-    for (int ppsc_iter = 0; ppsc_iter<1;++ppsc_iter){
-       
-        if (max_element(abs(G_S_tau_old-G_S_tau))<1e-10) break;
-        auto NCAdiagram = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_NCA,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag);
-        
-        auto OCAdiagram = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D2,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag);
-        auto Sigma_t = make_regular(NCAdiagram);
-      //  std::cout<<"Sigma(t) is"<<Sigma_t(0,_,_)<<std::endl;
-        auto Sigma_dlr = itops.vals2coefs(Sigma_t);//));
-        //std::cout<<"for debug purppose"<<itops.coefs2eval(Sigma_dlr,3.34543244e-05/beta)<<std::endl<<itops.coefs2eval(Sigma_dlr,2.93459687e+00/beta)<<std::endl; 
-
-        auto dys = dyson_it(beta, itops, H_S, 0, true);
-        std::cout<<H_S<<std::endl;
-        auto G_new_tau   = dys.solve(Sigma_t);  
-        auto G_new_dlr = itops.vals2coefs(G_new_tau);
-     
-        Z_S= -real(trace(itops.coefs2eval(G_new_dlr,1.0)));//should be changed
-        eta = log(Z_S)/beta;
-       // std::cout<<Z_S;
-        H_S += eta*nda::eye<dcomplex>(H_S.shape(0));
-        G_S_tau_old = G_S_tau;
-        std::cout<<"for debug purppose"<<itops.coefs2eval(G_new_dlr,3.34543244e-05/beta)<<std::endl<<itops.coefs2eval(G_new_dlr,2.93459687e+00/beta)<<std::endl; 
-
-        for (int k=0;k<r;++k){
-            G_new_tau(k,_,_) =  G_new_tau(k,_,_) * exp(-tau_actual(k)*eta);
-        }
-        G_S_tau = 0.5*G_S_tau + 0.5* G_new_tau;
-         std::cout<<"iter "<<ppsc_iter<<" , diff is "<<max_element(abs(G_S_tau_old-G_S_tau))<<std::endl;
-    }
-    auto G_S_dlr = itops.vals2coefs(G_S_tau);
-    std::cout<<-real(trace(itops.coefs2eval(G_S_dlr,1.0)));
-    // std::cout<<itops.coefs2eval(G_S_dlr,1.33817298e-04/32.0); 
-    // std::cout<<itops.coefs2eval(G_S_dlr,5.03068549e-02/32.0);
-    // std::cout<<itops.coefs2eval(G_S_dlr,2.67856053e+00/32.0);
-    auto g_S_NCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D_NCA,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag);
-    // std::cout<<make_regular(g_S_NCA(0,_,_));
-    auto g_S_OCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D2,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag);
-    auto fb2 =  nda::vector<int>(2); fb2=0;
-    auto g_S_OCA_single = -G_Diagram_calc(Delta_F,Delta_F_reflect,D2,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag,fb2);
-    auto g_S_OCA_dlr = itops.vals2coefs(make_regular(g_S_OCA));
-    // std::cout<<itops.coefs2eval(g_S_OCA_dlr,1.33817298e-04/32.0); 
-    // std::cout<<itops.coefs2eval(g_S_OCA_dlr,5.03068549e-02/32.0);
-    // std::cout<<itops.coefs2eval(g_S_OCA_dlr,2.67856053e+00/32.0)<<std::endl;
+    auto begin = std::chrono::high_resolution_clock::now();
+    auto impsol = impuritysolver(beta,lambda,eps,Deltat,F,F_dag,true); 
+    auto end = std::chrono::high_resolution_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+    double t3 =  elapsed.count();
+    std::cout<<"Time spent is "<< t3/1000<< " seconds"<<std::endl;
+    auto D_NCA = nda::array<int,2>{{0,1}};
 
 
-    // for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S_NCA(i,0,0))<<" ";
-    // std::cout<<std::endl;
-    // for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S_NCA(i,0,0)-2*g_S_OCA(i,0,0))<<" "; 
-
-
+    auto Sigma_NCA = impsol.Sigma_calc(G0_S_tau,D_NCA);
 }
 
 nda::array<dcomplex,3> ppsc_free_greens_tau(nda::vector_const_view<double> tau_i, nda::array_view<dcomplex,2> H_S, double beta){
@@ -251,39 +184,4 @@ nda::array<dcomplex,3> ppsc_free_greens_tau(nda::vector_const_view<double> tau_i
     }
   //  H_S += I_aa*(eta-E0);
     return g_iaa;
-}
-
-// nda::array<dcomplex,3> step(imtime_ops &itops, nda::array_view<dcomplex,3> Deltat,nda::array_view<dcomplex,3> G_iaa,nda::array_view<dcomplex,2>H ,nda::vector_const_view<double> tau_actual,nda::vector_const_view<double> dlr_rf, nda::array_const_view<dcomplex,3> F,nda::array_const_view<dcomplex,3> F_dag,double beta){
-//     auto Deltat_reflect = itops.reflect(Deltat);
-//     auto Sigma_iaa = NCA(Deltat,Deltat_reflect,G_iaa,F,F_dag);
-//     //higher orders to be put here ....
-//     auto Sigma_xaa = itops.vals2coefs(Sigma_iaa);
-//     auto G_xaa_new = dyson_dlr_integrodiff(itops,H, Sigma_xaa,dlr_rf, beta);
-//     auto Z = partition_func(G_xaa_new, beta);
-//     double eta = log(Z)/beta;
-//     H += eta*nda::eye<dcomplex>(H.shape(0));
-//     auto G_iaa_new = itops.coefs2vals(G_xaa_new);
-//     int r = tau_actual.shape(0);
-//     for (int k=0;k<r;++k){
-//         G_iaa_new(k,_,_) =  G_iaa_new(k,_,_) * exp(-tau_actual(k)*eta);
-//     }
-//     return G_iaa_new; 
-// }
-
-
-
-nda::array<dcomplex,3> NCA(nda::array_view<dcomplex,3> Deltat,nda::array_view<dcomplex,3> Deltat_reflect,nda::array<dcomplex,3> G_iaa,nda::array_const_view<dcomplex,3> F,nda::array_const_view<dcomplex,3> F_dag){
-    auto Sigma_iaa = nda::array<dcomplex,3>(G_iaa.shape());
-    Sigma_iaa = 0;
-    int n = F.shape(0);
-    int r = G_iaa.shape(0);
-    for (int k=0;k<r;++k){
-        for (int n1=0;n1<n;++n1) {
-            for (int n2=0;n2<n;++n2){
-                Sigma_iaa(k,_,_) -= Deltat(k,n1,n2)*(matmul(F_dag(n1,_,_), matmul(G_iaa(k,_,_),F(n2,_,_))));
-                Sigma_iaa(k,_,_) -= Deltat_reflect(k,n1,n2)*(matmul(F(n1,_,_), matmul(G_iaa(k,_,_),F_dag(n2,_,_))));
-            }
-        }
-    }
-    return Sigma_iaa;
 }

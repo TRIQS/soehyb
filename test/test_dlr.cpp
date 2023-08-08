@@ -264,13 +264,13 @@ TEST(strong_coupling, exponential_functions) {
 
 TEST(strong_coupling, G_diagrams) {
     // Set problem parameters
-    double beta = 2; // Inverse temperature
-    const int N = 2;     // Dimension of Greens function. Do not change, or you'll have to rewrite G(t)
+    double beta = 1; // Inverse temperature
+    const int N = 1;     // Dimension of Greens function. Do not change, or you'll have to rewrite G(t)
     int Num = 128;   // Size of equidist grid
     const int dim = 1; //Dimension of hybridization. One can change dim as they want.
         
     // Set DLR parameters
-    double lambda = beta*5;
+    double lambda = beta*10;
     double eps = 1.0e-12;
     auto dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     auto itops = imtime_ops(lambda, dlr_rf); // Get DLR imaginary time object
@@ -282,7 +282,7 @@ TEST(strong_coupling, G_diagrams) {
 
 
     //parameters in exponential functions we will use
-    double alpha_1 = 0.5;
+    double alpha_1 = 3;
     double alpha_2 = 0.0;
     //construct G(t) = [0, exp(-alpha_1*t); exp(-alpha_1*t) 0], Deltat = exp(-alpha2 * t)
     auto Gt = nda::array<dcomplex, 3>(r, N, N);
@@ -309,7 +309,7 @@ TEST(strong_coupling, G_diagrams) {
     //construct true solutions
     auto G_OCA_true_00 = nda::array<dcomplex,3>(Gt.shape(0),1,1); 
     G_OCA_true_00 = 0;
-    for (int i=0;i<r;++i) G_OCA_true_00(i,0,0) = beta*beta * dlr_it_actual(i)*(1-dlr_it_actual(i)) * exp(-1.0)*dim*N;
+    for (int i=0;i<r;++i) G_OCA_true_00(i,0,0) = beta*beta * dlr_it_actual(i)*(1-dlr_it_actual(i)) * exp(-alpha_1*beta)*dim*N;
     
 
         
@@ -337,10 +337,15 @@ TEST(strong_coupling, G_diagrams) {
 }
 
 void construct_G_and_Delta(nda::array_view<dcomplex, 3> Gt,nda::array_view<dcomplex, 3> Deltat,nda::vector_const_view<double> dlr_it_actual,const double &beta,const double &alpha_1,const double &alpha_2, int &r){
-    Gt = 0;
     auto G_01 = exp(-alpha_1*beta*dlr_it_actual);
-    Gt(_,0,1) = G_01;
-    Gt(_,1,0) = G_01;
+    Gt = 0;
+    if (Gt.shape(1) == 1){
+        Gt(_,0,0) = G_01;
+    }
+    else{
+        Gt(_,0,1) = G_01;
+        Gt(_,1,0) = G_01;
+    }
     Deltat = 0;
     for (int i = 0; i < r; ++i) Deltat(i,_,_) = exp(-alpha_2*beta*dlr_it_actual(i))*eye<dcomplex>(Deltat.shape(1));
 }
