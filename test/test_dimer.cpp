@@ -82,7 +82,7 @@ TEST(strong_coupling, dimer) {
     double Z = sum(exp(-beta*eval));
    // std::cout<<((eval));
     double lambda = 640;
-    double eps = 1.0e-15;
+    double eps = 1.0e-12;
     auto dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     auto itops = imtime_ops(lambda, dlr_rf); // Get DLR imaginary time object
     auto const & dlr_it = itops.get_itnodes();
@@ -127,8 +127,8 @@ TEST(strong_coupling, dimer) {
 
     auto h_bath = nda::array<dcomplex,2>(2,2);h_bath=0;
     h_bath(0,1) = -tp; h_bath(1,0) = -tp;
-    auto Deltat = make_regular(2* free_gf(beta, itops,h_bath,0)* pow(t,2));
-
+    auto Deltat = make_regular(2* free_gf(beta, itops,h_bath)* pow(t,2));
+    
     int N_S = 4;
     auto c0_S_dag = nda::array<dcomplex,2>(N_S,N_S); c0_dag = 0;
     auto c1_S_dag = nda::array<dcomplex,2>(N_S,N_S); c1_dag = 0;
@@ -145,10 +145,18 @@ TEST(strong_coupling, dimer) {
     H_S = H_S- v*(matmul(c0_S_dag,c1_S)+matmul(c1_S_dag,c0_S)); 
     H_S = H_S - mu*(matmul(c0_S_dag,c0_S)+matmul(c1_S_dag,c1_S));
 
+
     auto G0_S_tau = ppsc_free_greens_tau(tau_actual, H_S, beta);
 
     auto G0_S_dlr = itops.vals2coefs(G0_S_tau);
-   
+   // 
+    auto [E_HS,U_HS] = nda::linalg::eigenelements(H_S);
+
+    auto E0_HS = min_element(E_HS);
+    E_HS-=E0_HS;
+    auto Z_HS = sum(exp(-beta*E_HS));
+    auto eta_0 = E0_HS - log(Z_HS)/beta;
+
     auto Deltat_reflect = itops.reflect(Deltat);
     // auto Sigma_NCA = NCA(Deltat,Deltat_reflect, G0_S_tau,F,F_dag);
     
@@ -171,60 +179,90 @@ TEST(strong_coupling, dimer) {
     double eta;
     double Z_S;
     
-    auto G_S_tau = G0_S_tau;
+    nda::array<dcomplex,3> G_S_tau = G0_S_tau;
     
     auto D_NCA = nda::array<int,2>{{0,1}};// Diagram topology
     auto D2 = nda::array<int,2>{{0,2},{1,3}};
+    auto Dt1 = nda::array<int,2>{{0,2},{1,4},{3,5}};
+    auto Dt2 = nda::array<int,2>{{0,3},{1,5},{2,4}};
+    auto Dt3 = nda::array<int,2>{{0,4},{1,3},{2,5}};
+    auto Dt4 = nda::array<int,2>{{0,3},{1,4},{2,5}};
+
     nda::array<dcomplex,3> G_S_tau_old = 0.0*G_S_tau; 
-    for (int ppsc_iter = 0; ppsc_iter<1;++ppsc_iter){
+    
+    for (int ppsc_iter = 0; ppsc_iter<10;++ppsc_iter){
        
         if (max_element(abs(G_S_tau_old-G_S_tau))<1e-10) break;
+        G_S_tau_old = G_S_tau;
         auto NCAdiagram = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_NCA,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag);
-        
-        auto OCAdiagram = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D2,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag);
-        auto Sigma_t = make_regular(NCAdiagram);
-      //  std::cout<<"Sigma(t) is"<<Sigma_t(0,_,_)<<std::endl;
-        auto Sigma_dlr = itops.vals2coefs(Sigma_t);//));
-        //std::cout<<"for debug purppose"<<itops.coefs2eval(Sigma_dlr,3.34543244e-05/beta)<<std::endl<<itops.coefs2eval(Sigma_dlr,2.93459687e+00/beta)<<std::endl; 
 
-        auto dys = dyson_it(beta, itops, H_S, 0, true);
-        std::cout<<H_S<<std::endl;
+        
+        // auto OCAdiagram = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D2,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag);
+        // auto TCAdiagram = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, Dt1,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag)\
+        //                  - Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, Dt2,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag)\
+        //                  - Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, Dt3,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag)\
+        //                  + Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, Dt4,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag);
+ 
+        auto Sigma_t = make_regular(NCAdiagram);
+        //std::cout<<"Sigma(t) is"<<Sigma_t(0,_,_)<<std::endl;
+        auto Sigma_dlr = itops.vals2coefs(Sigma_t);//));
+        
+       std::cout<<"H_S is"<<H_S<<std::endl;
+       auto fgf = free_gf(beta,itops,H_S,0,true);
+      //auto fgf = ppsc_free_greens_tau(tau_actual, H_S, beta);
+        // auto Z_S0= -real(trace(itops.coefs2eval(itops.vals2coefs(fgf),1.0)));//should be changed
+        // auto eta_0 = log(Z_S0)/beta;
+        //std::cout<<"for debug purppose"<<Z_S0<<std::endl;
+        // fgf = free_gf(beta,itops,H_S,-eta_0,true);
+        // std::cout<<"for debug purppose"<<trace(itops.coefs2eval(itops.vals2coefs(fgf),1.0))<<std::endl; 
+        auto dys = dyson_it(beta, itops, H_S, eta_0, true);
+
         auto G_new_tau   = dys.solve(Sigma_t);  
+
         auto G_new_dlr = itops.vals2coefs(G_new_tau);
-     
+        
+      //  std::cout<<G_new_tau(0,_,_)<<std::endl;
         Z_S= -real(trace(itops.coefs2eval(G_new_dlr,1.0)));//should be changed
         eta = log(Z_S)/beta;
-       // std::cout<<Z_S;
+        std::cout<<eta;
         H_S += eta*nda::eye<dcomplex>(H_S.shape(0));
         G_S_tau_old = G_S_tau;
-        std::cout<<"for debug purppose"<<itops.coefs2eval(G_new_dlr,3.34543244e-05/beta)<<std::endl<<itops.coefs2eval(G_new_dlr,2.93459687e+00/beta)<<std::endl; 
+        //std::cout<<"for debug purppose"<<itops.coefs2eval(G_new_dlr,3.34543244e-05/beta)<<std::endl<<itops.coefs2eval(G_new_dlr,2.93459687e+00/beta)<<std::endl; 
 
         for (int k=0;k<r;++k){
             G_new_tau(k,_,_) =  G_new_tau(k,_,_) * exp(-tau_actual(k)*eta);
         }
-        G_S_tau = 0.5*G_S_tau + 0.5* G_new_tau;
+        G_new_dlr = itops.vals2coefs(G_new_tau);
+        G_S_tau = 1.0*G_new_tau+0.0*G_S_tau_old;
          std::cout<<"iter "<<ppsc_iter<<" , diff is "<<max_element(abs(G_S_tau_old-G_S_tau))<<std::endl;
+        
     }
     auto G_S_dlr = itops.vals2coefs(G_S_tau);
-    std::cout<<-real(trace(itops.coefs2eval(G_S_dlr,1.0)));
+    //std::cout<<-real(trace(itops.coefs2eval(G_S_dlr,1.0)));
     // std::cout<<itops.coefs2eval(G_S_dlr,1.33817298e-04/32.0); 
     // std::cout<<itops.coefs2eval(G_S_dlr,5.03068549e-02/32.0);
     // std::cout<<itops.coefs2eval(G_S_dlr,2.67856053e+00/32.0);
     auto g_S_NCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D_NCA,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag);
-    // std::cout<<make_regular(g_S_NCA(0,_,_));
-    auto g_S_OCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D2,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag);
-    auto fb2 =  nda::vector<int>(2); fb2=0;
-    auto g_S_OCA_single = -G_Diagram_calc(Delta_F,Delta_F_reflect,D2,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag,fb2);
-    auto g_S_OCA_dlr = itops.vals2coefs(make_regular(g_S_OCA));
+    auto g_S_NCA_dlr = itops.vals2coefs(make_regular(g_S_NCA));
+    std::cout<<"see Sigma"<<itops.coefs2eval(g_S_NCA_dlr,3.345432439682064e-05/beta)<<itops.coefs2eval(g_S_NCA_dlr,0.049923286281502006/beta)<<itops.coefs2eval(g_S_NCA_dlr,2.934596870769857/beta)<<std::endl;
+
+    // auto g_S_OCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D2,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag);
+    // auto g_S_OCA_dlr = itops.vals2coefs(make_regular(g_S_OCA));
+    // auto g_S_TCA = G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,Dt1,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag)\
+    //                 - G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,Dt2,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag)\
+    //                 + G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,Dt3,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag)\
+    //                 + G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,Dt4,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag);
+ 
     // std::cout<<itops.coefs2eval(g_S_OCA_dlr,1.33817298e-04/32.0); 
     // std::cout<<itops.coefs2eval(g_S_OCA_dlr,5.03068549e-02/32.0);
     // std::cout<<itops.coefs2eval(g_S_OCA_dlr,2.67856053e+00/32.0)<<std::endl;
 
 
-    // for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S_NCA(i,0,0))<<" ";
+     for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S_NCA(i,0,0))<<" ";
+    //  std::cout<<std::endl;
+    //  for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S_NCA(i,0,0)-g_S_OCA(i,0,0))<<" "; 
     // std::cout<<std::endl;
-    // for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S_NCA(i,0,0)-2*g_S_OCA(i,0,0))<<" "; 
-
+    //  for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S_NCA(i,0,0)-g_S_OCA(i,0,0)-g_S_TCA(i,0,0))<<" ";
 
 }
 
