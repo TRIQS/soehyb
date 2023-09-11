@@ -194,7 +194,7 @@ TEST(strong_coupling, dimer) {
     auto Dt4 = nda::array<int,2>{{0,3},{1,4},{2,5}};
 
     nda::array<dcomplex,3> G_S_tau_old = 0.0*G_S_tau; 
-    bool do_tca=true;
+    bool do_tca=false;
     
     for (int ppsc_iter = 0; ppsc_iter<10;++ppsc_iter){
        
