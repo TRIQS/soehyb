@@ -81,8 +81,8 @@ TEST(strong_coupling, dimer) {
     exp_eval = exp_eval/sum(exp_eval); 
     double Z = sum(exp(-beta*eval));
    // std::cout<<((eval));
-    double lambda = 640;
-    double eps = 1.0e-15;
+    double lambda = 10;
+    double eps = 1.0e-9;
     auto dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     auto itops = imtime_ops(lambda, dlr_rf); // Get DLR imaginary time object
     auto const & dlr_it = itops.get_itnodes();
@@ -127,7 +127,7 @@ TEST(strong_coupling, dimer) {
 
     auto h_bath = nda::array<dcomplex,2>(2,2);h_bath=0;
     h_bath(0,1) = -tp; h_bath(1,0) = -tp;
-    auto Deltat = make_regular(2* free_gf(beta, itops,h_bath,0)* pow(t,2));
+    auto Deltat = make_regular(2* free_gf(beta, itops,h_bath)* pow(t,2));
 
     int N_S = 4;
     auto c0_S_dag = nda::array<dcomplex,2>(N_S,N_S); c0_dag = 0;
@@ -149,16 +149,16 @@ TEST(strong_coupling, dimer) {
 
     auto G0_S_dlr = itops.vals2coefs(G0_S_tau);
 
-    auto begin = std::chrono::high_resolution_clock::now();
+    
     auto impsol = impuritysolver(beta,lambda,eps,Deltat,F,F_dag,true); 
+
+
+    auto begin = std::chrono::high_resolution_clock::now();
+    auto Sigma_t = impsol.Sigma_calc(G0_S_tau,"OCA");
     auto end = std::chrono::high_resolution_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     double t3 =  elapsed.count();
-    std::cout<<"Time spent is "<< t3/1000<< " seconds"<<std::endl;
-    auto D_NCA = nda::array<int,2>{{0,1}};
-
-
-    auto Sigma_NCA = impsol.Sigma_calc(G0_S_tau,D_NCA);
+    std::cout<<"Time spent is "<< t3<< " seconds"<<std::endl;
 }
 
 nda::array<dcomplex,3> ppsc_free_greens_tau(nda::vector_const_view<double> tau_i, nda::array_view<dcomplex,2> H_S, double beta){

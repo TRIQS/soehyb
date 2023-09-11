@@ -10,8 +10,8 @@ using namespace nda;
 class impuritysolver{
     public:
     impuritysolver(double beta, double lambda, double eps, nda::array<dcomplex,3> Deltat,nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag, bool poledlrflag) ;
-    nda::array<dcomplex,3> Sigma_calc(nda::array_const_view<dcomplex,3> Gt, nda::array_const_view<int,2> D);
-    nda::array<dcomplex,3> G_calc(nda::array_const_view<dcomplex,3> Gt, nda::array_const_view<int,2> D); 
+    nda::array<dcomplex,3> Sigma_calc(nda::array_const_view<dcomplex,3> Gt, std::string order);
+    nda::array<dcomplex,3> G_calc(nda::array_const_view<dcomplex,3> Gt, std::string order); 
 
     private:
     double beta;
@@ -28,4 +28,13 @@ class impuritysolver{
 
     hyb_F Delta_F;
     hyb_F Delta_F_reflect;
-    };
+
+    nda::array<int,2> D_NCA;
+    nda::array<int,2> D_OCA;
+    nda::array<int,2> D_TCA_1;
+    nda::array<int,2> D_TCA_2;
+    nda::array<int,2> D_TCA_3;
+    nda::array<int,2> D_TCA_4;
+};
+
+
