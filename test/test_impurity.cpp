@@ -81,8 +81,9 @@ TEST(strong_coupling, dimer) {
     exp_eval = exp_eval/sum(exp_eval); 
     double Z = sum(exp(-beta*eval));
    // std::cout<<((eval));
-    double lambda = 10;
-    double eps = 1.0e-9;
+    double lambda = 640;
+    double eps = 1.0e-12;
+    std::string order = "TCA";
     auto dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     auto itops = imtime_ops(lambda, dlr_rf); // Get DLR imaginary time object
     auto const & dlr_it = itops.get_itnodes();
@@ -96,12 +97,18 @@ TEST(strong_coupling, dimer) {
     
     int n_all=6;
 
-    int N_t = 1000;
+    int N_t = 100;
     auto t_relative = nda::vector<double>(N_t);
     for (int i=0;i<N_t;++i) {t_relative(i) = (i+0.0)/N_t; if (t_relative(i)>0.5) {t_relative(i) -= 1;};}
 
     auto G00 = nda::array<dcomplex,3>(r,1,1); G00=0;
     auto G01 = nda::array<dcomplex,3>(r,1,1); G01=0;
+    auto G00_long = nda::array<dcomplex,3>(N_t,1,1); G00_long=0;
+    auto G01_long = nda::array<dcomplex,3>(N_t,1,1); G01_long=0;
+
+
+    auto g_S_long = nda::array<dcomplex,3>(N_t,2,2); g_S_long=0;
+
 
     
     auto V_sr_0 = matmul(conj(transpose(evec)),matmul(c0,evec));
@@ -110,11 +117,16 @@ TEST(strong_coupling, dimer) {
     auto V_sr_1 = matmul(conj(transpose(evec)),matmul(c1,evec));
     for (int s=0;s<N;++s){
         for (int s2=0;s2<N;++s2){
-            //for (int k=0;k<N_t;++k){
+            double w = eval(s2)-eval(s);
             for (int k=0;k<r;++k){ 
-                double w = eval(s2)-eval(s);
+               
                 G00(k,0,0) += V_sr_0(s,s2)* conj(V_sr_0(s,s2))*(exp_eval(s)+exp_eval(s2))*k_it(dlr_it(k),w*beta);
                 G01(k,0,0) += V_sr_0(s,s2)* conj(V_sr_1(s,s2))*(exp_eval(s)+exp_eval(s2))*k_it(dlr_it(k),w*beta);
+            }
+            for (int k2=0;k2<N_t;++k2){ 
+               
+                G00_long(k2,0,0) += V_sr_0(s,s2)* conj(V_sr_0(s,s2))*(exp_eval(s)+exp_eval(s2))*k_it(t_relative(k2),w*beta);
+                G01_long(k2,0,0) += V_sr_0(s,s2)* conj(V_sr_1(s,s2))*(exp_eval(s)+exp_eval(s2))*k_it(t_relative(k2),w*beta);
             }
         }
     }
@@ -148,17 +160,64 @@ TEST(strong_coupling, dimer) {
     auto G0_S_tau = ppsc_free_greens_tau(tau_actual, H_S, beta);
 
     auto G0_S_dlr = itops.vals2coefs(G0_S_tau);
+    auto [E_HS,U_HS] = nda::linalg::eigenelements(H_S); 
+    auto E0_HS = min_element(E_HS);
+    E_HS-=E0_HS;
+    auto Z_HS = sum(exp(-beta*E_HS));
+    auto eta_0 = E0_HS - log(Z_HS)/beta;
 
     
     auto impsol = impuritysolver(beta,lambda,eps,Deltat,F,F_dag,true); 
 
+    nda::array<dcomplex,3> G_S_tau = G0_S_tau;
+    nda::array<dcomplex,3> G_S_tau_old = 0.0*G_S_tau; 
 
-    auto begin = std::chrono::high_resolution_clock::now();
-    auto Sigma_t = impsol.Sigma_calc(G0_S_tau,"OCA");
-    auto end = std::chrono::high_resolution_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-    double t3 =  elapsed.count();
-    std::cout<<"Time spent is "<< t3<< " seconds"<<std::endl;
+    // auto begin = std::chrono::high_resolution_clock::now();
+    // auto Sigma_t = impsol.Sigma_calc(G0_S_tau,"TCA");
+    // auto end = std::chrono::high_resolution_clock::now();
+    // auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+    // double t3 =  elapsed.count();
+    // std::cout<<"Time spent is "<< t3<< " seconds"<<std::endl;
+    double eta, Z_S;
+    for (int ppsc_iter = 0; ppsc_iter<10;++ppsc_iter){
+       
+        if (max_element(abs(G_S_tau_old-G_S_tau))<1e-9) break;
+        G_S_tau_old = G_S_tau;
+        auto Sigma_t = impsol.Sigma_calc(G_S_tau,order); 
+        
+        auto fgf = free_gf(beta,itops,H_S,0,true);
+        auto dys = dyson_it(beta, itops, H_S, eta_0, true);
+
+        auto G_new_tau   = dys.solve(Sigma_t);  
+
+        auto G_new_dlr = itops.vals2coefs(G_new_tau);
+        
+        Z_S= -real(trace(itops.coefs2eval(G_new_dlr,1.0)));
+        eta = log(Z_S)/beta;
+        H_S += eta*nda::eye<dcomplex>(H_S.shape(0));
+        
+        for (int k=0;k<r;++k){
+            G_new_tau(k,_,_) =  G_new_tau(k,_,_) * exp(-tau_actual(k)*eta);
+        }
+        G_new_dlr = itops.vals2coefs(G_new_tau);
+        G_S_tau = 1.0*G_new_tau+0.0*G_S_tau_old;
+         std::cout<<"iter "<<ppsc_iter<<" , diff is "<<max_element(abs(G_S_tau_old-G_S_tau))<<std::endl;
+        
+    }
+    auto G_S_dlr = itops.vals2coefs(G_S_tau);
+    
+    auto g_S = impsol.G_calc(G_S_tau,order);
+    
+   
+
+    
+    auto g_S_dlr = itops.vals2coefs(make_regular(g_S));
+
+
+     for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S(i,0,0))<<" ";
+     for (int i=0;i<N_t;++i) g_S_long(i,_,_) = itops.coefs2eval(g_S_dlr,t_relative(i)) ;
+     std::cout<<std::endl;
+      for (int i=0;i<N_t;++i) std::cout<<abs(G00_long(i,0,0)-g_S_long(i,0,0))<<" ";
 }
 
 nda::array<dcomplex,3> ppsc_free_greens_tau(nda::vector_const_view<double> tau_i, nda::array_view<dcomplex,2> H_S, double beta){
