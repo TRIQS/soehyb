@@ -34,39 +34,39 @@ impuritysolver::impuritysolver(double beta, double lambda, double eps, nda::arra
 }
 
 nda::array<dcomplex,3> impuritysolver::Sigma_calc(nda::array_const_view<dcomplex,3> Gt, std::string order){
-    nda::array<dcomplex,3> Sigma_t = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_NCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);
+    nda::array<dcomplex,3> Sigma_NCA = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_NCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);
     if ( order.compare("NCA")!=0 && order.compare("OCA")!=0 && order.compare("TCA")!=0){
         std::cout<<"order needs to be NCA, OCA or TCA"<<std::endl;
     } 
-    if (order.compare("NCA")==0) return Sigma_t;
+    if (order.compare("NCA")==0) return Sigma_NCA;
     else {
-        Sigma_t = Sigma_t - Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_OCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag); 
-        if (order.compare("OCA")==0) return Sigma_t;
+        nda::array<dcomplex,3> Sigma_OCA = - Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_OCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);
+        if (order.compare("OCA")==0) return make_regular(Sigma_NCA+Sigma_OCA);
         else {
-            Sigma_t = Sigma_t -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_1,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag)\
+            nda::array<dcomplex,3> Sigma_TCA = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_1,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag)\
                             - Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_2,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag)\
                             - Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_3,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag)\
                             + Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_4,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);
-            if (order.compare("TCA")==0) return Sigma_t;
+            if (order.compare("TCA")==0) return make_regular(Sigma_NCA+Sigma_OCA+Sigma_TCA);
         } 
     }
 }
 
 nda::array<dcomplex,3> impuritysolver::G_calc(nda::array_const_view<dcomplex,3> Gt, std::string order){
-    nda::array<dcomplex,3> gt = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D_NCA,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag);
+    nda::array<dcomplex,3> g_NCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D_NCA,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag);
     if ( order.compare("NCA")!=0 && order.compare("OCA")!=0 && order.compare("TCA")!=0){
         std::cout<<"order needs to be NCA, OCA or TCA"<<std::endl;
     } 
-    if (order.compare("NCA")==0) return gt;
+    if (order.compare("NCA")==0) return g_NCA;
     else {
-        gt = gt - G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_OCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag); 
-        if (order.compare("OCA")==0) return gt;
+        nda::array<dcomplex,3> g_OCA = -G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_OCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag); 
+        if (order.compare("OCA")==0) return make_regular(g_NCA + g_OCA);
         else {
-            gt = gt - G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_1,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag)\
+            nda::array<dcomplex,3> g_TCA = - G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_1,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag)\
                     - G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_2,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag)\
                     - G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_3,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag)\
                     + G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_4,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);
-            if (order.compare("TCA")==0) return gt;
+            if (order.compare("TCA")==0) return make_regular(g_NCA + g_OCA+g_TCA);
         } 
     } 
 }
