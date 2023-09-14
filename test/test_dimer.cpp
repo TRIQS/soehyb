@@ -82,7 +82,7 @@ TEST(strong_coupling, dimer) {
     double Z = sum(exp(-beta*eval));
    // std::cout<<((eval));
     double lambda = 640;
-    double eps = 1.0e-12;
+    double eps = 3.0e-9;
     auto dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     auto itops = imtime_ops(lambda, dlr_rf); // Get DLR imaginary time object
     auto const & dlr_it = itops.get_itnodes();
@@ -175,8 +175,10 @@ TEST(strong_coupling, dimer) {
     auto Delta_p = nda::vector<double> {-tp,tp}; 
     Delta_p *= beta;
     nda::vector<double> Delta_p_reflect = -Delta_p;
-    auto Delta_decomp = hyb_decomp(Delta_M,Delta_p);
-    auto Delta_decomp_reflect = hyb_decomp(Delta_M,Delta_p_reflect);
+    // auto Delta_decomp = hyb_decomp(Delta_M,Delta_p);
+    // auto Delta_decomp_reflect = hyb_decomp(Delta_M,Delta_p_reflect);
+    auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf);
+    auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf);
     Delta_decomp.check_accuracy(Deltat, dlr_it);
     Delta_decomp_reflect.check_accuracy(Deltat_reflect, dlr_it);
     auto Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag);
@@ -194,11 +196,11 @@ TEST(strong_coupling, dimer) {
     auto Dt4 = nda::array<int,2>{{0,3},{1,4},{2,5}};
 
     nda::array<dcomplex,3> G_S_tau_old = 0.0*G_S_tau; 
-    bool do_tca=false;
+    bool do_tca=true;
     
     for (int ppsc_iter = 0; ppsc_iter<10;++ppsc_iter){
        
-        if (max_element(abs(G_S_tau_old-G_S_tau))<1e-10) break;
+        if (max_element(abs(G_S_tau_old-G_S_tau))<1e-9) break;
         G_S_tau_old = G_S_tau;
         auto NCAdiagram = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_NCA,  Deltat, Deltat_reflect,G_S_tau, itops,  beta,  F,  F_dag);
 
@@ -215,7 +217,7 @@ TEST(strong_coupling, dimer) {
         
         auto Sigma_dlr = itops.vals2coefs(Sigma_t);
         
-       std::cout<<"H_S is"<<H_S<<std::endl;
+      // std::cout<<"H_S is"<<H_S<<std::endl;
        auto fgf = free_gf(beta,itops,H_S,0,true);
         auto dys = dyson_it(beta, itops, H_S, eta_0, true);
 
@@ -225,7 +227,7 @@ TEST(strong_coupling, dimer) {
         
         Z_S= -real(trace(itops.coefs2eval(G_new_dlr,1.0)));
         eta = log(Z_S)/beta;
-        std::cout<<eta;
+       // std::cout<<eta;
         H_S += eta*nda::eye<dcomplex>(H_S.shape(0));
         
         for (int k=0;k<r;++k){
