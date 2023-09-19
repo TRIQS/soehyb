@@ -8,13 +8,16 @@
 using namespace cppdlr;
 using namespace nda;
 
-// n is size of hybridization matrix,i.e. impurity size (number of single-particle basis of impurity); 
-// N is size of Green's function matrix, i.e. the dimension of impurity Fock space;
-// P is number of terms in the decomposition of the hybridization function Delta
-// r is the size of the time grid, i.e. the DLR rank
+/**
+@note n is size of hybridization matrix,i.e. impurity size (number of single-particle basis of impurity); 
+@note N is size of Green's function matrix, i.e. the dimension of impurity Fock space;
+@note P is number of terms in the decomposition of the hybridization function Delta
+@note r is the size of the time grid, i.e. the DLR rank
+* */
 
 hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Matrices, nda::vector_const_view<double> poles,double eps){
-    // obtain dlr_rank and n of hyb function
+    //This is mainly done by SVD of the Matrices
+
     int p = Matrices.shape(0);
     int n = Matrices.shape(1);
 
@@ -49,9 +52,6 @@ hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Matrices, nda::vector_c
     w = w_all(range(P));
     U = transpose(U_all(_,range(P))); //transpose U to get the shape that we want
     V = V_all(range(P),_);
-
-    //if (real(U(0,0))<0) U = -U; else V = -V; //This minus sign is added because cppdlr kernel k_it(t,w) = -K(t,w).
-
 }
 void hyb_decomp::check_accuracy(nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it){
     int r =Deltat.shape(0);
@@ -61,7 +61,8 @@ void hyb_decomp::check_accuracy(nda::array_const_view<dcomplex,3> Deltat,nda::ve
     std::cout<< "calculating error of the decomposition of hybridization"<<std::endl;
     auto Deltat_approx =nda::array<dcomplex,3>(r,n,n);
     Deltat_approx = 0;
-    
+
+    //reconstruct approximation to Delta(t) 
     for (int k=0;k<r;++k){
         for (int R = 0;  R<P;++R){
             for (int a=0;a<n;++a) {
@@ -71,7 +72,6 @@ void hyb_decomp::check_accuracy(nda::array_const_view<dcomplex,3> Deltat,nda::ve
             }
         }
     }
-    // std::cout<<Deltat<<std::endl<<Deltat_approx; 
     std::cout << "Max error in decomposition of Delta(t): " << max_element(abs((Deltat - Deltat_approx))) << std::endl; 
 }
 
@@ -83,11 +83,12 @@ hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda:
     int r = dlr_it.shape(0); 
     int vec_len = N*N;
 
+    // First construct U_c, V_c
     auto U_c = arraymult(hyb_decomp.U,F_dag);
     auto V_c = arraymult(hyb_decomp.V,F); 
     
     
-    //Finally construct Utilde, Vtilde, and c
+    //Finally construct Utilde, Vtilde, and c, also store kernel K_matrix and poles w
     c = nda::vector<double>(P);
     U_tilde = nda::array<dcomplex,4>(P,r,N,N);
     U_tilde = 0;
@@ -141,14 +142,17 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
     int r = Gt.shape(0); // size of time grid
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
-    int P = hyb_F_self.c.shape(0);
-    int n = F.shape(0);
+    int P = hyb_F_self.c.shape(0); //number of poles
+    int n = F.shape(0); //impurity size
+
+    
     
 
     //initialize diagram
     auto Diagram = nda::array<dcomplex,3>(r,n,n);
     Diagram = 0;
     if (m==1){
+        //evaluate NCA diagram directly
         double constant = 1.0;
         final_evaluation(Diagram,Gt,itops.reflect(Gt),F,F_dag,n,r,N,constant);
         return Diagram;
@@ -157,36 +161,44 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
     //iteration over the terms of 2, · · · , m-th hybridization. Note that 1-st hybridization is not decomposed.
     int total_num_diagram = pow(P, m-1);
 
+    auto R = nda::vector<int>(m); //utility for iteration
+    auto line = nda::array<dcomplex,4>(2*m,r,N,N); //used for stotring line objects
+    auto vertex = nda::array<dcomplex,4>(2*m,r,N,N); //used for stotring vertex objects
+
+    auto T = nda::array<dcomplex,3>(r,N,N); //used for storing diagram (from 0 to t)
+    auto T_left = nda::array<dcomplex,3>(r,N,N); //used for storing diagram (from t to beta)
+
+    auto GF_dag = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
+    auto GF_left = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
+    
     for (int num=0;num<total_num_diagram;++num){
         int num0 = num;
         //obtain R2, ... , Rm, store as R[1],...,R[m-1]
-        auto R = nda::vector<int>(m);
         for (int v = 1;v<m;++v){
             R[v] = num0 % P;
             num0 = int(num0/P);
         }
-        //Phase 1: construct line object L and point object P;
+        //Phase 1: initialize line object L and point object P;
         //This is done exactly the same as in Sigma diagrams
-        auto line = nda::array<dcomplex,4>(2*m,r,N,N);
         line = 0;
-        for (int s=1;s<=2*m-1;++s) line(s,_,_,_) = Gt;
+        for (int s=1;s<=2*m-1;++s) line(s,_,_,_) = Gt; //initialize the line object
         double constant = 1; 
-        auto vertex = nda::array<dcomplex,4>(2*m,r,N,N);
+        
         vertex = 0;
-
+        //initialize vertex objects by cutting the 2th-mth hybridization line
         for (int v = 1;v<m;++v) {
             if (fb(v)==0)  cut_hybridization(v,R(v), D, constant, hyb_F_self.U_tilde(R(v),_,_,_),hyb_F_self.V_tilde(R(v),_,_,_), line, vertex,hyb_F_self.c(R(v)),hyb_F_self.w(R(v)),hyb_F_self.K_matrix(R(v),_) ,r, N);
             else cut_hybridization(v,R(v), D, constant, hyb_F_reflect.U_tilde(R(v),_,_,_),hyb_F_reflect.V_tilde(R(v),_,_,_), line, vertex,hyb_F_reflect.c(R(v)),hyb_F_reflect.w(R(v)),hyb_F_reflect.K_matrix(R(v),_) ,r, N); 
         } 
-        //TODO: the integrating part of G diagrams. Have to figure out what is happening here.
+        
 
-        //Phase 2: integrate out the stuff on the right
-        auto T = nda::array<dcomplex,3>(r,N,N); 
+        //Phase 2: integrate out the stuff on the right (from 0 to t)
+        
         
         // first, calculate P(t1)*G(t1)   
         for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(1,k,_,_),Gt(k,_,_));
 
-        //integrate out the stuff on the right. In each for loop, first convolution, then multiplication.
+        //integrate out the stuff on the right (from 0 to t). In each for loop, first convolution, then multiplication.
         for (int s=1;s<D(0,1);++s){
             // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
             
@@ -198,11 +210,10 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
         }
         
 
-        //Phase 2.5: integrate out the stuff on the right
+        //Phase 2.5: integrate out the stuff on the left (from t to beta)
         //First, change the vertex objects from v(t)->v(beta-t)
         for (int s=2*m-1;s>D(0,1);--s) vertex(s,_,_,_) = itops.reflect(vertex(s,_,_,_));
         
-        auto T_left = nda::array<dcomplex,3>(r,N,N); 
         
         // first, calculate P(t1)*G(t1)
         for (int k = 0;k<r;++k) T_left(k,_,_) = matmul(Gt(k,_,_),vertex(2*m-1,k,_,_));
@@ -218,19 +229,21 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
         //revert back from (beta-t) to t
         T_left = itops.reflect(T_left); 
 
+        //evaluating every entry of impurity Green's function from pseudoparticle information, add result to Diagram
         final_evaluation(Diagram,T,T_left,F,F_dag,n,r,N,constant);
 
     }   
     return Diagram; 
 }
 
-void final_evaluation(nda::array_view<dcomplex,3> Diagram, nda::array_const_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> T_left, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,int &n, int &r, int &N, double &constant){
-    auto GF_dag = nda::array<dcomplex,4>(n,r,N,N);
-    auto GF_left = nda::array<dcomplex,4>(n,r,N,N);
+void final_evaluation(nda::array_view<dcomplex,3> Diagram,  nda::array_const_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> T_left, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,int &n, int &r, int &N, double &constant){ 
+    auto GF_dag = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
+    auto GF_left = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
     for (int b=0;b<n;++b){
         for (int k = 0;k<r;++k) GF_dag(b,k,_,_) = matmul(T(k,_,_), F_dag(b,_,_));
         for (int k = 0;k<r;++k) GF_left(b,k,_,_) = matmul(T_left(k,_,_), F(b,_,_));  
     }
+    //iterate over all entries of impurity Green's function
     for (int b=0;b<n;++b){
         for (int a=0;a<n;++a){
             for (int k = 0;k<r;++k){
@@ -271,7 +284,7 @@ nda::array<dcomplex,3> G_OCA_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::ar
         }
         //Phase 1: construct line object L and point object P;
         //This is done exactly the same as in Sigma diagrams
-        auto line = nda::array<dcomplex,4>(2*m,r,N,N);
+        auto line = nda::array<dcomplex,4>(2*m,r,N,N); 
         line = 0;
         for (int s=1;s<=2*m-1;++s) line(s,_,_,_) = Gt;
         double constant = 1; 
@@ -281,8 +294,6 @@ nda::array<dcomplex,3> G_OCA_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::ar
         
         if (fb(1)==0)  cut_hybridization(1,num0, D, constant, hyb_F_self.U_tilde(num0,_,_,_),hyb_F_self.V_tilde(num0,_,_,_), line, vertex,hyb_F_self.c(num0),hyb_F_self.w(num0),hyb_F_self.K_matrix(num0,_) ,r, N);
         else cut_hybridization(1,num0, D, constant, hyb_F_reflect.U_tilde(num0,_,_,_),hyb_F_reflect.V_tilde(num0,_,_,_), line, vertex,hyb_F_reflect.c(num0),hyb_F_reflect.w(num0),hyb_F_reflect.K_matrix(num0,_) ,r, N); 
-         
-        //TODO: the integrating part of G diagrams. Have to figure out what is happening here.
         
         //Phase 2: integrate out the stuff on the right
         auto T = nda::array<dcomplex,3>(r,N,N); 
@@ -313,8 +324,6 @@ nda::array<dcomplex,3> G_OCA_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::ar
         //revert back from (beta-t) to t
         T_left = itops.reflect(T_left);
 
-        // std::cout<<T<<std::endl;
-        // std::cout<<T_left<<std::endl; 
         final_evaluation(Diagram,T,T_left,F,F_dag,n,r,N,constant);
         
     }   
@@ -328,8 +337,8 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
     int r = Gt.shape(0); // size of time grid
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
-    int P = hyb_F_self.c.shape(0);
-    int n = F.shape(0);
+    int P = hyb_F_self.c.shape(0); //number of poles
+    int n = F.shape(0); //size of impurity
     
     
 
@@ -338,17 +347,18 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
     Diagram = 0;
 
     if (m==1){
+        //calculate NCA diagram directly
         Diagram = Gt;
         special_summation(Diagram, F, F_dag, Deltat,Deltat_reflect, n, r, N, backward); 
         return Diagram;
     }
 
     //iteration over the terms of 2, · · · , m-th hybridization. Note that 1-st hybridization is not decomposed.
-    int total_num_diagram = pow(P, m-1);
-    auto line = nda::array<dcomplex,4>(2*m,r,N,N);
-    auto vertex = nda::array<dcomplex,4>(2*m,r,N,N);
-    auto T = nda::array<dcomplex,3>(r,N,N); 
-    auto R = nda::vector<int>(m);
+    int total_num_diagram = pow(P, m-1); //number of total diagrams
+    auto line = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing line objects
+    auto vertex = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing vertex objects
+    auto T = nda::array<dcomplex,3>(r,N,N); //used for storing diagrams
+    auto R = nda::vector<int>(m); //utility for iteration 
     for (int num=0;num<total_num_diagram;++num){
 
         int num0 = num;
@@ -368,7 +378,7 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
         line = 0;
         for (int s=1;s<=2*m-1;++s) line(s,_,_,_) = Gt;
         double constant = 1; // the constant term responsible for the current diagram
-        //construct vertex object
+        //initialize vertex object
         
         vertex = 0;
 
@@ -400,13 +410,14 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
 }
 
 nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
+    //summing over all forward and backward choices
     int r = Gt.shape(0); // size of time grid
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
     auto Diagram = nda::array<dcomplex,3>(r,N,N);
     Diagram = 0;
-    int total_num_fb_diagram = pow(2, m-1);
-    auto fb = nda::vector<int>(m);
+    int total_num_fb_diagram = pow(2, m-1);// total number of forward and backward choices
+    auto fb = nda::vector<int>(m); //utility for iteration
     for (int num=0;num<total_num_fb_diagram;++num){
         int num0 = num;
         
@@ -414,7 +425,6 @@ nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F
             fb[v] = num0 % 2;
             num0 = int(num0/2);
         }
-       // std::cout<<fb<<std::endl;
         Diagram += Sigma_Diagram_calc(hyb_F_self,hyb_F_reflect,D,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag,  fb, true);
     }
     return Diagram;
@@ -481,30 +491,30 @@ nda::array<dcomplex,3> Sigma_OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomple
 
 
 
-//void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &constant,  hyb_F &hyb_F_self,  hyb_F &hyb_F_reflect, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex,int &r, int &N){
 void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &constant,  nda::array_const_view<dcomplex, 3>U_tilde_here,  nda::array_const_view<dcomplex, 3>V_tilde_here, nda::array_view<dcomplex,4> line, nda::array_view<dcomplex,4> vertex, double & chere, double & w_here,nda::array_const_view<double,1> K_matrix_here, int &r, int &N){
    constant *= chere;
-            //when w(R(v))>0, we need to modify the line object, and the constant. The point object is assigned to be the identity matrix.
-            if (w_here>0){
-                for (int k=0;k<r;++k){
-                    vertex(D(v,0),k,_,_) = eye<dcomplex>(N); 
-                    vertex(D(v,1),k,_,_) = eye<dcomplex>(N);
-                    line(D(v,0),k,_,_) = matmul(line(D(v,0),k,_,_),V_tilde_here(k,_,_));
-                    line(D(v,1)-1,k,_,_) = matmul(U_tilde_here(k,_,_), line(D(v,1)-1,k,_,_));
-                } 
-                for (int s = D(v,0)+1; s<D(v,1)-1;++s){
-                    for (int k =0;k<r;++k) line(s,k,_,_) *=K_matrix_here(k);
-                    constant *= chere;
-                }
-            }
-            //when w(R(v))<0, we need only to modify the point object.
-            else{
-                vertex(D(v,0),_,_,_) =V_tilde_here;
-                vertex(D(v,1),_,_,_) = U_tilde_here;
-            } 
+    //when w(R(v))>0, we need to modify the line object, and the constant. The point object is assigned to be the identity matrix.
+    if (w_here>0){
+        for (int k=0;k<r;++k){
+            vertex(D(v,0),k,_,_) = eye<dcomplex>(N); 
+            vertex(D(v,1),k,_,_) = eye<dcomplex>(N);
+            line(D(v,0),k,_,_) = matmul(line(D(v,0),k,_,_),V_tilde_here(k,_,_));
+            line(D(v,1)-1,k,_,_) = matmul(U_tilde_here(k,_,_), line(D(v,1)-1,k,_,_));
+        } 
+        for (int s = D(v,0)+1; s<D(v,1)-1;++s){
+            for (int k =0;k<r;++k) line(s,k,_,_) *=K_matrix_here(k);
+            constant *= chere;
+        }
+    }
+    //when w(R(v))<0, we need only to modify the point object.
+    else{
+        vertex(D(v,0),_,_,_) =V_tilde_here;
+        vertex(D(v,1),_,_,_) = U_tilde_here;
+    } 
 }
 void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect, int &n, int &r, int &N, bool backward){
     auto T2 = nda::array<dcomplex,4>(r,n,N,N);
+    auto T3 = nda::array<dcomplex,3>(T.shape());
     T2=0;
     // T2(b,ts) = T(ts)*F_b
     for (int k=0;k<r;++k) {
@@ -515,7 +525,7 @@ void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcom
             T2(k,_,_,_) = arraymult(Deltat(k,_,_), T2(k,_,_,_));
     }
     // T = sum_a Fdag_a T2(a,ts) 
-    auto T3 = nda::array<dcomplex,3>(T.shape());
+    
     T3=0;
     for (int k=0;k<r;++k){
         for (int a = 0;a<n;++a) T3(k,_,_) = T3(k,_,_)+matmul(F_dag(a,_,_),T2(k,a,_,_));

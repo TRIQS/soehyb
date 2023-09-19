@@ -216,13 +216,13 @@ TEST(strong_coupling, dimer) {
    
 
     
-    // auto g_S_dlr = itops.vals2coefs(make_regular(g_S));
+    auto g_S_dlr = itops.vals2coefs(make_regular(g_S));
 
 
-    //  for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S(i,0,0))<<" ";
-    //  for (int i=0;i<N_t;++i) g_S_long(i,_,_) = itops.coefs2eval(g_S_dlr,t_relative(i)) ;
-    //  std::cout<<std::endl;
-    //   for (int i=0;i<N_t;++i) std::cout<<abs(G00_long(i,0,0)-g_S_long(i,0,0))<<" ";
+     for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S(i,0,0))<<" ";
+     for (int i=0;i<N_t;++i) g_S_long(i,_,_) = itops.coefs2eval(g_S_dlr,t_relative(i)) ;
+     std::cout<<std::endl;
+      for (int i=0;i<N_t;++i) std::cout<<abs(G00_long(i,0,0)-g_S_long(i,0,0))<<" ";
 }
 
 nda::array<dcomplex,3> ppsc_free_greens_tau(nda::vector_const_view<double> tau_i, nda::array_view<dcomplex,2> H_S, double beta){
