@@ -167,21 +167,21 @@ TEST(strong_coupling, dimer) {
     auto eta_0 = E0_HS - log(Z_HS)/beta;
 
     
-    auto impsol = impuritysolver(beta,lambda,eps,Deltat,F,F_dag,true); 
+    auto impsol = fastdiagram(beta,lambda,eps,Deltat,F,F_dag,true); 
 
     nda::array<dcomplex,3> G_S_tau = G0_S_tau;
     nda::array<dcomplex,3> G_S_tau_old = 0.0*G_S_tau; 
 
-    // auto begin = std::chrono::high_resolution_clock::now();
-    // auto Sigma_t = impsol.Sigma_calc(G0_S_tau,"TCA");
-    // auto end = std::chrono::high_resolution_clock::now();
-    // auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-    // double t3 =  elapsed.count();
-    // std::cout<<"Time spent is "<< t3<< " seconds"<<std::endl;
+    auto begin = std::chrono::high_resolution_clock::now();
+    //auto Sigma_t = impsol.Sigma_calc(G0_S_tau,"TCA");
+    auto end = std::chrono::high_resolution_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+    double t3 =  elapsed.count();
+    std::cout<<"Time spent is "<< t3<< " seconds"<<std::endl;
     double eta, Z_S;
     for (int ppsc_iter = 0; ppsc_iter<10;++ppsc_iter){
-       
-        if (max_element(abs(G_S_tau_old-G_S_tau))<1e-9) break;
+        begin = std::chrono::high_resolution_clock::now(); 
+        if (max_element(abs(G_S_tau_old-G_S_tau))<1e-10) break;
         G_S_tau_old = G_S_tau;
         auto Sigma_t = impsol.Sigma_calc(G_S_tau,order); 
         
@@ -199,25 +199,30 @@ TEST(strong_coupling, dimer) {
         for (int k=0;k<r;++k){
             G_new_tau(k,_,_) =  G_new_tau(k,_,_) * exp(-tau_actual(k)*eta);
         }
-        G_new_dlr = itops.vals2coefs(G_new_tau);
         G_S_tau = 1.0*G_new_tau+0.0*G_S_tau_old;
-         std::cout<<"iter "<<ppsc_iter<<" , diff is "<<max_element(abs(G_S_tau_old-G_S_tau))<<std::endl;
-        
+        std::cout<<"iter "<<ppsc_iter<<" , diff is "<<max_element(abs(G_S_tau_old-G_S_tau))<<std::endl;
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+        t3 =  elapsed.count();
+        std::cout<<"Time spent is "<< t3/1000<< " seconds"<<std::endl;
     }
     auto G_S_dlr = itops.vals2coefs(G_S_tau);
-    
+    begin = std::chrono::high_resolution_clock::now();  
     auto g_S = impsol.G_calc(G_S_tau,order);
-    
+    end = std::chrono::high_resolution_clock::now();
+    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+    t3 =  elapsed.count();
+    std::cout<<"Time spent is "<< t3/1000<< " seconds"<<std::endl;
    
 
     
-    auto g_S_dlr = itops.vals2coefs(make_regular(g_S));
+    // auto g_S_dlr = itops.vals2coefs(make_regular(g_S));
 
 
-     for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S(i,0,0))<<" ";
-     for (int i=0;i<N_t;++i) g_S_long(i,_,_) = itops.coefs2eval(g_S_dlr,t_relative(i)) ;
-     std::cout<<std::endl;
-      for (int i=0;i<N_t;++i) std::cout<<abs(G00_long(i,0,0)-g_S_long(i,0,0))<<" ";
+    //  for (int i=0;i<r;++i) std::cout<<abs(G00(i,0,0)-g_S(i,0,0))<<" ";
+    //  for (int i=0;i<N_t;++i) g_S_long(i,_,_) = itops.coefs2eval(g_S_dlr,t_relative(i)) ;
+    //  std::cout<<std::endl;
+    //   for (int i=0;i<N_t;++i) std::cout<<abs(G00_long(i,0,0)-g_S_long(i,0,0))<<" ";
 }
 
 nda::array<dcomplex,3> ppsc_free_greens_tau(nda::vector_const_view<double> tau_i, nda::array_view<dcomplex,2> H_S, double beta){

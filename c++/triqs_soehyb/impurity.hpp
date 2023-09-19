@@ -7,9 +7,16 @@
 using namespace cppdlr;
 using namespace nda;
 
-class impuritysolver{
+/**
+  * @class fastdiagram
+  * @brief Class responsible for fast diagram calculation of a given impurity problem using hybridization expansion.
+  */
+class fastdiagram{
     public:
-    impuritysolver(double beta, double lambda, double eps, nda::array<dcomplex,3> Deltat,nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag, bool poledlrflag) ;
+    /** 
+    * @brief Constructor for fastdiagram
+    */
+    fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> Deltat,nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag, bool poledlrflag) ;
     nda::array<dcomplex,3> Sigma_calc(nda::array_const_view<dcomplex,3> Gt, std::string order);
     nda::array<dcomplex,3> G_calc(nda::array_const_view<dcomplex,3> Gt, std::string order); 
 

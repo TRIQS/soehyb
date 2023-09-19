@@ -5,7 +5,7 @@
 #include <nda/declarations.hpp>
 #include <nda/linalg/matmul.hpp>
 
-impuritysolver::impuritysolver(double beta, double lambda, double eps, nda::array<dcomplex,3> Deltat, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag, bool poledlrflag): Deltat(Deltat), F(F), F_dag(F_dag){
+fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> Deltat, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag, bool poledlrflag): Deltat(Deltat), F(F), F_dag(F_dag){
     dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     itops = imtime_ops(lambda, dlr_rf); // construct imagninary time dlr objects 
 
@@ -33,7 +33,7 @@ impuritysolver::impuritysolver(double beta, double lambda, double eps, nda::arra
     std::cout<<"Initialization done"<<std::endl;
 }
 
-nda::array<dcomplex,3> impuritysolver::Sigma_calc(nda::array_const_view<dcomplex,3> Gt, std::string order){
+nda::array<dcomplex,3> fastdiagram::Sigma_calc(nda::array_const_view<dcomplex,3> Gt, std::string order){
     // First do NCA calculation
     nda::array<dcomplex,3> Sigma_NCA = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_NCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);
     if ( order.compare("NCA")!=0 && order.compare("OCA")!=0 && order.compare("TCA")!=0){
@@ -55,7 +55,7 @@ nda::array<dcomplex,3> impuritysolver::Sigma_calc(nda::array_const_view<dcomplex
     }
 }
 
-nda::array<dcomplex,3> impuritysolver::G_calc(nda::array_const_view<dcomplex,3> Gt, std::string order){
+nda::array<dcomplex,3> fastdiagram::G_calc(nda::array_const_view<dcomplex,3> Gt, std::string order){
     // First do NCA calculation
     nda::array<dcomplex,3> g_NCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D_NCA,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag);
     if ( order.compare("NCA")!=0 && order.compare("OCA")!=0 && order.compare("TCA")!=0){
