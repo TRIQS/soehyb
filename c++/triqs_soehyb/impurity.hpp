@@ -8,9 +8,16 @@ using namespace cppdlr;
 using namespace nda;
 
 /**
+@note dim is size of hybridization matrix,i.e. impurity size (number of single-particle basis of impurity); 
+@note N is size of Green's function matrix, i.e. the dimension of impurity Fock space;
+@note P is number of terms in the decomposition of the hybridization function Delta
+@note r is the size of the time grid, i.e. the DLR rank
+* */
+
+/**
   * @class fastdiagram
   * @brief Class responsible for fast diagram calculation of a given impurity problem using hybridization expansion.
-  */
+* */
 class fastdiagram{
     public:
     /** 
