@@ -8,7 +8,7 @@ using namespace cppdlr;
 using namespace nda;
 
 /**
-@note dim is size of hybridization matrix,i.e. impurity size (number of single-particle basis of impurity); 
+@note n is size of hybridization matrix,i.e. impurity size (number of single-particle basis of impurity); 
 @note N is size of Green's function matrix, i.e. the dimension of impurity Fock space;
 @note P is number of terms in the decomposition of the hybridization function Delta
 @note r is the size of the time grid, i.e. the DLR rank
@@ -25,7 +25,7 @@ class fastdiagram{
     * @param[in] beta inverse temperature
     * @param[in] lambda DLR cutoff parameter
     * @param[in] eps DLR accuracy tolerance
-    * @param[in] Deltat hybridization function in imaginary time, nda array of size r*N*N
+    * @param[in] Deltat hybridization function in imaginary time, nda array of size r*n*n
     * @param[in] F impurity annihilation operator in pseudo-particle space, of size n*N*N
     * @param[in] F_dag impurity creation operator in pseudo-particle space, of size n*N*N
     * @param[in] poledlrflag flag for whether to use dlr for pole expansion. True for using dlr. False has not been implemented yet. 
@@ -58,8 +58,8 @@ class fastdiagram{
     nda::array<dcomplex,3> F; // impurity annihilation operator in pseudo-particle space, of size n*N*N
     nda::array<dcomplex,3> F_dag; // impurity creation operator in pseudo-particle space, of size n*N*N
 
-    nda::array<dcomplex,3> Deltat; //hybridization function in imaginary time, nda array of size r*N*N
-    nda::array<dcomplex,3> Deltat_reflect; // Delta(beta-t), of size r*N*N
+    nda::array<dcomplex,3> Deltat; //hybridization function in imaginary time, nda array of size r*n*n
+    nda::array<dcomplex,3> Deltat_reflect; // Delta(beta-t), of size r*n*n
 
     hyb_F Delta_F; // Compression of Delta(t) and F, F_dag matrices
     hyb_F Delta_F_reflect; // Compression of Delta(-t) and F, F_dag matrices
