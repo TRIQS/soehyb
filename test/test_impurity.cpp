@@ -11,6 +11,7 @@
 #include <nda/layout/policies.hpp>
 #include <chrono>
 #include <nda/matrix_functions.hpp>
+#include <omp.h>
 
 using namespace cppdlr;
 using namespace nda;
@@ -19,6 +20,8 @@ nda::array<dcomplex,3> ppsc_free_greens_tau(nda::vector_const_view<double> tau_i
 nda::array<dcomplex,3> NCA(nda::array_view<dcomplex,3> Deltat,nda::array_view<dcomplex,3> Deltat_reflect,nda::array<dcomplex,3> G_iaa,nda::array_const_view<dcomplex,3> F,nda::array_const_view<dcomplex,3> F_dag);
 // nda::array<dcomplex,3> step(nda::array_view<dcomplex,2> G_iaa);
 TEST(strong_coupling, dimer) {
+    omp_set_dynamic(0);     // Explicitly disable dynamic teams
+    omp_set_num_threads(4); // Ußse 4 threads for all consecutive parallel regions
     int N = 64;
     auto c0_dag = nda::array<dcomplex,2>(N,N); c0_dag = 0;
     auto c1_dag = nda::array<dcomplex,2>(N,N); c1_dag = 0;

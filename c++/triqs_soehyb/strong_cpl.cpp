@@ -3,6 +3,7 @@
 #include <nda/blas/tools.hpp>
 #include <nda/declarations.hpp>
 #include <nda/linalg/matmul.hpp>
+#include <omp.h>
 
 
 using namespace cppdlr;
@@ -122,7 +123,9 @@ nda::array<dcomplex,3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_ref
     auto Diagram = nda::array<dcomplex,3>(r,n,n);
     Diagram = 0;
     int total_num_fb_diagram = pow(2, m-1);
-     
+    #pragma omp parallel
+    { 
+    #pragma omp for
     for (int num=0;num<total_num_fb_diagram;++num){
         int num0 = num;
         auto fb = nda::vector<int>(m);
@@ -131,6 +134,7 @@ nda::array<dcomplex,3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_ref
             num0 = int(num0/2);
         }
         Diagram += G_Diagram_calc(hyb_F_self,hyb_F_reflect,D,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag,  fb);
+    }
     }
     return Diagram;
 }
@@ -160,7 +164,8 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
 
     //iteration over the terms of 2, · · · , m-th hybridization. Note that 1-st hybridization is not decomposed.
     int total_num_diagram = pow(P, m-1);
-
+    #pragma omp parallel
+    {
     auto R = nda::vector<int>(m); //utility for iteration
     auto line = nda::array<dcomplex,4>(2*m,r,N,N); //used for stotring line objects
     auto vertex = nda::array<dcomplex,4>(2*m,r,N,N); //used for stotring vertex objects
@@ -171,6 +176,7 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
     auto GF_dag = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
     auto GF_left = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
     
+    #pragma omp for
     for (int num=0;num<total_num_diagram;++num){
         int num0 = num;
         //obtain R2, ... , Rm, store as R[1],...,R[m-1]
@@ -233,6 +239,7 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
         final_evaluation(Diagram,T,T_left,F,F_dag,n,r,N,constant);
 
     }   
+    }
     return Diagram; 
 }
 
@@ -355,12 +362,15 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
 
     //iteration over the terms of 2, · · · , m-th hybridization. Note that 1-st hybridization is not decomposed.
     int total_num_diagram = pow(P, m-1); //number of total diagrams
+    
+    #pragma omp parallel
+    {
     auto line = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing line objects
     auto vertex = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing vertex objects
     auto T = nda::array<dcomplex,3>(r,N,N); //used for storing diagrams
     auto R = nda::vector<int>(m); //utility for iteration 
+    #pragma omp for
     for (int num=0;num<total_num_diagram;++num){
-
         int num0 = num;
         //obtain R2, ... , Rm, store as R[1],...,R[m-1]
        
@@ -405,6 +415,7 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
         }
        Diagram = Diagram + T*constant;
     }
+    }
     
     return Diagram;
 }
@@ -417,7 +428,10 @@ nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F
     auto Diagram = nda::array<dcomplex,3>(r,N,N);
     Diagram = 0;
     int total_num_fb_diagram = pow(2, m-1);// total number of forward and backward choices
+    #pragma omp parallel
+    {
     auto fb = nda::vector<int>(m); //utility for iteration
+    #pragma omp for
     for (int num=0;num<total_num_fb_diagram;++num){
         int num0 = num;
         
@@ -426,6 +440,7 @@ nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F
             num0 = int(num0/2);
         }
         Diagram += Sigma_Diagram_calc(hyb_F_self,hyb_F_reflect,D,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag,  fb, true);
+    }
     }
     return Diagram;
 }
