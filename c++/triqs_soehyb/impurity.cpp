@@ -21,15 +21,15 @@ fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcom
     else {
         auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf); //decomposition of Delta(t) using DLR coefficient
         auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf); // decomposition of Delta(-t) using DLR coefficient
-        Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag); // compression of Delta(t) and F_dagger-matrices
-        Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);  // compression of Delta(-t) and F-matrices
+        Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag); // Compression of Delta(t) and F, F_dag matrices
+        Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);  // Compression of Delta(-t) and F, F_dag matrices
     }
-    D_NCA = nda::array<int,2>{{0,1}};// NCA diagram
-    D_OCA = nda::array<int,2>{{0,2},{1,3}};// OCA diagram
-    D_TCA_1 = nda::array<int,2>{{0,2},{1,4},{3,5}}; //TCA 1st diagram
-    D_TCA_2 = nda::array<int,2>{{0,3},{1,5},{2,4}}; //TCA 2nd diagram
-    D_TCA_3 = nda::array<int,2>{{0,4},{1,3},{2,5}}; //TCA 3rd diagram
-    D_TCA_4 = nda::array<int,2>{{0,3},{1,4},{2,5}}; //TCA 4th diagram
+    D_NCA = nda::array<int,2>{{0,1}};// NCA diagram information
+    D_OCA = nda::array<int,2>{{0,2},{1,3}};// OCA diagram information
+    D_TCA_1 = nda::array<int,2>{{0,2},{1,4},{3,5}}; //TCA 1st diagram information
+    D_TCA_2 = nda::array<int,2>{{0,3},{1,5},{2,4}}; //TCA 2nd diagram information
+    D_TCA_3 = nda::array<int,2>{{0,4},{1,3},{2,5}}; //TCA 3rd diagram information
+    D_TCA_4 = nda::array<int,2>{{0,3},{1,4},{2,5}}; //TCA 4th diagram information
     std::cout<<"Initialization done"<<std::endl;
 }
 
