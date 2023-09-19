@@ -345,10 +345,15 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
 
     //iteration over the terms of 2, · · · , m-th hybridization. Note that 1-st hybridization is not decomposed.
     int total_num_diagram = pow(P, m-1);
+    auto line = nda::array<dcomplex,4>(2*m,r,N,N);
+    auto vertex = nda::array<dcomplex,4>(2*m,r,N,N);
+    auto T = nda::array<dcomplex,3>(r,N,N); 
+    auto R = nda::vector<int>(m);
     for (int num=0;num<total_num_diagram;++num){
+
         int num0 = num;
         //obtain R2, ... , Rm, store as R[1],...,R[m-1]
-        auto R = nda::vector<int>(m);
+       
         for (int v = 1;v<m;++v){
             R[v] = num0 % P;
             num0 = int(num0/P);
@@ -359,12 +364,12 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
         We store these in L(r,2m,N,N). 
         We initialize them with Green's functions.
         */
-        auto line = nda::array<dcomplex,4>(2*m,r,N,N);
+        
         line = 0;
         for (int s=1;s<=2*m-1;++s) line(s,_,_,_) = Gt;
         double constant = 1; // the constant term responsible for the current diagram
         //construct vertex object
-        auto vertex = nda::array<dcomplex,4>(2*m,r,N,N);
+        
         vertex = 0;
 
         //Cutting 1,2, ..., (m-1)-th hybridization lines.
@@ -374,7 +379,7 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
             else cut_hybridization(v,R(v), D, constant, hyb_F_reflect.U_tilde(R(v),_,_,_),hyb_F_reflect.V_tilde(R(v),_,_,_), line, vertex,hyb_F_reflect.c(R(v)),hyb_F_reflect.w(R(v)),hyb_F_reflect.K_matrix(R(v),_) ,r, N); 
         }
         //Phase 2: integrate everything out
-        auto T = nda::array<dcomplex,3>(r,N,N); 
+        
         
         // first, calculate P(t1)*G(t1)
         for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(1,k,_,_),Gt(k,_,_));
@@ -401,9 +406,10 @@ nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F
     auto Diagram = nda::array<dcomplex,3>(r,N,N);
     Diagram = 0;
     int total_num_fb_diagram = pow(2, m-1);
+    auto fb = nda::vector<int>(m);
     for (int num=0;num<total_num_fb_diagram;++num){
         int num0 = num;
-        auto fb = nda::vector<int>(m);
+        
         for (int v = 1;v<m;++v){
             fb[v] = num0 % 2;
             num0 = int(num0/2);
@@ -498,37 +504,33 @@ void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &con
             } 
 }
 void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect, int &n, int &r, int &N, bool backward){
-    auto T2 = nda::array<dcomplex,4>(n,r,N,N);
+    auto T2 = nda::array<dcomplex,4>(r,n,N,N);
     T2=0;
     // T2(b,ts) = T(ts)*F_b
-    for (int b =0;b<n;++b){
-        for (int k=0;k<r;++k) T2(b,k,_,_) = matmul(T(k,_,_),F(b,_,_));
+    for (int k=0;k<r;++k) {
+        for (int b =0;b<n;++b) T2(k,b,_,_) = matmul(T(k,_,_),F(b,_,_));
     }
     // T2(a,ts) = sum_b Delta(ts)_ab * T2(b,ts)
     for (int k=0;k<r;++k){
-        for (int M=0;M<N;++M){
-            for (int M2 = 0;M2<N;++M2) T2(_,k,M,M2) = matvecmul(Deltat(k,_,_),T2(_,k,M,M2));
-        }
+            T2(k,_,_,_) = arraymult(Deltat(k,_,_), T2(k,_,_,_));
     }
     // T = sum_a Fdag_a T2(a,ts) 
     auto T3 = nda::array<dcomplex,3>(T.shape());
     T3=0;
     for (int k=0;k<r;++k){
-        for (int a = 0;a<n;++a) T3(k,_,_) = T3(k,_,_)+matmul(F_dag(a,_,_),T2(a,k,_,_));
+        for (int a = 0;a<n;++a) T3(k,_,_) = T3(k,_,_)+matmul(F_dag(a,_,_),T2(k,a,_,_));
     }  
     if (backward==true){
         T2=0;
-        for (int b =0;b<n;++b){
-           for (int k=0;k<r;++k) T2(b,k,_,_) = matmul(T(k,_,_),F_dag(b,_,_));
+         for (int k=0;k<r;++k){
+           for (int b =0;b<n;++b) T2(k,b,_,_) = matmul(T(k,_,_),F_dag(b,_,_));
         }
         for (int k=0;k<r;++k){
-            for (int M=0;M<N;++M){
-                for (int M2 = 0;M2<N;++M2) T2(_,k,M,M2) = matvecmul(Deltat_reflect(k,_,_),T2(_,k,M,M2));
-            }
+            T2(k,_,_,_) = arraymult(Deltat_reflect(k,_,_), T2(k,_,_,_));
         }
         // T = sum_a Fdag_a T2(a,ts) 
         for (int k=0;k<r;++k){
-            for (int a = 0;a<n;++a) T3(k,_,_) = T3(k,_,_)+matmul(F(a,_,_),T2(a,k,_,_));
+            for (int a = 0;a<n;++a) T3(k,_,_) = T3(k,_,_)+matmul(F(a,_,_),T2(k,a,_,_));
         }  
     }
     T = T3;
