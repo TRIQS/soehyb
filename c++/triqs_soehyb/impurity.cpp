@@ -5,7 +5,7 @@
 #include <nda/declarations.hpp>
 #include <nda/linalg/matmul.hpp>
 
-fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> Deltat, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag, bool poledlrflag): Deltat(Deltat), F(F), F_dag(F_dag){
+fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> Deltat, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag, bool poledlrflag):beta(beta), Deltat(Deltat), F(F), F_dag(F_dag){
     dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     itops = imtime_ops(lambda, dlr_rf); // construct imagninary time dlr objects 
 
