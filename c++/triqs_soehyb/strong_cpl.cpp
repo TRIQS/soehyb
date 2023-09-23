@@ -123,9 +123,8 @@ nda::array<dcomplex,3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_ref
     auto Diagram = nda::array<dcomplex,3>(r,n,n);
     Diagram = 0;
     int total_num_fb_diagram = pow(2, m-1);
-    #pragma omp parallel
-    { 
-    #pragma omp for
+
+    
     for (int num=0;num<total_num_fb_diagram;++num){
         int num0 = num;
         auto fb = nda::vector<int>(m);
@@ -135,7 +134,7 @@ nda::array<dcomplex,3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_ref
         }
         Diagram += G_Diagram_calc(hyb_F_self,hyb_F_reflect,D,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag,  fb);
     }
-    }
+    
     return Diagram;
 }
 
@@ -428,10 +427,10 @@ nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F
     auto Diagram = nda::array<dcomplex,3>(r,N,N);
     Diagram = 0;
     int total_num_fb_diagram = pow(2, m-1);// total number of forward and backward choices
-    #pragma omp parallel
+
     {
     auto fb = nda::vector<int>(m); //utility for iteration
-    #pragma omp for
+
     for (int num=0;num<total_num_fb_diagram;++num){
         int num0 = num;
         
