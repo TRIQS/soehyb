@@ -48,6 +48,8 @@ class fastdiagram{
     * */ 
     nda::array<dcomplex,3> G_calc(nda::array_const_view<dcomplex,3> Gt, std::string order); 
 
+    nda::array<dcomplex,3> time_ordered_dyson(double &beta,nda::array_view<dcomplex,2> H_S, double &eta_0, nda::array_const_view<dcomplex,3>Sigma_t);
+
     private:
     double beta; //inverse temperature
     double lambda; // DLR cutoff parameter

@@ -21,7 +21,7 @@ nda::array<dcomplex,3> NCA(nda::array_view<dcomplex,3> Deltat,nda::array_view<dc
 // nda::array<dcomplex,3> step(nda::array_view<dcomplex,2> G_iaa);
 TEST(strong_coupling, dimer) {
     omp_set_dynamic(0);     // Explicitly disable dynamic teams
-    omp_set_num_threads(2); // Use 4 threads for all consecutive parallel regions
+    omp_set_num_threads(1); // Use 4 threads for all consecutive parallel regions
     int N = 64;
     auto c0_dag = nda::array<dcomplex,2>(N,N); c0_dag = 0;
     auto c1_dag = nda::array<dcomplex,2>(N,N); c1_dag = 0;
@@ -86,7 +86,7 @@ TEST(strong_coupling, dimer) {
    // std::cout<<((eval));
     double lambda = 640;
     double eps = 1.0e-12;
-    std::string order = "TCA";
+    std::string order = "OCA";
     auto dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     auto itops = imtime_ops(lambda, dlr_rf); // Get DLR imaginary time object
     auto const & dlr_it = itops.get_itnodes();
@@ -160,15 +160,13 @@ TEST(strong_coupling, dimer) {
     H_S = H_S- v*(matmul(c0_S_dag,c1_S)+matmul(c1_S_dag,c0_S)); 
     H_S = H_S - mu*(matmul(c0_S_dag,c0_S)+matmul(c1_S_dag,c1_S));
 
-    auto G0_S_tau = ppsc_free_greens_tau(tau_actual, H_S, beta);
-
-    auto G0_S_dlr = itops.vals2coefs(G0_S_tau);
     auto [E_HS,U_HS] = nda::linalg::eigenelements(H_S); 
     auto E0_HS = min_element(E_HS);
     E_HS-=E0_HS;
     auto Z_HS = sum(exp(-beta*E_HS));
     auto eta_0 = E0_HS - log(Z_HS)/beta;
 
+    auto G0_S_tau = free_gf(beta, itops, H_S,eta_0,true);
     
     auto impsol = fastdiagram(beta,lambda,eps,Deltat,F,F_dag,true); 
 
@@ -188,10 +186,10 @@ TEST(strong_coupling, dimer) {
         G_S_tau_old = G_S_tau;
         auto Sigma_t = impsol.Sigma_calc(G_S_tau,order); 
         
-        auto fgf = free_gf(beta,itops,H_S,0,true);
-        auto dys = dyson_it(beta, itops, H_S, eta_0, true);
+        auto G_new_tau = impsol.time_ordered_dyson(beta,H_S,eta_0,Sigma_t);
+        // auto dys = dyson_it(beta, itops, H_S, eta_0, true);
 
-        auto G_new_tau   = dys.solve(Sigma_t);  
+        // auto G_new_tau   = dys.solve(Sigma_t);  
 
         auto G_new_dlr = itops.vals2coefs(G_new_tau);
         

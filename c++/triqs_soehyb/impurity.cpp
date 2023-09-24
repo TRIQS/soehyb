@@ -76,3 +76,7 @@ nda::array<dcomplex,3> fastdiagram::G_calc(nda::array_const_view<dcomplex,3> Gt,
         } 
     } 
 }
+nda::array<dcomplex,3> fastdiagram::time_ordered_dyson(double &beta,nda::array_view<dcomplex,2> H_S, double &eta_0, nda::array_const_view<dcomplex,3>Sigma_t){
+    auto dys = dyson_it(beta, itops, H_S, eta_0, true);
+    return dys.solve(Sigma_t);  
+}
