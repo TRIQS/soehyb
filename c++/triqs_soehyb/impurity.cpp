@@ -5,11 +5,25 @@
 #include <nda/declarations.hpp>
 #include <nda/linalg/matmul.hpp>
 
-fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> Deltat, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag, bool poledlrflag):beta(beta), Deltat(Deltat), F(F), F_dag(F_dag){
+fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag):beta(beta), F(F), F_dag(F_dag){
     dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     itops = imtime_ops(lambda, dlr_rf); // construct imagninary time dlr objects 
 
     dlr_it = itops.get_itnodes(); //obtain imaginary time nodes
+    
+    D_NCA = nda::array<int,2>{{0,1}};// NCA diagram information
+    D_OCA = nda::array<int,2>{{0,2},{1,3}};// OCA diagram information
+    D_TCA_1 = nda::array<int,2>{{0,2},{1,4},{3,5}}; //TCA 1st diagram information
+    D_TCA_2 = nda::array<int,2>{{0,3},{1,5},{2,4}}; //TCA 2nd diagram information
+    D_TCA_3 = nda::array<int,2>{{0,4},{1,3},{2,5}}; //TCA 3rd diagram information
+    D_TCA_4 = nda::array<int,2>{{0,3},{1,4},{2,5}}; //TCA 4th diagram information
+    std::cout<<"Initialization done"<<std::endl;
+}
+nda::array<dcomplex,3> fastdiagram::free_greens(double beta, nda::array_view<dcomplex,2> H_S, double mu, bool time_order){
+    return free_gf(beta, itops, H_S, mu, time_order);
+}
+void fastdiagram::hyb_decomposition(nda::array<dcomplex,3> Deltat0, bool poledlrflag){
+    Deltat = Deltat0;
     Deltat_reflect = itops.reflect(Deltat); // obtain Delta(-t) from Delta(t)
 
     auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)
@@ -24,15 +38,7 @@ fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcom
         Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag); // Compression of Delta(t) and F, F_dag matrices
         Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);  // Compression of Delta(-t) and F, F_dag matrices
     }
-    D_NCA = nda::array<int,2>{{0,1}};// NCA diagram information
-    D_OCA = nda::array<int,2>{{0,2},{1,3}};// OCA diagram information
-    D_TCA_1 = nda::array<int,2>{{0,2},{1,4},{3,5}}; //TCA 1st diagram information
-    D_TCA_2 = nda::array<int,2>{{0,3},{1,5},{2,4}}; //TCA 2nd diagram information
-    D_TCA_3 = nda::array<int,2>{{0,4},{1,3},{2,5}}; //TCA 3rd diagram information
-    D_TCA_4 = nda::array<int,2>{{0,3},{1,4},{2,5}}; //TCA 4th diagram information
-    std::cout<<"Initialization done"<<std::endl;
 }
-
 nda::array<dcomplex,3> fastdiagram::Sigma_calc(nda::array_const_view<dcomplex,3> Gt, std::string order){
     // First do NCA calculation
     nda::array<dcomplex,3> Sigma_NCA = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_NCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);

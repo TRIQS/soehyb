@@ -168,7 +168,8 @@ TEST(strong_coupling, dimer) {
 
     auto G0_S_tau = free_gf(beta, itops, H_S,eta_0,true);
     
-    auto impsol = fastdiagram(beta,lambda,eps,Deltat,F,F_dag,true); 
+    auto impsol = fastdiagram(beta,lambda,eps,F,F_dag); 
+    impsol.hyb_decomposition(Deltat);
 
     nda::array<dcomplex,3> G_S_tau = G0_S_tau;
     nda::array<dcomplex,3> G_S_tau_old = 0.0*G_S_tau; 
@@ -224,29 +225,4 @@ TEST(strong_coupling, dimer) {
      for (int i=0;i<N_t;++i) g_S_long(i,_,_) = itops.coefs2eval(g_S_dlr,t_relative(i)) ;
      std::cout<<std::endl;
       for (int i=0;i<N_t;++i) std::cout<<abs(G00_long(i,0,0)-g_S_long(i,0,0))<<" ";
-}
-
-nda::array<dcomplex,3> ppsc_free_greens_tau(nda::vector_const_view<double> tau_i, nda::array_view<dcomplex,2> H_S, double beta){
-    int na = H_S.shape(0);
-    nda::array<dcomplex,2> I_aa = nda::eye<dcomplex>(na);
-    auto [E,U] = nda::linalg::eigenelements(H_S);
-
-    auto E0 = min_element(E);
-    E-=E0;
-    auto Z = sum(exp(-beta*E));
-    auto eta = log(Z)/beta;
-    E+= eta;
-
-    int r = tau_i.shape(0);
-
-    auto g_iaa = nda::array<dcomplex,3>(r,na,na);
-    auto exp_ia = nda::array<dcomplex,2>(r,na);
-    for (int k=0;k<r;++k) exp_ia(k,_) = exp(-tau_i(k)*E);
-
-    
-    for (int k=0;k<r;++k){
-        g_iaa(k,_,_) = -matmul(U,matmul(diag(exp_ia(k,_)),conj(transpose(U))));
-    }
-  //  H_S += I_aa*(eta-E0);
-    return g_iaa;
 }

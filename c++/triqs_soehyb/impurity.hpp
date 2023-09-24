@@ -21,17 +21,28 @@ using namespace nda;
 class fastdiagram{
     public:
     /** 
-    * @brief Constructor for fastdiagram
+    * @brief Constructor for fastdiagram, construct itops and diagram topology matrices
     * @param[in] beta inverse temperature
     * @param[in] lambda DLR cutoff parameter
     * @param[in] eps DLR accuracy tolerance
-    * @param[in] Deltat hybridization function in imaginary time, nda array of size r*n*n
     * @param[in] F impurity annihilation operator in pseudo-particle space, of size n*N*N
     * @param[in] F_dag impurity creation operator in pseudo-particle space, of size n*N*N
+    * */
+    fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag);
+
+    /** 
+    * @brief calculate decomposition and reflection of hybridization Deltat
+    * @param[in] Deltat hybridization function in imaginary time, nda array of size r*n*n
     * @param[in] poledlrflag flag for whether to use dlr for pole expansion. True for using dlr. False has not been implemented yet. 
     * */
-    fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> Deltat,nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag, bool poledlrflag);
+    void hyb_decomposition(nda::array<dcomplex,3> Deltat0, bool poledlrflag=true);
 
+
+    /** 
+    * @brief free green's function, wrapped from free_gf of cppdlr 
+    * */ 
+    nda::array<dcomplex,3> free_greens(double beta, nda::array_view<dcomplex,2> H_S, double mu=0.0, bool time_order=false);
+    
     /** 
     * @brief Compute pseudo-particle self energy diagram of certain order, given pseudo-particle Green's function G(t)
     * @param[in] Gt pseudo-particle Green's function G(t), of size r*N*N
@@ -73,5 +84,3 @@ class fastdiagram{
     nda::array<int,2> D_TCA_3; //TCA 3rd diagram information
     nda::array<int,2> D_TCA_4; //TCA 4th diagram information
 };
-
-
