@@ -189,9 +189,7 @@ TEST(strong_coupling, dimer) {
         
         auto G_new_tau = impsol.time_ordered_dyson(beta,H_S,eta_0,Sigma_t);
 
-        auto G_new_dlr = itops.vals2coefs(G_new_tau);
-        
-        Z_S= -real(trace(itops.coefs2eval(G_new_dlr,1.0)));
+        Z_S = impsol.partition_function(G_new_tau); 
         eta = log(Z_S)/beta;
         H_S += eta*nda::eye<dcomplex>(H_S.shape(0));
         

@@ -86,3 +86,8 @@ nda::array<dcomplex,3> fastdiagram::time_ordered_dyson(double &beta,nda::array<d
     auto dys = dyson_it(beta, itops, H_S, eta_0, true);
     return dys.solve(Sigma_t);  
 }
+
+double fastdiagram::partition_function(nda::array<dcomplex,3> Gt){
+    auto G_dlr = itops.vals2coefs(Gt);
+    return -real(trace(itops.coefs2eval(G_dlr,1.0)));
+}
