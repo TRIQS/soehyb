@@ -17,9 +17,9 @@ fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcom
     D_TCA_2 = nda::array<int,2>{{0,3},{1,5},{2,4}}; //TCA 2nd diagram information
     D_TCA_3 = nda::array<int,2>{{0,4},{1,3},{2,5}}; //TCA 3rd diagram information
     D_TCA_4 = nda::array<int,2>{{0,3},{1,4},{2,5}}; //TCA 4th diagram information
-    std::cout<<"Initialization done"<<std::endl;
+   // std::cout<<"Initialization done"<<std::endl;
 }
-nda::array<dcomplex,3> fastdiagram::free_greens(double beta, nda::array_view<dcomplex,2> H_S, double mu, bool time_order){
+nda::array<dcomplex,3> fastdiagram::free_greens(double beta, nda::array<dcomplex,2> H_S, double mu, bool time_order){
     return free_gf(beta, itops, H_S, mu, time_order);
 }
 void fastdiagram::hyb_decomposition(nda::array<dcomplex,3> Deltat0, bool poledlrflag){
@@ -39,7 +39,7 @@ void fastdiagram::hyb_decomposition(nda::array<dcomplex,3> Deltat0, bool poledlr
         Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);  // Compression of Delta(-t) and F, F_dag matrices
     }
 }
-nda::array<dcomplex,3> fastdiagram::Sigma_calc(nda::array_const_view<dcomplex,3> Gt, std::string order){
+nda::array<dcomplex,3> fastdiagram::Sigma_calc(nda::array<dcomplex,3> Gt, std::string order){
     // First do NCA calculation
     nda::array<dcomplex,3> Sigma_NCA = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_NCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);
     if ( order.compare("NCA")!=0 && order.compare("OCA")!=0 && order.compare("TCA")!=0){
@@ -61,7 +61,7 @@ nda::array<dcomplex,3> fastdiagram::Sigma_calc(nda::array_const_view<dcomplex,3>
     }
 }
 
-nda::array<dcomplex,3> fastdiagram::G_calc(nda::array_const_view<dcomplex,3> Gt, std::string order){
+nda::array<dcomplex,3> fastdiagram::G_calc(nda::array<dcomplex,3> Gt, std::string order){
     // First do NCA calculation
     nda::array<dcomplex,3> g_NCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D_NCA,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag);
     if ( order.compare("NCA")!=0 && order.compare("OCA")!=0 && order.compare("TCA")!=0){
@@ -82,7 +82,7 @@ nda::array<dcomplex,3> fastdiagram::G_calc(nda::array_const_view<dcomplex,3> Gt,
         } 
     } 
 }
-nda::array<dcomplex,3> fastdiagram::time_ordered_dyson(double &beta,nda::array_view<dcomplex,2> H_S, double &eta_0, nda::array_const_view<dcomplex,3>Sigma_t){
+nda::array<dcomplex,3> fastdiagram::time_ordered_dyson(double &beta,nda::array<dcomplex,2> H_S, double &eta_0, nda::array_const_view<dcomplex,3>Sigma_t){
     auto dys = dyson_it(beta, itops, H_S, eta_0, true);
     return dys.solve(Sigma_t);  
 }

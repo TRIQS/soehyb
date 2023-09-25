@@ -41,7 +41,9 @@ class fastdiagram{
     /** 
     * @brief free green's function, wrapped from free_gf of cppdlr 
     * */ 
-    nda::array<dcomplex,3> free_greens(double beta, nda::array_view<dcomplex,2> H_S, double mu=0.0, bool time_order=false);
+    nda::array<dcomplex,3> free_greens(double beta, nda::array<dcomplex,2> H_S, double mu=0.0, bool time_order=false);
+
+    double partition_function(nda::array<dcomplex,3> Gt);
     
     /** 
     * @brief Compute pseudo-particle self energy diagram of certain order, given pseudo-particle Green's function G(t)
@@ -49,7 +51,7 @@ class fastdiagram{
     * @param[in] order diagram order: "NCA", "OCA" or "TCA"
     * @return pseudo-particle self energy diagram, r*N*N
     * */ 
-    nda::array<dcomplex,3> Sigma_calc(nda::array_const_view<dcomplex,3> Gt, std::string order);
+    nda::array<dcomplex,3> Sigma_calc(nda::array<dcomplex,3> Gt, std::string order);
 
     /** 
     * @brief Compute impurity Green's function diagram of certain order, given pseudo-particle Green's function G(t)
@@ -57,9 +59,9 @@ class fastdiagram{
     * @param[in] order diagram order: "NCA", "OCA" or "TCA"
     * @return impurity Green's function diagram, r*n*n
     * */ 
-    nda::array<dcomplex,3> G_calc(nda::array_const_view<dcomplex,3> Gt, std::string order); 
+    nda::array<dcomplex,3> G_calc(nda::array<dcomplex,3> Gt, std::string order); 
 
-    nda::array<dcomplex,3> time_ordered_dyson(double &beta,nda::array_view<dcomplex,2> H_S, double &eta_0, nda::array_const_view<dcomplex,3>Sigma_t);
+    nda::array<dcomplex,3> time_ordered_dyson(double &beta,nda::array<dcomplex,2> H_S, double &eta_0, nda::array_const_view<dcomplex,3>Sigma_t);
 
     private:
     double beta; //inverse temperature

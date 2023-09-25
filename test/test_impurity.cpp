@@ -188,9 +188,6 @@ TEST(strong_coupling, dimer) {
         auto Sigma_t = impsol.Sigma_calc(G_S_tau,order); 
         
         auto G_new_tau = impsol.time_ordered_dyson(beta,H_S,eta_0,Sigma_t);
-        // auto dys = dyson_it(beta, itops, H_S, eta_0, true);
-
-        // auto G_new_tau   = dys.solve(Sigma_t);  
 
         auto G_new_dlr = itops.vals2coefs(G_new_tau);
         
