@@ -10,6 +10,10 @@ fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcom
     itops = imtime_ops(lambda, dlr_rf); // construct imagninary time dlr objects 
 
     dlr_it = itops.get_itnodes(); //obtain imaginary time nodes
+    dlr_it_actual = dlr_it;
+    int r = itops.rank();
+    for (int k =0;k<r;++k) {if (dlr_it_actual(k)<0) {dlr_it_actual(k) = dlr_it_actual(k)+1;}}
+    dlr_it_actual = dlr_it_actual*beta;
     
     D_NCA = nda::array<int,2>{{0,1}};// NCA diagram information
     D_OCA = nda::array<int,2>{{0,2},{1,3}};// OCA diagram information
@@ -19,6 +23,10 @@ fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcom
     D_TCA_4 = nda::array<int,2>{{0,3},{1,4},{2,5}}; //TCA 4th diagram information
    // std::cout<<"Initialization done"<<std::endl;
 }
+nda::vector<dcomplex> fastdiagram::get_it_actual(){
+    return dlr_it_actual;
+}
+
 nda::array<dcomplex,3> fastdiagram::free_greens(double beta, nda::array<dcomplex,2> H_S, double mu, bool time_order){
     return free_gf(beta, itops, H_S, mu, time_order);
 }

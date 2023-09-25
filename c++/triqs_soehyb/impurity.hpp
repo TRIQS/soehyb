@@ -37,6 +37,7 @@ class fastdiagram{
     * */
     void hyb_decomposition(nda::array<dcomplex,3> Deltat0, bool poledlrflag=true);
 
+    nda::vector<dcomplex> get_it_actual();
 
     /** 
     * @brief free green's function, wrapped from free_gf of cppdlr 
@@ -69,6 +70,7 @@ class fastdiagram{
     nda::vector<double> dlr_rf; // DLR real frequencies
     imtime_ops itops; // DLR imaginary time objects from cppdlr
     nda::vector<double> dlr_it; // DLR imaginary time nodes
+    nda::vector<double> dlr_it_actual; // DLR imaginary time nodes
     
     nda::array<dcomplex,3> F; // impurity annihilation operator in pseudo-particle space, of size n*N*N
     nda::array<dcomplex,3> F_dag; // impurity creation operator in pseudo-particle space, of size n*N*N

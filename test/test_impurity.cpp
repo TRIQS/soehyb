@@ -92,11 +92,11 @@ TEST(strong_coupling, dimer) {
     auto const & dlr_it = itops.get_itnodes();
     int r = itops.rank();
     std::cout<<"dlr rank is"<< r;
-    nda::vector<double> tau_actual = itops.get_itnodes();
-    for (int k =0;k<r;++k){
-        if (tau_actual(k)<0) {tau_actual(k) = tau_actual(k)+1;}
-    }
-    tau_actual = tau_actual*beta;
+    // nda::vector<double> tau_actual = itops.get_itnodes();
+    // for (int k =0;k<r;++k){
+    //     if (tau_actual(k)<0) {tau_actual(k) = tau_actual(k)+1;}
+    // }
+    // tau_actual = tau_actual*beta;
     
     int n_all=6;
 
@@ -170,6 +170,7 @@ TEST(strong_coupling, dimer) {
     
     auto impsol = fastdiagram(beta,lambda,eps,F,F_dag); 
     impsol.hyb_decomposition(Deltat);
+    auto tau_actual = impsol.get_it_actual();
 
     nda::array<dcomplex,3> G_S_tau = G0_S_tau;
     nda::array<dcomplex,3> G_S_tau_old = 0.0*G_S_tau; 
