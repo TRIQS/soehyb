@@ -27,7 +27,7 @@ c = class_(
         hdf5 = False,
 )
 
-c.add_constructor("""(double beta, double lambda, double eps, nda::array<dcomplex, 3> Deltat, nda::array<dcomplex, 3> F, nda::array<dcomplex, 3> F_dag, bool poledlrflag)""", doc = r"""Parameters
+c.add_constructor("""(double beta, double lambda, double eps, nda::array<dcomplex, 3> F, nda::array<dcomplex, 3> F_dag)""", doc = r"""Parameters
 ----------
 [in]
      beta inverse temperature
@@ -39,18 +39,30 @@ c.add_constructor("""(double beta, double lambda, double eps, nda::array<dcomple
      eps DLR accuracy tolerance
 
 [in]
-     Deltat hybridization function in imaginary time, nda array of size r*n*n
-
-[in]
      F impurity annihilation operator in pseudo-particle space, of size n*N*N
 
 [in]
-     F_dag impurity creation operator in pseudo-particle space, of size n*N*N
+     F_dag impurity creation operator in pseudo-particle space, of size n*N*N""")
+
+c.add_method("""void hyb_decomposition (nda::array<dcomplex, 3> Deltat0, bool poledlrflag = true)""",
+             doc = r"""Parameters
+----------
+[in]
+     Deltat hybridization function in imaginary time, nda array of size r*n*n
 
 [in]
      poledlrflag flag for whether to use dlr for pole expansion. True for using dlr. False has not been implemented yet.""")
 
-c.add_method("""nda::array<dcomplex, 3> Sigma_calc (nda::array_view<dcomplex, 3> Gt, std::string order)""",
+c.add_method("""nda::vector<dcomplex> get_it_actual ()""",
+             doc = r"""""")
+
+c.add_method("""nda::array<dcomplex, 3> free_greens (double beta, nda::array<dcomplex, 2> H_S, double mu = 0.0, bool time_order = false)""",
+             doc = r"""""")
+
+c.add_method("""double partition_function (nda::array<dcomplex, 3> Gt)""",
+             doc = r"""""")
+
+c.add_method("""nda::array<dcomplex, 3> Sigma_calc (nda::array<dcomplex, 3> Gt, std::string order)""",
              doc = r"""Parameters
 ----------
 [in]
@@ -64,7 +76,7 @@ Returns
 out
      pseudo-particle self energy diagram, r*N*N""")
 
-c.add_method("""nda::array<dcomplex, 3> G_calc (nda::array_view<dcomplex, 3> Gt, std::string order)""",
+c.add_method("""nda::array<dcomplex, 3> G_calc (nda::array<dcomplex, 3> Gt, std::string order)""",
              doc = r"""Parameters
 ----------
 [in]
@@ -77,6 +89,9 @@ Returns
 -------
 out
      impurity Green's function diagram, r*n*n""")
+
+c.add_method("""nda::array<dcomplex, 3> time_ordered_dyson (double beta, nda::array<dcomplex, 2> H_S, double eta_0, nda::array_view<dcomplex, 3> Sigma_t)""",
+             doc = r"""""")
 
 module.add_class(c)
 
