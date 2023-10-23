@@ -1,4 +1,4 @@
-#include "../src/strong_cpl.hpp"
+#include "strong_cpl.hpp"
 #include "nda/nda.hpp"
 #include <cppdlr/cppdlr.hpp>
 #include <cppdlr/dlr_imtime.hpp>

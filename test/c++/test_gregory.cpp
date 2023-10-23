@@ -4,7 +4,7 @@
  * @brief Test Gregory weights
  */
 
-#include "../src/utils.hpp"
+#include "utils.hpp"
 #include "nda/nda.hpp"
 #include <gtest/gtest.h>
 
