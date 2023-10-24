@@ -550,7 +550,7 @@ void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcom
            for (int b =0;b<n;++b) T2(k,b,_,_) = matmul(T(k,_,_),F_dag(b,_,_));
         }
         for (int k=0;k<r;++k){
-            T2(k,_,_,_) = arraymult(Deltat_reflect(k,_,_), T2(k,_,_,_));
+            T2(k,_,_,_) = arraymult(transpose(Deltat_reflect(k,_,_)), T2(k,_,_,_));
         }
         // T = sum_a Fdag_a T2(a,ts) 
         for (int k=0;k<r;++k){
