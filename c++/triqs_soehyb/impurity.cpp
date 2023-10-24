@@ -1,5 +1,6 @@
 #include "strong_cpl.hpp"
 #include "impurity.hpp"
+#include "dlr_dyson_ppsc.hpp"
 #include <cppdlr/dlr_kernels.hpp>
 #include <nda/blas/tools.hpp>
 #include <nda/declarations.hpp>
@@ -30,6 +31,11 @@ nda::vector<dcomplex> fastdiagram::get_it_actual(){
 nda::array<dcomplex,3> fastdiagram::free_greens(double beta, nda::array<dcomplex,2> H_S, double mu, bool time_order){
     return free_gf(beta, itops, H_S, mu, time_order);
 }
+
+nda::array<dcomplex,3> fastdiagram::free_greens_ppsc(double beta, nda::array<dcomplex,2> H_S){
+    return free_gf_ppsc(beta, itops, H_S);
+}
+
 void fastdiagram::hyb_decomposition(nda::array<dcomplex,3> Deltat0, bool poledlrflag){
     Deltat = Deltat0;
     Deltat_reflect = itops.reflect(Deltat); // obtain Delta(-t) from Delta(t)
@@ -91,8 +97,8 @@ nda::array<dcomplex,3> fastdiagram::G_calc(nda::array<dcomplex,3> Gt, std::strin
     return make_regular(g_NCA + g_OCA+g_TCA);
 }
 nda::array<dcomplex,3> fastdiagram::time_ordered_dyson(double &beta,nda::array<dcomplex,2> H_S, double &eta_0, nda::array_const_view<dcomplex,3>Sigma_t){
-    auto dys = dyson_it(beta, itops, H_S, eta_0, true);
-    return dys.solve(Sigma_t);  
+    auto dys = dyson_it_ppsc(beta, itops, H_S);
+    return dys.solve(Sigma_t, eta_0);
 }
 
 double fastdiagram::partition_function(nda::array<dcomplex,3> Gt){

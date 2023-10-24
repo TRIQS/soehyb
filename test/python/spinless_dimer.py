@@ -75,21 +75,21 @@ def calc_spinless_dimer(
     H_mat = np.array(ed.ed.H.todense())
     I_mat = np.eye(H_mat.shape[0])
     
-    eta0 = calc_eta0(H_mat, beta)
-    G0_iaa = fd.free_greens(beta, H_mat, eta0, time_order=True)
+    G0_iaa = fd.free_greens_ppsc(beta, H_mat)
     G_iaa = G0_iaa.copy()
     
     tau_i = fd.get_it_actual()
+    eta = 0.
 
     for ppsc_iter in range(ppsc_maxiter):
 
         Sigma_iaa = fd.Sigma_calc(G_iaa, order)
-        G_iaa_new = fd.time_ordered_dyson(beta, H_mat, eta0, Sigma_iaa)
+        G_iaa_new = fd.time_ordered_dyson(beta, H_mat, eta, Sigma_iaa)
 
         Z = fd.partition_function(G_iaa_new)
-        eta = np.log(Z) / beta
-        H_mat += eta * I_mat
-        G_iaa_new[:] *= np.exp(-tau_i * eta)[:, None, None]
+        deta = np.log(Z) / beta
+        G_iaa_new[:] *= np.exp(-tau_i * deta)[:, None, None]
+        eta += deta
 
         ppsc_diff = np.max(np.abs(G_iaa - G_iaa_new))
 

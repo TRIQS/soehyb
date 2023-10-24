@@ -44,6 +44,11 @@ class fastdiagram{
     * */ 
     nda::array<dcomplex,3> free_greens(double beta, nda::array<dcomplex,2> H_S, double mu=0.0, bool time_order=false);
 
+    /** 
+    * @brief free pseudo-particle green's function, wrapped from free_gf_ppsc
+    * */ 
+    nda::array<dcomplex,3> free_greens_ppsc(double beta, nda::array<dcomplex,2> H_S);
+  
     double partition_function(nda::array<dcomplex,3> Gt);
     
     /** 
