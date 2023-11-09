@@ -59,19 +59,25 @@ nda::array<dcomplex,3> fastdiagram::Sigma_calc(nda::array<dcomplex,3> Gt, std::s
         throw std::runtime_error("order needs to be NCA, OCA or TCA\n");
 
     // First do NCA calculation
+    std::cout << "S-NCA: start\n";
     nda::array<dcomplex,3> Sigma_NCA = -Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_NCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);
+    std::cout << "S-NCA: done\n";
     if (order.compare("NCA")==0) return Sigma_NCA;
 
     // Do OCA calculation
+    std::cout << "S-OCA: start\n";
     nda::array<dcomplex,3> Sigma_OCA = - Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_OCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);
+    std::cout << "S-OCA: done\n";
     if (order.compare("OCA")==0) return make_regular(Sigma_NCA+Sigma_OCA);
     
     // Do TCA calculation
+    std::cout << "S-TCA: start\n";
     nda::array<dcomplex,3> Sigma_TCA =
       - Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_1,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag) \
       - Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_2,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag) \
       - Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_3,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag) \
       + Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_4,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);
+    std::cout << "S-TCA: done\n";
     return make_regular(Sigma_NCA+Sigma_OCA+Sigma_TCA);
 }
 
@@ -81,19 +87,26 @@ nda::array<dcomplex,3> fastdiagram::G_calc(nda::array<dcomplex,3> Gt, std::strin
         throw std::runtime_error("order needs to be NCA, OCA or TCA\n");
 
     // First do NCA calculation
+    std::cout << "G-NCA: start\n";
     nda::array<dcomplex,3> g_NCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D_NCA,Deltat,Deltat_reflect, Gt,itops,beta, F,  F_dag);
+    std::cout << "G-NCA: done\n";
     if (order.compare("NCA")==0) return g_NCA;
-
+    
     // Do OCA calculation
+    std::cout << "G-OCA: start\n";
     nda::array<dcomplex,3> g_OCA = -G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_OCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag); 
+    std::cout << "G-OCA done\n";
     if (order.compare("OCA")==0) return make_regular(g_NCA + g_OCA);
 
+    
     // Do TCA calculation
+    std::cout << "G-TCA: start\n";
     nda::array<dcomplex,3> g_TCA =
       - G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_1,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag) \
       - G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_2,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag)	\
       - G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_3,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag)	\
       + G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_TCA_4,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);
+    std::cout << "G-TCA done\n";
     return make_regular(g_NCA + g_OCA+g_TCA);
 }
 nda::array<dcomplex,3> fastdiagram::time_ordered_dyson(double &beta,nda::array<dcomplex,2> H_S, double &eta_0, nda::array_const_view<dcomplex,3>Sigma_t){
