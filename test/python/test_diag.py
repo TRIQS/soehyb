@@ -1,0 +1,81 @@
+""" Diagram generator tests
+
+Author: Hugo U. R. Strand (2023) """
+
+
+from triqs_soehyb.diag import pop_pair
+from triqs_soehyb.diag import is_crossing, is_connected
+from triqs_soehyb.diag import all_pairings, all_connected_pairings
+
+
+def test_pop_pair():
+
+    vec = [1, 2, 3, 4]
+    p, rest = pop_pair(vec, 1, 3)
+    assert( p == (2, 4) )
+    assert( rest == [1, 3] )
+
+
+def test_is_crossing():
+    assert( is_crossing((0, 1), (2, 3)) == False )
+    assert( is_crossing((0, 2), (1, 3)) == True )
+    
+
+def test_is_connected():
+
+    assert( is_connected([(0, 1)]) == True )
+    assert( is_connected([(0, 1), (2, 3)]) == False )
+    assert( is_connected([(0, 2), (1, 3)]) == True )
+
+    assert( is_connected([(0, 2), (1, 4), (3, 5)]) == True )
+    assert( is_connected([(0, 3), (1, 4), (2, 5)]) == True )
+    assert( is_connected([(0, 3), (1, 5), (2, 4)]) == True )
+    assert( is_connected([(0, 4), (1, 3), (2, 5)]) == True )
+
+
+def test_all_pairings():
+
+    from functools import reduce
+    from sympy.combinatorics import Permutation
+    from sympy.functions.combinatorial.factorials import factorial2
+
+    print('test_all_pairings')
+    
+    for order in range(1, 7):
+        n_pairings = 0
+        for parity, pairing in all_pairings(order):
+            l = reduce(lambda x, y: list(x) + list(y), pairing)
+            perm = Permutation(l)
+            assert( parity == (-1)**perm.parity() )
+            n_pairings += 1
+
+        assert( n_pairings == factorial2(2*order-1) )
+        print(f'order = {order}, n_pairings = {n_pairings}')
+
+
+def test_all_connected_pairings():
+
+    print('test_all_connected_pairings')
+
+    assert( list(all_connected_pairings(1)) == [(+1, [(0, 1)])] )
+    assert( list(all_connected_pairings(2)) == [(-1, [(0, 2), (1, 3)])] )
+    assert( list(all_connected_pairings(3)) == [        
+        (+1, [(0, 2), (1, 4), (3, 5)]),
+        (-1, [(0, 3), (1, 4), (2, 5)]),
+        (+1, [(0, 3), (1, 5), (2, 4)]),
+        (+1, [(0, 4), (1, 3), (2, 5)]),
+        ] )
+    
+    for order in range(1, 7):
+        n_pairings = 0
+        for parity, pairing in all_connected_pairings(order):
+            n_pairings += 1
+        print(f'order = {order}, n_pairings = {n_pairings}')
+
+
+if __name__ == '__main__':
+    test_pop_pair()
+    test_is_crossing()
+    test_is_connected()
+    test_all_pairings()
+    test_all_connected_pairings()
