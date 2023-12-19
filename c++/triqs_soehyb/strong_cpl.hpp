@@ -141,3 +141,8 @@ void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcom
 * @brief final step of impurity Green's function diagram
 * */
 void final_evaluation(nda::array_view<dcomplex,3> Diagram,nda::array_const_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> T_left, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,int &n, int &r, int &N, double &constant);
+
+
+
+
+nda::array<dcomplex,3> evaluate_one_diagram(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect, nda::array_const_view<int,2> D, nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb, bool backward, int num0, int m, int n, int r, int N, int P);
