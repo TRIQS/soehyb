@@ -139,7 +139,81 @@ nda::array<dcomplex,3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_ref
     
     return Diagram;
 }
+nda::array<dcomplex,3> eval_one_diagram_G(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb,int num0, int m, int n, int r, int N, int P){
+    //initialize diagram
+    auto Diagram = nda::array<dcomplex,3>(r,n,n);
+    Diagram = 0;
+    if (m==1){
+        //evaluate NCA diagram directly
+        double constant = 1.0;
+        final_evaluation(Diagram,Gt,itops.reflect(Gt),F,F_dag,n,r,N,constant);
+        return Diagram;
+    }
+    auto R = nda::vector<int>(m); //utility for iteration
+    auto line = nda::array<dcomplex,4>(2*m,r,N,N); //used for stotring line objects
+    auto vertex = nda::array<dcomplex,4>(2*m,r,N,N); //used for stotring vertex objects
 
+    auto T = nda::array<dcomplex,3>(r,N,N); //used for storing diagram (from 0 to t)
+    auto T_left = nda::array<dcomplex,3>(r,N,N); //used for storing diagram (from t to beta)
+
+    auto GF_dag = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
+    auto GF_left = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
+    //obtain R2, ... , Rm, store as R[1],...,R[m-1]
+    for (int v = 1;v<m;++v){
+        R[v] = num0 % P;
+        num0 = int(num0/P);
+    }
+    //Phase 1: initialize line object L and point object P;
+    //This is done exactly the same as in Sigma diagrams
+    line = 0;
+    for (int s=1;s<=2*m-1;++s) line(s,_,_,_) = Gt; //initialize the line object
+    double constant = 1; 
+        
+    vertex = 0;
+    //initialize vertex objects by cutting the 2th-mth hybridization line
+    for (int v = 1;v<m;++v) {
+        if (fb(v)==0)  cut_hybridization(v,R(v), D, constant, hyb_F_self.U_tilde(R(v),_,_,_),hyb_F_self.V_tilde(R(v),_,_,_), line, vertex,hyb_F_self.c(R(v)),hyb_F_self.w(R(v)),hyb_F_self.K_matrix(R(v),_) ,r, N);
+        else cut_hybridization(v,R(v), D, constant, hyb_F_reflect.U_tilde(R(v),_,_,_),hyb_F_reflect.V_tilde(R(v),_,_,_), line, vertex,hyb_F_reflect.c(R(v)),hyb_F_reflect.w(R(v)),hyb_F_reflect.K_matrix(R(v),_) ,r, N); 
+    } 
+        
+
+    //Phase 2: integrate out the stuff on the right (from 0 to t)
+        
+    // first, calculate P(t1)*G(t1)   
+    for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(1,k,_,_),Gt(k,_,_));
+    //integrate out the stuff on the right (from 0 to t). In each for loop, first convolution, then multiplication.
+    for (int s=1;s<D(0,1);++s){
+        // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts    
+        T = itops.convolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T),TIME_ORDERED);
+        //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
+        //Do special things for the vertex connecting to 0.
+        if (s+1 != D(0,1)) multiplicate_onto(vertex(s+1,_,_,_),T);
+    }
+        
+
+    //Phase 2.5: integrate out the stuff on the left (from t to beta)
+    //First, change the vertex objects from v(t)->v(beta-t)
+    for (int s=2*m-1;s>D(0,1);--s) vertex(s,_,_,_) = itops.reflect(vertex(s,_,_,_));
+        
+        
+    // first, calculate P(t1)*G(t1)
+    for (int k = 0;k<r;++k) T_left(k,_,_) = matmul(Gt(k,_,_),vertex(2*m-1,k,_,_));
+    
+    //integrate out the stuff on the right. In each for loop, first convolution, then multiplication.
+    for (int s=2*m-1;s>D(0,1);--s){
+        // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
+        T_left = itops.convolve(beta, Fermion,itops.vals2coefs(T_left),itops.vals2coefs(line(s-1,_,_,_)),TIME_ORDERED);
+        //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
+        //Do special things for the vertex connecting to 0.
+        if (s-1 != D(0,1)) multiplicate_onto_left(T_left,vertex(s-1,_,_,_));
+    }
+    //revert back from (beta-t) to t
+    T_left = itops.reflect(T_left); 
+
+    //evaluating every entry of impurity Green's function from pseudoparticle information, add result to Diagram
+    final_evaluation(Diagram,T,T_left,F,F_dag,n,r,N,constant);
+    return Diagram;
+}
 
 nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb){
     auto const &dlr_it = itops.get_itnodes();  
@@ -167,77 +241,79 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
     int total_num_diagram = pow(P, m-1);
     #pragma omp parallel
     {
-    auto R = nda::vector<int>(m); //utility for iteration
-    auto line = nda::array<dcomplex,4>(2*m,r,N,N); //used for stotring line objects
-    auto vertex = nda::array<dcomplex,4>(2*m,r,N,N); //used for stotring vertex objects
-
-    auto T = nda::array<dcomplex,3>(r,N,N); //used for storing diagram (from 0 to t)
-    auto T_left = nda::array<dcomplex,3>(r,N,N); //used for storing diagram (from t to beta)
-
-    auto GF_dag = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
-    auto GF_left = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
+    
     
     #pragma omp for
     for (int num=0;num<total_num_diagram;++num){
-        int num0 = num;
-        //obtain R2, ... , Rm, store as R[1],...,R[m-1]
-        for (int v = 1;v<m;++v){
-            R[v] = num0 % P;
-            num0 = int(num0/P);
-        }
-        //Phase 1: initialize line object L and point object P;
-        //This is done exactly the same as in Sigma diagrams
-        line = 0;
-        for (int s=1;s<=2*m-1;++s) line(s,_,_,_) = Gt; //initialize the line object
-        double constant = 1; 
+        Diagram = Diagram + eval_one_diagram_G(hyb_F_self, hyb_F_reflect, D, Deltat, Deltat_reflect, Gt, itops, beta, F, F_dag, fb,num , m, n, r, N, P);
+        // auto R = nda::vector<int>(m); //utility for iteration
+        // auto line = nda::array<dcomplex,4>(2*m,r,N,N); //used for stotring line objects
+        // auto vertex = nda::array<dcomplex,4>(2*m,r,N,N); //used for stotring vertex objects
+
+        // auto T = nda::array<dcomplex,3>(r,N,N); //used for storing diagram (from 0 to t)
+        // auto T_left = nda::array<dcomplex,3>(r,N,N); //used for storing diagram (from t to beta)
+
+        // auto GF_dag = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
+        // auto GF_left = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
+        // int num0 = num;
+        // //obtain R2, ... , Rm, store as R[1],...,R[m-1]
+        // for (int v = 1;v<m;++v){
+        //     R[v] = num0 % P;
+        //     num0 = int(num0/P);
+        // }
+        // //Phase 1: initialize line object L and point object P;
+        // //This is done exactly the same as in Sigma diagrams
+        // line = 0;
+        // for (int s=1;s<=2*m-1;++s) line(s,_,_,_) = Gt; //initialize the line object
+        // double constant = 1; 
         
-        vertex = 0;
-        //initialize vertex objects by cutting the 2th-mth hybridization line
-        for (int v = 1;v<m;++v) {
-            if (fb(v)==0)  cut_hybridization(v,R(v), D, constant, hyb_F_self.U_tilde(R(v),_,_,_),hyb_F_self.V_tilde(R(v),_,_,_), line, vertex,hyb_F_self.c(R(v)),hyb_F_self.w(R(v)),hyb_F_self.K_matrix(R(v),_) ,r, N);
-            else cut_hybridization(v,R(v), D, constant, hyb_F_reflect.U_tilde(R(v),_,_,_),hyb_F_reflect.V_tilde(R(v),_,_,_), line, vertex,hyb_F_reflect.c(R(v)),hyb_F_reflect.w(R(v)),hyb_F_reflect.K_matrix(R(v),_) ,r, N); 
-        } 
+        // vertex = 0;
+        // //initialize vertex objects by cutting the 2th-mth hybridization line
+        // for (int v = 1;v<m;++v) {
+        //     if (fb(v)==0)  cut_hybridization(v,R(v), D, constant, hyb_F_self.U_tilde(R(v),_,_,_),hyb_F_self.V_tilde(R(v),_,_,_), line, vertex,hyb_F_self.c(R(v)),hyb_F_self.w(R(v)),hyb_F_self.K_matrix(R(v),_) ,r, N);
+        //     else cut_hybridization(v,R(v), D, constant, hyb_F_reflect.U_tilde(R(v),_,_,_),hyb_F_reflect.V_tilde(R(v),_,_,_), line, vertex,hyb_F_reflect.c(R(v)),hyb_F_reflect.w(R(v)),hyb_F_reflect.K_matrix(R(v),_) ,r, N); 
+        // } 
         
 
-        //Phase 2: integrate out the stuff on the right (from 0 to t)
+        // //Phase 2: integrate out the stuff on the right (from 0 to t)
         
         
-        // first, calculate P(t1)*G(t1)   
-        for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(1,k,_,_),Gt(k,_,_));
+        // // first, calculate P(t1)*G(t1)   
+        // for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(1,k,_,_),Gt(k,_,_));
 
-        //integrate out the stuff on the right (from 0 to t). In each for loop, first convolution, then multiplication.
-        for (int s=1;s<D(0,1);++s){
-            // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
+        // //integrate out the stuff on the right (from 0 to t). In each for loop, first convolution, then multiplication.
+        // for (int s=1;s<D(0,1);++s){
+        //     // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
             
-            T = itops.convolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T),TIME_ORDERED);
+        //     T = itops.convolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T),TIME_ORDERED);
 
-            //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
-            //Do special things for the vertex connecting to 0.
-            if (s+1 != D(0,1)) multiplicate_onto(vertex(s+1,_,_,_),T);
-        }
+        //     //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
+        //     //Do special things for the vertex connecting to 0.
+        //     if (s+1 != D(0,1)) multiplicate_onto(vertex(s+1,_,_,_),T);
+        // }
         
 
-        //Phase 2.5: integrate out the stuff on the left (from t to beta)
-        //First, change the vertex objects from v(t)->v(beta-t)
-        for (int s=2*m-1;s>D(0,1);--s) vertex(s,_,_,_) = itops.reflect(vertex(s,_,_,_));
+        // //Phase 2.5: integrate out the stuff on the left (from t to beta)
+        // //First, change the vertex objects from v(t)->v(beta-t)
+        // for (int s=2*m-1;s>D(0,1);--s) vertex(s,_,_,_) = itops.reflect(vertex(s,_,_,_));
         
         
-        // first, calculate P(t1)*G(t1)
-        for (int k = 0;k<r;++k) T_left(k,_,_) = matmul(Gt(k,_,_),vertex(2*m-1,k,_,_));
+        // // first, calculate P(t1)*G(t1)
+        // for (int k = 0;k<r;++k) T_left(k,_,_) = matmul(Gt(k,_,_),vertex(2*m-1,k,_,_));
 
-        //integrate out the stuff on the right. In each for loop, first convolution, then multiplication.
-        for (int s=2*m-1;s>D(0,1);--s){
-            // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
-            T_left = itops.convolve(beta, Fermion,itops.vals2coefs(T_left),itops.vals2coefs(line(s-1,_,_,_)),TIME_ORDERED);
-            //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
-            //Do special things for the vertex connecting to 0.
-            if (s-1 != D(0,1)) multiplicate_onto_left(T_left,vertex(s-1,_,_,_));
-        }
-        //revert back from (beta-t) to t
-        T_left = itops.reflect(T_left); 
+        // //integrate out the stuff on the right. In each for loop, first convolution, then multiplication.
+        // for (int s=2*m-1;s>D(0,1);--s){
+        //     // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
+        //     T_left = itops.convolve(beta, Fermion,itops.vals2coefs(T_left),itops.vals2coefs(line(s-1,_,_,_)),TIME_ORDERED);
+        //     //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
+        //     //Do special things for the vertex connecting to 0.
+        //     if (s-1 != D(0,1)) multiplicate_onto_left(T_left,vertex(s-1,_,_,_));
+        // }
+        // //revert back from (beta-t) to t
+        // T_left = itops.reflect(T_left); 
 
-        //evaluating every entry of impurity Green's function from pseudoparticle information, add result to Diagram
-        final_evaluation(Diagram,T,T_left,F,F_dag,n,r,N,constant);
+        // //evaluating every entry of impurity Green's function from pseudoparticle information, add result to Diagram
+        // final_evaluation(Diagram,T,T_left,F,F_dag,n,r,N,constant);
 
     }   
     }
