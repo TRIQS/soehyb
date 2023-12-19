@@ -12,7 +12,8 @@ fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcom
 
     dlr_it = itops.get_itnodes(); //obtain imaginary time nodes
     dlr_it_actual = dlr_it;
-    int r = itops.rank();
+    r = itops.rank();
+    n = F.shape(0); 
     for (int k =0;k<r;++k) {if (dlr_it_actual(k)<0) {dlr_it_actual(k) = dlr_it_actual(k)+1;}}
     dlr_it_actual = dlr_it_actual*beta;
     
@@ -52,6 +53,24 @@ void fastdiagram::hyb_decomposition(nda::array<dcomplex,3> Deltat0, bool poledlr
         Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag); // Compression of Delta(t) and F, F_dag matrices
         Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);  // Compression of Delta(-t) and F, F_dag matrices
     }
+    P = Delta_F.c.shape(0);
+}
+int fastdiagram::number_of_diagrams(int m){
+    return pow(P,m-1) * pow(2,m-1);
+}
+nda::array<dcomplex,3> fastdiagram::Sigma_calc_group(nda::array<dcomplex,3> Gt, nda::array<int,2> D, nda::array<int,1> diagramindex, int num_diagram_per_fb, int N){
+    int Nd = diagramindex.shape(0);
+    int m = D.shape(0);
+    auto Diagram = nda::array<dcomplex,3>(r,N,N);
+    for (int id = 0; id<Nd; ++id){
+        auto fb = nda::vector<int>(m); //utility for iteration
+        int num = diagramindex(id);
+        int num0 = floor(num/num_diagram_per_fb);
+        int num2 = num % num_diagram_per_fb;
+        for (int v = 1;v<m;++v) { fb[v] = num0 % 2; num0 = int(num0/2);}   
+        Diagram = Diagram + evaluate_one_diagram(Delta_F, Delta_F_reflect, D, Deltat, Deltat_reflect, Gt, itops, beta, F, F_dag, fb, true, num2, m, n, r, N, P);
+    }
+    return Diagram;
 }
 nda::array<dcomplex,3> fastdiagram::Sigma_calc(nda::array<dcomplex,3> Gt, std::string order){
 
@@ -64,9 +83,14 @@ nda::array<dcomplex,3> fastdiagram::Sigma_calc(nda::array<dcomplex,3> Gt, std::s
     std::cout << "S-NCA: done\n";
     if (order.compare("NCA")==0) return Sigma_NCA;
 
+    int N = Gt.shape(1); // size of G matrices
     // Do OCA calculation
     std::cout << "S-OCA: start\n";
-    nda::array<dcomplex,3> Sigma_OCA = - Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_OCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);
+    int m = D_OCA.shape(0);
+    int Num_diagram_oca = this->number_of_diagrams(m);
+    std::cout << "number of OCA diagrams = " << Num_diagram_oca <<"\n";
+    nda::array<dcomplex,3> Sigma_OCA = - Sigma_calc_group(Gt, D_OCA, arange(Num_diagram_oca), pow(P,m-1),  N);
+    // nda::array<dcomplex,3> Sigma_OCA = - Sigma_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_OCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag);
     std::cout << "S-OCA: done\n";
     if (order.compare("OCA")==0) return make_regular(Sigma_NCA+Sigma_OCA);
     

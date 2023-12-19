@@ -68,6 +68,9 @@ class fastdiagram{
     nda::array<dcomplex,3> G_calc(nda::array<dcomplex,3> Gt, std::string order); 
 
     nda::array<dcomplex,3> time_ordered_dyson(double &beta,nda::array<dcomplex,2> H_S, double &eta_0, nda::array_const_view<dcomplex,3>Sigma_t);
+    
+    int number_of_diagrams(int m);
+    nda::array<dcomplex,3> Sigma_calc_group(nda::array<dcomplex,3> Gt, nda::array<int,2> D, nda::array<int,1> diagramindex, int num_diagram_per_fb, int N);
 
     private:
     double beta; //inverse temperature
@@ -92,4 +95,8 @@ class fastdiagram{
     nda::array<int,2> D_TCA_2; //TCA 2nd diagram information
     nda::array<int,2> D_TCA_3; //TCA 3rd diagram information
     nda::array<int,2> D_TCA_4; //TCA 4th diagram information
+
+    int n;
+    int r;
+    int P;
 };
