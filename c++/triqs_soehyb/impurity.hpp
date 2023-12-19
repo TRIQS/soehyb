@@ -71,6 +71,8 @@ class fastdiagram{
     
     int number_of_diagrams(int m);
     nda::array<dcomplex,3> Sigma_calc_group(nda::array<dcomplex,3> Gt, nda::array<int,2> D, nda::array<int,1> diagramindex, int num_diagram_per_fb, int N);
+    nda::array<dcomplex,3> G_calc_group(nda::array<dcomplex,3> Gt, nda::array<int,2> D, nda::array<int,1> diagramindex, int num_diagram_per_fb, int N);
+
 
     private:
     double beta; //inverse temperature

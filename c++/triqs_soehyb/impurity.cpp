@@ -105,6 +105,20 @@ nda::array<dcomplex,3> fastdiagram::Sigma_calc(nda::array<dcomplex,3> Gt, std::s
     return make_regular(Sigma_NCA+Sigma_OCA+Sigma_TCA);
 }
 
+nda::array<dcomplex,3> fastdiagram::G_calc_group(nda::array<dcomplex,3> Gt, nda::array<int,2> D, nda::array<int,1> diagramindex, int num_diagram_per_fb, int N){
+    int Nd = diagramindex.shape(0);
+    int m = D.shape(0);
+    auto Diagram = nda::array<dcomplex,3>(r,n,n);
+    for (int id = 0; id<Nd; ++id){
+        auto fb = nda::vector<int>(m); //utility for iteration
+        int num = diagramindex(id);
+        int num0 = floor(num/num_diagram_per_fb);
+        int num2 = num % num_diagram_per_fb;
+        for (int v = 1;v<m;++v) { fb[v] = num0 % 2; num0 = int(num0/2);}   
+        Diagram = Diagram + eval_one_diagram_G(Delta_F, Delta_F_reflect, D, Deltat, Deltat_reflect, Gt, itops, beta, F, F_dag, fb,num , m, n, r, N, P); 
+    }
+    return Diagram;
+}
 nda::array<dcomplex,3> fastdiagram::G_calc(nda::array<dcomplex,3> Gt, std::string order){
 
     if ( order.compare("NCA") != 0 && order.compare("OCA") != 0 && order.compare("TCA") != 0)
@@ -116,9 +130,15 @@ nda::array<dcomplex,3> fastdiagram::G_calc(nda::array<dcomplex,3> Gt, std::strin
     std::cout << "G-NCA: done\n";
     if (order.compare("NCA")==0) return g_NCA;
     
+    int N = Gt.shape(1); // size of G matrices
     // Do OCA calculation
     std::cout << "G-OCA: start\n";
-    nda::array<dcomplex,3> g_OCA = -G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_OCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag); 
+    int m = D_OCA.shape(0);
+    int Num_diagram_oca = this->number_of_diagrams(m);
+    std::cout << "number of OCA diagrams = " << Num_diagram_oca <<"\n";
+    nda::array<dcomplex,3> g_OCA = - G_calc_group(Gt, D_OCA, arange(Num_diagram_oca), pow(P,m-1),  N);
+
+    // nda::array<dcomplex,3> g_OCA = -G_Diagram_calc_sum_all(Delta_F, Delta_F_reflect, D_OCA,  Deltat, Deltat_reflect,Gt, itops,  beta,  F,  F_dag); 
     std::cout << "G-OCA done\n";
     if (order.compare("OCA")==0) return make_regular(g_NCA + g_OCA);
 
