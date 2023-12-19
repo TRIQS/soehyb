@@ -371,10 +371,7 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
     
     #pragma omp parallel
     {
-    auto line = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing line objects
-    auto vertex = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing vertex objects
-    auto T = nda::array<dcomplex,3>(r,N,N); //used for storing diagrams
-    auto R = nda::vector<int>(m); //utility for iteration
+    
     int nt = omp_get_num_threads();
     int num_done = 0;
     
@@ -382,14 +379,19 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
     for (int num=0;num<total_num_diagram;++num){
 
       num_done += 1;
-      auto done_percent = int64_t(floor((nt * (num_done + 1) * 100.0) / total_num_diagram));
-      if (timer_run > next_info_time || done_percent == 100) {
-	std::cout << utility::timestamp() << " " << std::setfill(' ') << std::setw(3) << done_percent << "%"
-		  << " ETA " << utility::estimate_time_left(total_num_diagram, num_done*nt, timer_run) << " num " << (num_done+1)*nt
-		  << " of " << total_num_diagram << std::endl;
-	next_info_time = 1.25 * timer_run + 2.0; // Increase time interval non-linearly
-      }
-      
+    //   auto done_percent = int64_t(floor((nt * (num_done + 1) * 100.0) / total_num_diagram));
+    //   if (timer_run > next_info_time || done_percent == 100) {
+	// std::cout << utility::timestamp() << " " << std::setfill(' ') << std::setw(3) << done_percent << "%"
+	// 	  << " ETA " << utility::estimate_time_left(total_num_diagram, num_done*nt, timer_run) << " num " << (num_done+1)*nt
+	// 	  << " of " << total_num_diagram << std::endl;
+	// next_info_time = 1.25 * timer_run + 2.0; // Increase time interval non-linearly
+    //   }
+
+        auto line = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing line objects
+        auto vertex = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing vertex objects
+        auto T = nda::array<dcomplex,3>(r,N,N); //used for storing diagrams
+        auto R = nda::vector<int>(m); //utility for iteration
+
         int num0 = num;
         //obtain R2, ... , Rm, store as R[1],...,R[m-1]
        
