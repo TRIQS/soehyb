@@ -338,6 +338,15 @@ nda::array<dcomplex,3> G_OCA_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::ar
     return Diagram; 
 }
 nda::array<dcomplex,3> evaluate_one_diagram(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect, nda::array_const_view<int,2> D, nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb, bool backward, int num0, int m, int n, int r, int N, int P){
+    
+    if (m==1){
+        //calculate NCA diagram directly
+        auto Diagram = nda::array<dcomplex,3>(r,N,N);
+        Diagram = Gt;
+        special_summation(Diagram, F, F_dag, Deltat,Deltat_reflect, n, r, N, true); 
+        return Diagram;
+    }
+    
     auto line = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing line objects
     auto vertex = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing vertex objects
     auto T = nda::array<dcomplex,3>(r,N,N); //used for storing diagrams
@@ -445,48 +454,26 @@ nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F
 
     auto Diagram = nda::array<dcomplex,3>(r,N,N);
     Diagram = 0;
-    
-    if (m==1){
-        //calculate NCA diagram directly
-        Diagram = Gt;
-        special_summation(Diagram, F, F_dag, Deltat,Deltat_reflect, n, r, N, true); 
-        return Diagram;
-    }
-
 
     int total_num_fb_diagram = pow(2, m-1);// total number of forward and backward choices
-    auto fb = nda::vector<int>(m); //utility for iteration
+
 
     int num_diagram_per_fb = pow(P, m-1); //number of diagrams per fb
-    int total_num_diagram = pow(P*2, m-1);
-
-    std::cout << "total_num_diagram = " << total_num_diagram*total_num_fb_diagram << "\n";
+    int total_num_diagram = num_diagram_per_fb * total_num_fb_diagram; 
+    std::cout << "total_num_diagram = " << num_diagram_per_fb*total_num_fb_diagram << "\n";
     utility::timer timer_run;
     timer_run.start();
     #pragma omp parallel
     {
     #pragma omp for
     for (int num=0;num<total_num_diagram;++num){
-            int num0 = floor(total_num_diagram/num_diagram_per_fb);
-            int num2 = total_num_diagram - num0*num_diagram_per_fb;
-            for (int v = 1;v<m;++v){
-                fb[v] = num0 % 2;
-                num0 = int(num0/2);
-            }     
-        //iteration over the terms of 2, · · · , m-th hybridization. Note that 1-st hybridization is not decomposed.
-    
-        
-        {
-        
-        int nt = omp_get_num_threads();
-        int num_done = 0;
-        num_done += 1;
+        auto fb = nda::vector<int>(m); //utility for iteration
+        int num0 = floor(num/num_diagram_per_fb);
+        int num2 = num % num_diagram_per_fb;
+        for (int v = 1;v<m;++v) { fb[v] = num0 % 2; num0 = int(num0/2);}   
         Diagram = Diagram + evaluate_one_diagram(hyb_F_self, hyb_F_reflect, D, Deltat, Deltat_reflect, Gt, itops, beta, F, F_dag, fb, true, num2, m, n, r, N, P);
-        }
     }
     }
-        
-    
     std::cout << "Total time: " << timer_run << "\n";
     return Diagram;
 }
