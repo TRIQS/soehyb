@@ -337,7 +337,56 @@ nda::array<dcomplex,3> G_OCA_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::ar
     }   
     return Diagram; 
 }
+nda::array<dcomplex,3> evaluate_one_diagram(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect, nda::array_const_view<int,2> D, nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb, bool backward, int num0, int m, int n, int r, int N, int P){
+    auto line = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing line objects
+    auto vertex = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing vertex objects
+    auto T = nda::array<dcomplex,3>(r,N,N); //used for storing diagrams
+    auto R = nda::vector<int>(m); //utility for iteration
 
+    
+    //obtain R2, ... , Rm, store as R[1],...,R[m-1]
+       
+    for (int v = 1;v<m;++v){
+        R[v] = num0 % P;
+        num0 = int(num0/P);
+    }
+
+    //Phase 1: construct line object L and point object P;
+    /* Construct line objects, i.e. functions of (t_s-t_{s-1}) for s =1 , ..., 2m-1
+        We store these in L(r,2m,N,N). 
+        We initialize them with Green's functions.
+    */
+        
+    line = 0;
+    for (int s=1;s<=2*m-1;++s) line(s,_,_,_) = Gt;
+    double constant = 1; // the constant term responsible for the current diagram
+    //initialize vertex object
+        
+    vertex = 0;
+
+    //Cutting 1,2, ..., (m-1)-th hybridization lines.
+    //for (int v = 1;v<m;++v) cut_hybridization(v,R(v), D, constant, hyb_F_self,hyb_F_reflect, line, vertex, r, N);
+    for (int v = 1;v<m;++v) {
+        if (fb(v)==0)  cut_hybridization(v,R(v), D, constant, hyb_F_self.U_tilde(R(v),_,_,_),hyb_F_self.V_tilde(R(v),_,_,_), line, vertex,hyb_F_self.c(R(v)),hyb_F_self.w(R(v)),hyb_F_self.K_matrix(R(v),_) ,r, N);
+        else cut_hybridization(v,R(v), D, constant, hyb_F_reflect.U_tilde(R(v),_,_,_),hyb_F_reflect.V_tilde(R(v),_,_,_), line, vertex,hyb_F_reflect.c(R(v)),hyb_F_reflect.w(R(v)),hyb_F_reflect.K_matrix(R(v),_) ,r, N); 
+    }
+    //Phase 2: integrate everything out
+        
+        
+    // first, calculate P(t1)*G(t1)
+    for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(1,k,_,_),Gt(k,_,_));
+
+    //integrate out indices t1, ..., t(2m-2). In each for loop, first convolution, then multiplication.
+    for (int s=1;s<=2*m-2;++s){
+        // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
+        T = itops.convolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T),TIME_ORDERED);
+        //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
+        //Do special things for the vertex connecting to 0.
+        if (s+1 != D(0,1)) multiplicate_onto(vertex(s+1,_,_,_),T);
+        else special_summation(T, F, F_dag, Deltat,Deltat_reflect, n, r, N, backward);
+    }
+    return make_regular(T*constant);
+}
 
 nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag, nda::vector_const_view<int> fb, bool backward){
     auto const &dlr_it = itops.get_itnodes();  
@@ -378,63 +427,8 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
     #pragma omp for
     for (int num=0;num<total_num_diagram;++num){
 
-      num_done += 1;
-    //   auto done_percent = int64_t(floor((nt * (num_done + 1) * 100.0) / total_num_diagram));
-    //   if (timer_run > next_info_time || done_percent == 100) {
-	// std::cout << utility::timestamp() << " " << std::setfill(' ') << std::setw(3) << done_percent << "%"
-	// 	  << " ETA " << utility::estimate_time_left(total_num_diagram, num_done*nt, timer_run) << " num " << (num_done+1)*nt
-	// 	  << " of " << total_num_diagram << std::endl;
-	// next_info_time = 1.25 * timer_run + 2.0; // Increase time interval non-linearly
-    //   }
-
-        auto line = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing line objects
-        auto vertex = nda::array<dcomplex,4>(2*m,r,N,N); //used for storing vertex objects
-        auto T = nda::array<dcomplex,3>(r,N,N); //used for storing diagrams
-        auto R = nda::vector<int>(m); //utility for iteration
-
-        int num0 = num;
-        //obtain R2, ... , Rm, store as R[1],...,R[m-1]
-       
-        for (int v = 1;v<m;++v){
-            R[v] = num0 % P;
-            num0 = int(num0/P);
-        }
-
-        //Phase 1: construct line object L and point object P;
-        /* Construct line objects, i.e. functions of (t_s-t_{s-1}) for s =1 , ..., 2m-1
-        We store these in L(r,2m,N,N). 
-        We initialize them with Green's functions.
-        */
-        
-        line = 0;
-        for (int s=1;s<=2*m-1;++s) line(s,_,_,_) = Gt;
-        double constant = 1; // the constant term responsible for the current diagram
-        //initialize vertex object
-        
-        vertex = 0;
-
-        //Cutting 1,2, ..., (m-1)-th hybridization lines.
-        //for (int v = 1;v<m;++v) cut_hybridization(v,R(v), D, constant, hyb_F_self,hyb_F_reflect, line, vertex, r, N);
-        for (int v = 1;v<m;++v) {
-            if (fb(v)==0)  cut_hybridization(v,R(v), D, constant, hyb_F_self.U_tilde(R(v),_,_,_),hyb_F_self.V_tilde(R(v),_,_,_), line, vertex,hyb_F_self.c(R(v)),hyb_F_self.w(R(v)),hyb_F_self.K_matrix(R(v),_) ,r, N);
-            else cut_hybridization(v,R(v), D, constant, hyb_F_reflect.U_tilde(R(v),_,_,_),hyb_F_reflect.V_tilde(R(v),_,_,_), line, vertex,hyb_F_reflect.c(R(v)),hyb_F_reflect.w(R(v)),hyb_F_reflect.K_matrix(R(v),_) ,r, N); 
-        }
-        //Phase 2: integrate everything out
-        
-        
-        // first, calculate P(t1)*G(t1)
-        for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(1,k,_,_),Gt(k,_,_));
-
-        //integrate out indices t1, ..., t(2m-2). In each for loop, first convolution, then multiplication.
-        for (int s=1;s<=2*m-2;++s){
-            // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
-            T = itops.convolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T),TIME_ORDERED);
-            //Then multiplication. For vertices that is not connected to zero, this is just a multiplication.
-            //Do special things for the vertex connecting to 0.
-            if (s+1 != D(0,1)) multiplicate_onto(vertex(s+1,_,_,_),T);
-            else special_summation(T, F, F_dag, Deltat,Deltat_reflect, n, r, N, backward);
-        }
-       Diagram = Diagram + T*constant;
+       num_done += 1;
+       Diagram = Diagram + evaluate_one_diagram(hyb_F_self, hyb_F_reflect, D, Deltat, Deltat_reflect, Gt, itops, beta, F, F_dag, fb, backward, num, m, n, r, N, P);
     }
     }
     std::cout << "Total time: " << timer_run << "\n";
