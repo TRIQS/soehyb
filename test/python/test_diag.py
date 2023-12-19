@@ -3,9 +3,9 @@
 Author: Hugo U. R. Strand (2023) """
 
 
-from triqs_soehyb.diag import pop_pair
 from triqs_soehyb.diag import is_crossing, is_connected
-from triqs_soehyb.diag import all_pairings, all_connected_pairings
+from triqs_soehyb.diag import pop_pair, flatten_pairing_to_list
+from triqs_soehyb.diag import all_pairings, all_connected_pairings, all_gf_pairings
 
 
 def test_pop_pair():
@@ -35,7 +35,6 @@ def test_is_connected():
 
 def test_all_pairings():
 
-    from functools import reduce
     from sympy.combinatorics import Permutation
     from sympy.functions.combinatorial.factorials import factorial2
 
@@ -44,8 +43,7 @@ def test_all_pairings():
     for order in range(1, 7):
         n_pairings = 0
         for parity, pairing in all_pairings(order):
-            l = reduce(lambda x, y: list(x) + list(y), pairing)
-            perm = Permutation(l)
+            perm = Permutation(flatten_pairing_to_list(pairing))
             assert( parity == (-1)**perm.parity() )
             n_pairings += 1
 
@@ -73,9 +71,35 @@ def test_all_connected_pairings():
         print(f'order = {order}, n_pairings = {n_pairings}')
 
 
+def test_gf_diagrams():
+
+    print('test_gf_diagrams')
+    for order in [1, 2, 3, 4, 5]:
+        print(f'order = {order}')
+
+        diags = all_gf_pairings(order)
+
+        assert( sorted(list(diags.keys())) == list(range(1, 2*order)) )
+        
+        for k in range(1, 2*order):
+
+            parity_pairs_ref = diags[k]
+            parity_pairs = [ x for x in all_connected_pairings(order, ks=[k]) ]
+
+            pairs_ref = set([ tuple(pp[1]) for pp in parity_pairs_ref ])
+            pairs = set([ tuple(pp[1]) for pp in parity_pairs ])
+
+            #print(f'order = {order}, k = {k}')
+            #print(f'{pairs}')
+            #print(f'{pairs_ref}')
+
+            assert( pairs == pairs_ref )
+        
+
 if __name__ == '__main__':
     test_pop_pair()
     test_is_crossing()
     test_is_connected()
     test_all_pairings()
     test_all_connected_pairings()
+    test_gf_diagrams()

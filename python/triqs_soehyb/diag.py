@@ -86,7 +86,7 @@ def split_pairing(pairing, ks):
     return connectors, rest
 
 
-def is_connected(pairing, ks):
+def is_connected(pairing, ks=[1]):
 
     connected = []
     stack, disconnected = split_pairing(pairing, ks)
@@ -106,8 +106,40 @@ def is_connected(pairing, ks):
     return len(disconnected) == 0
 
 
+def sigma_to_gf_diag(pairing):
+    """ remove pair that contains the last vertex index """
+
+    n = len(pairing)
+    last_vert = 2*n - 1
+    idx = next( x for x in range(n) if last_vert in pairing[x] )
+    p = list(pairing.pop(idx))
+    idx = p.index(last_vert)
+    p.pop(idx)
+    k = p[0]
+
+    shift = lambda idx: idx if idx < k else idx - 1            
+    pairing = [(shift(x), shift(y)) for x, y in pairing]            
+    return k, pairing
+
+
+def all_gf_pairings(order):
+
+    parity_pairs = [ x for x in all_connected_pairings(order+1) ]
+    print(f'n_diags = {len(parity_pairs)}')
+
+    from collections import defaultdict
+    diags = defaultdict(list)
+    for parity, pairing in parity_pairs:
+        k, pairing = sigma_to_gf_diag(pairing)
+        diags[k].append((parity, pairing))
+    
+    return diags
+
+
 if __name__ == '__main__':
 
+    exit()
+    
     #for order in [1]:
     for order in [1, 2, 3, 4]:
         print('-'*72)
@@ -173,8 +205,8 @@ if __name__ == '__main__':
         ax.set_ylim([-0.5*(1+len(ks)), (n+1)//2 - 0.25])
 
 
-    if True:
-        order = 2
+    if False:
+        order = 3
         nks = { 1:1, 2:2, 3:7, 4:42 }
 
         nk = nks[order]
@@ -201,7 +233,37 @@ if __name__ == '__main__':
         plt.show()
         exit()
 
+    if True:
+        order = 3
+        
+        nks = { 1:1, 2:2, 3:7, 4:42 }
 
+        nk = nks[order]
+        nr = 2*order - 1
+        subp = [nr, nk, 0]
+
+        fig = plt.figure(figsize=(26 * nk/42, 4 * nr/7))
+
+        diags = all_gf_pairings(order)
+        
+        for k in range(1, 2*order):
+
+            parity_pairs = diags[k]
+            n = len(parity_pairs)
+            print(f'n = {n}')
+
+            for par, pairs in parity_pairs:
+                subp[-1] += 1
+                ax = fig.add_subplot(*subp, aspect='equal')
+                plot_pairs(ax, pairs, ks=[k])
+
+            subp[-1] = nk * k
+
+        plt.tight_layout()
+        plt.savefig(f'figure_order_{order}.pdf')
+        plt.show()
+        exit()
+        
     if False:
         subp = [4, 5, 0]
         fig = plt.figure(figsize=(10, 10))
