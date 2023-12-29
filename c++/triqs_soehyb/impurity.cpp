@@ -6,7 +6,7 @@
 #include <nda/declarations.hpp>
 #include <nda/linalg/matmul.hpp>
 
-fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag):beta(beta), F(F), F_dag(F_dag){
+fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag):beta(beta), lambda(lambda), F(F), F_dag(F_dag){
     dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     itops = imtime_ops(lambda, dlr_rf); // construct imagninary time dlr objects 
 
@@ -28,6 +28,9 @@ fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcom
 nda::vector<dcomplex> fastdiagram::get_it_actual(){
     return dlr_it_actual;
 }
+// nda::array<dcomplex,3> fastdiagram::get_Deltaiw(){
+//    
+// }
 
 nda::array<dcomplex,3> fastdiagram::free_greens(double beta, nda::array<dcomplex,2> H_S, double mu, bool time_order){
     return free_gf(beta, itops, H_S, mu, time_order);
@@ -36,18 +39,30 @@ nda::array<dcomplex,3> fastdiagram::free_greens(double beta, nda::array<dcomplex
 nda::array<dcomplex,3> fastdiagram::free_greens_ppsc(double beta, nda::array<dcomplex,2> H_S){
     return free_gf_ppsc(beta, itops, H_S);
 }
-
-void fastdiagram::hyb_decomposition(nda::array<dcomplex,3> Deltat0, bool poledlrflag){
+void fastdiagram::hyb_init(nda::array<dcomplex,3> Deltat0, bool poledlrflag){
     Deltat = Deltat0;
     Deltat_reflect = itops.reflect(Deltat); // obtain Delta(-t) from Delta(t)
-
-    auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)
-    auto Deltadlr_reflect = itops.vals2coefs(Deltat_reflect); //obtain dlr coefficient of Delta(-t) 
+    if (poledlrflag == false) {
+        auto ifops = imfreq_ops(lambda, dlr_rf,Fermion);
+        dlr_if = ifops.get_ifnodes();
+        auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)
+        auto Deltadlr_reflect = itops.vals2coefs(Deltat_reflect); //obtain dlr coefficient of Delta(-t)
+        Deltaiw = ifops.coefs2vals(beta, Deltadlr);
+        Deltaiw_reflect = ifops.coefs2vals(beta, Deltadlr_reflect);
+    }
+}
+void fastdiagram::hyb_decomposition(nda::array<dcomplex,3> Deltat0, bool poledlrflag){
+    this->hyb_init(Deltat0,poledlrflag);
 
     if (poledlrflag == false) {
-        std::cout<<"Don't do this, not implemented yet";
+        auto Delta_decomp = hyb_decomp(weights,pol); //decomposition of Delta(t) using DLR coefficient
+        auto Delta_decomp_reflect = hyb_decomp(weights_reflect,pol_reflect); // decomposition of Delta(-t) using DLR coefficient
+        Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag); // Compression of Delta(t) and F, F_dag matrices
+        Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);  // Compression of Delta(-t) and F, F_dag matrices
     }
     else {
+        auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)
+        auto Deltadlr_reflect = itops.vals2coefs(Deltat_reflect); //obtain dlr coefficient of Delta(-t) 
         auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf); //decomposition of Delta(t) using DLR coefficient
         auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf); // decomposition of Delta(-t) using DLR coefficient
         Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag); // Compression of Delta(t) and F, F_dag matrices

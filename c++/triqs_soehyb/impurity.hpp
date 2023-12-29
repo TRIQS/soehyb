@@ -30,6 +30,9 @@ class fastdiagram{
     * */
     fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag);
 
+
+    void hyb_init(nda::array<dcomplex,3> Deltat0, bool poledlrflag=true);
+
     /** 
     * @brief calculate decomposition and reflection of hybridization Deltat
     * @param[in] Deltat hybridization function in imaginary time, nda array of size r*n*n
@@ -74,6 +77,7 @@ class fastdiagram{
     nda::array<dcomplex,3> G_calc_group(nda::array<dcomplex,3> Gt, nda::array<int,2> D, nda::array<int,1> diagramindex, int num_diagram_per_fb, int N);
 
 
+
     private:
     double beta; //inverse temperature
     double lambda; // DLR cutoff parameter
@@ -101,4 +105,12 @@ class fastdiagram{
     int n;
     int r;
     int P;
+
+   nda::array<dcomplex,3> Deltaiw;
+   nda::array<dcomplex,3> Deltaiw_reflect;
+   nda::vector<dcomplex> dlr_if;
+   nda::vector<double> pol;
+   nda::array<dcomplex,3> weights;
+   nda::vector<double> pol_reflect;
+   nda::array<dcomplex,3> weights_reflect; 
 };
