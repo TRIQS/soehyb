@@ -169,7 +169,8 @@ TEST(strong_coupling, dimer) {
     auto G0_S_tau = free_gf(beta, itops, H_S,eta_0,true);
     
     auto impsol = fastdiagram(beta,lambda,eps,F,F_dag); 
-    impsol.hyb_decomposition(Deltat);
+    impsol.hyb_init(Deltat);
+    impsol.hyb_decomposition();
     auto tau_actual = impsol.get_it_actual();
 
     nda::array<dcomplex,3> G_S_tau = G0_S_tau;

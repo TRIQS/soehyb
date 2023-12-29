@@ -51,8 +51,8 @@ void fastdiagram::hyb_init(nda::array<dcomplex,3> Deltat0, bool poledlrflag){
         Deltaiw_reflect = ifops.coefs2vals(beta, Deltadlr_reflect);
     }
 }
-void fastdiagram::hyb_decomposition(nda::array<dcomplex,3> Deltat0, bool poledlrflag){
-    this->hyb_init(Deltat0,poledlrflag);
+void fastdiagram::hyb_decomposition(bool poledlrflag){
+    // this->hyb_init(Deltat0,poledlrflag);
 
     if (poledlrflag == false) {
         auto Delta_decomp = hyb_decomp(weights,pol); //decomposition of Delta(t) using DLR coefficient
