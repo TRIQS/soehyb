@@ -69,8 +69,9 @@ def calc_spinless_dimer(
     fd = Fastdiagram(beta, lamb, eps, F, F_dag)
 
     delta_iaa = t**2 * fd.free_greens(beta, np.array([[ek]]))
-
-    fd.hyb_decomposition(delta_iaa)
+    
+    fd.hyb_init(delta_iaa)
+    fd.hyb_decomposition()
 
     H_mat = np.array(ed.ed.H.todense())
     I_mat = np.eye(H_mat.shape[0])

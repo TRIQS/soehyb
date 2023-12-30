@@ -64,8 +64,9 @@ def test_off_diagonal_NCA_Sigma(verbose=False):
     e0, e1 = 0.5, -2.0
     ek = np.array([[e0, vp], [np.conj(vp), e1]], dtype=complex)
     delta_iaa = t**2 * fd.free_greens(beta, ek)
-
-    fd.hyb_decomposition(delta_iaa)
+    
+    fd.hyb_init(delta_iaa)
+    fd.hyb_decomposition()
 
     H_mat = np.array(ed.ed.H.todense())
     G_iaa = fd.free_greens_ppsc(beta, H_mat)
