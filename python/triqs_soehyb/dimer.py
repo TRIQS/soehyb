@@ -1,6 +1,7 @@
 import numpy as np
 import time
 from impurity import Fastdiagram
+from ac_pes import *
 def two_band_init(U, v, mu):
     F = np.zeros((2,4,4), dtype=np.complex128)
     F_dag = np.zeros((2,4,4), dtype=np.complex128)
@@ -52,8 +53,17 @@ if __name__ == '__main__':
     Hbath=np.array([[ek,-t1],[-t1,ek]])
     Deltat = 2* diagramsolver.free_greens(beta,Hbath)* (t**2)
 
-    #decomposition and reflection of Delta(t)
-    diagramsolver.hyb_decomposition(Deltat)
+    ##decomposition and reflection of Delta(t) using aaa poles
+    poledlrflag = False
+    diagramsolver.hyb_init(Deltat,poledlrflag)
+    weights, pol, error = polefitting(diagramsolver.Deltaiw, 1j*diagramsolver.dlr_if,eps= 1e-8)
+    weights_reflect, pol_reflect, error_reflect = polefitting(diagramsolver.Deltaiw_reflect, 1j*diagramsolver.dlr_if,eps= 1e-8)
+    diagramsolver.copy_aaa_result(pol, weights,pol_reflect,weights_reflect)
+    diagramsolver.hyb_decomposition(poledlrflag)
+    breakpoint()
+    ##decomposition and reflection of Delta(t) using dlr poles
+    #diagramsolver.hyb_init(Deltat)
+    # diagramsolver.hyb_decomposition()
 
     #construct initial value of G(t) by time-ordered free Green's function
     G_S = diagramsolver.free_greens(beta, H_S,eta_0,True)
@@ -98,3 +108,4 @@ if __name__ == '__main__':
     
     #calculate impurity Green's function diagrams
     g_S = diagramsolver.G_calc(G_S,order)
+    breakpoint()

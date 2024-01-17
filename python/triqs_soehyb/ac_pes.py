@@ -1,13 +1,11 @@
 # This is a python implementation for analytic continuation of Fermionic Green's functions/self energy
 # using PES (ES) method
 # Reference: PhysRevB.107.075151
-import h5py    
 import numpy as np 
 import scipy
 import scipy.optimize
 import cvxpy as cp
-import matplotlib.pyplot as plt
-import mosek
+# import mosek
 from aaa import *
 def eval_with_pole(pol, Z, weight):
     pol_t = np.reshape(pol,[pol.size,1])
@@ -58,13 +56,13 @@ def get_weight(pol, Z, G, cleanflag=True, maxiter=100000):
 
             objective = cp.Minimize(sum(Gfit))
             prob = cp.Problem(objective, constraints)
-            # result = prob.solve(solver = "SCS",verbose = False, eps = 1.e-8)
-            mosek_params_dict = {"MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1.e-8,\
-                                "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1.e-8,
-                                "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1.e-8, 
-                                "MSK_DPAR_INTPNT_CO_TOL_NEAR_REL": 1000}
-            result = prob.solve(solver = "MOSEK", verbose=False,\
-                            mosek_params = mosek_params_dict)
+            result = prob.solve(solver = "SCS",verbose = False, eps = 1.e-8)
+            # mosek_params_dict = {"MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1.e-8,\
+            #                     "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1.e-8,
+            #                     "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1.e-8, 
+            #                     "MSK_DPAR_INTPNT_CO_TOL_NEAR_REL": 1000}
+            # result = prob.solve(solver = "MOSEK", verbose=False,\
+            #                 mosek_params = mosek_params_dict)
            
             for i in range(Np):
                 R[i] = X[i].value
@@ -105,7 +103,7 @@ def erroreval(pol,  Z, G, cleanflag=True, maxiter=100000):
 
 
 def polefitting(Deltaiw, Z, Np_max=50,eps = 1e-5):
-    for mmax in range(2,Np_max,2):
+    for mmax in range(4,Np_max,2):
         r = aaa_matrix_real(Deltaiw, Z, mmax=mmax)
         pol = np.real(r.pol())
         weight, _, residue = get_weight(pol, Z, Deltaiw,cleanflag=True)
@@ -113,6 +111,6 @@ def polefitting(Deltaiw, Z, Np_max=50,eps = 1e-5):
         fhere = lambda pole: erroreval(pole,Z, Deltaiw,cleanflag=True)
         res = scipy.optimize.minimize(fhere,pol, method='L-BFGS-B', jac=True,options= {"disp" :False,"gtol":1e-10,"ftol":1e-10})
         weight, _, residue = get_weight(res.x, Z, Deltaiw,cleanflag=True)
-        if np.linalg.norm(residue)<1e-5:
-            break
-        return weight, res.x
+        if np.linalg.norm(residue)<eps:
+            return weight, res.x, np.linalg.norm(residue)
+        return weight, res.x, np.linalg.norm(residue)

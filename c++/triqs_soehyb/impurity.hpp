@@ -76,8 +76,12 @@ class fastdiagram{
     nda::array<dcomplex,3> Sigma_calc_group(nda::array<dcomplex,3> Gt, nda::array<int,2> D, nda::array<int,1> diagramindex, int num_diagram_per_fb, int N);
     nda::array<dcomplex,3> G_calc_group(nda::array<dcomplex,3> Gt, nda::array<int,2> D, nda::array<int,1> diagramindex, int num_diagram_per_fb, int N);
 
+    nda::array<dcomplex,3> Deltaiw;
+    nda::array<dcomplex,3> Deltaiw_reflect;
+    nda::vector<dcomplex> dlr_if;
 
-
+    void copy_aaa_result(nda::vector<double> pol0, nda::array<dcomplex,3> weights0, nda::vector<double> pol_reflect0, nda::array<dcomplex,3> weights_reflect0);
+    
     private:
     double beta; //inverse temperature
     double lambda; // DLR cutoff parameter
@@ -106,11 +110,10 @@ class fastdiagram{
     int r;
     int P;
 
-   nda::array<dcomplex,3> Deltaiw;
-   nda::array<dcomplex,3> Deltaiw_reflect;
-   nda::vector<dcomplex> dlr_if;
-   nda::vector<double> pol;
-   nda::array<dcomplex,3> weights;
-   nda::vector<double> pol_reflect;
-   nda::array<dcomplex,3> weights_reflect; 
+    nda::vector<double> pol;
+    nda::array<dcomplex,3> weights;
+    nda::vector<double> pol_reflect;
+    nda::array<dcomplex,3> weights_reflect; 
+
+   
 };

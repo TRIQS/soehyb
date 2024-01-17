@@ -6,6 +6,7 @@
 #include <nda/declarations.hpp>
 #include <nda/linalg/matmul.hpp>
 
+
 fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag):beta(beta), lambda(lambda), F(F), F_dag(F_dag){
     dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     itops = imtime_ops(lambda, dlr_rf); // construct imagninary time dlr objects 
@@ -44,12 +45,19 @@ void fastdiagram::hyb_init(nda::array<dcomplex,3> Deltat0, bool poledlrflag){
     Deltat_reflect = itops.reflect(Deltat); // obtain Delta(-t) from Delta(t)
     if (poledlrflag == false) {
         auto ifops = imfreq_ops(lambda, dlr_rf,Fermion);
-        dlr_if = ifops.get_ifnodes();
+        dlr_if = ((2.0*ifops.get_ifnodes())+1.0)*(std::atan2(0,-1))/beta;
+        
         auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)
         auto Deltadlr_reflect = itops.vals2coefs(Deltat_reflect); //obtain dlr coefficient of Delta(-t)
         Deltaiw = ifops.coefs2vals(beta, Deltadlr);
         Deltaiw_reflect = ifops.coefs2vals(beta, Deltadlr_reflect);
     }
+}
+void fastdiagram::copy_aaa_result(nda::vector<double> pol0, nda::array<dcomplex,3> weights0, nda::vector<double> pol_reflect0, nda::array<dcomplex,3> weights_reflect0){
+    pol = pol0*beta;
+    pol_reflect = pol_reflect0*beta;
+    weights = weights0;
+    weights_reflect = weights_reflect0;
 }
 void fastdiagram::hyb_decomposition(bool poledlrflag){
     // this->hyb_init(Deltat0,poledlrflag);

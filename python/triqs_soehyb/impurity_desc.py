@@ -27,6 +27,21 @@ c = class_(
         hdf5 = False,
 )
 
+c.add_member(c_name = "Deltaiw",
+             c_type = "nda::array<dcomplex, 3>",
+             read_only= False,
+             doc = r"""""")
+
+c.add_member(c_name = "Deltaiw_reflect",
+             c_type = "nda::array<dcomplex, 3>",
+             read_only= False,
+             doc = r"""""")
+
+c.add_member(c_name = "dlr_if",
+             c_type = "nda::vector<dcomplex>",
+             read_only= False,
+             doc = r"""""")
+
 c.add_constructor("""(double beta, double lambda, double eps, nda::array<dcomplex, 3> F, nda::array<dcomplex, 3> F_dag)""", doc = r"""Parameters
 ----------
 [in]
@@ -47,7 +62,7 @@ c.add_constructor("""(double beta, double lambda, double eps, nda::array<dcomple
 c.add_method("""void hyb_init (nda::array<dcomplex, 3> Deltat0, bool poledlrflag = true)""",
              doc = r"""""")
 
-c.add_method("""void hyb_decomposition (nda::array<dcomplex, 3> Deltat0, bool poledlrflag = true)""",
+c.add_method("""void hyb_decomposition (bool poledlrflag = true)""",
              doc = r"""Parameters
 ----------
 [in]
@@ -106,6 +121,9 @@ c.add_method("""nda::array<dcomplex, 3> Sigma_calc_group (nda::array<dcomplex, 3
              doc = r"""""")
 
 c.add_method("""nda::array<dcomplex, 3> G_calc_group (nda::array<dcomplex, 3> Gt, nda::array<int, 2> D, nda::array<int, 1> diagramindex, int num_diagram_per_fb, int N)""",
+             doc = r"""""")
+
+c.add_method("""void copy_aaa_result (nda::vector<double> pol0, nda::array<dcomplex, 3> weights0, nda::vector<double> pol_reflect0, nda::array<dcomplex, 3> weights_reflect0)""",
              doc = r"""""")
 
 module.add_class(c)
