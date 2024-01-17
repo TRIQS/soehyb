@@ -136,6 +136,15 @@ def all_gf_pairings(order):
     return diags
 
 
+def make_topology_list(max_order):
+    topology_list = []
+    for order in range(1,max_order+1):
+        listhere = list(all_connected_pairings(order))
+        for topology in listhere:
+            topology_list.append(np.array(topology[1]))
+    return topology_list
+
+
 if __name__ == '__main__':
 
     exit()
@@ -307,4 +316,3 @@ if __name__ == '__main__':
         plt.tight_layout()
         plt.show()
         exit()
-
