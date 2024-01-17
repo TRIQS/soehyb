@@ -85,7 +85,7 @@ TEST(strong_coupling, dimer) {
     double Z = sum(exp(-beta*eval));
    // std::cout<<((eval));
     double lambda = 640;
-    double eps = 1.0e-12;
+    double eps = 1.0e-9;
     std::string order = "OCA";
     auto dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     auto itops = imtime_ops(lambda, dlr_rf); // Get DLR imaginary time object
@@ -222,4 +222,7 @@ TEST(strong_coupling, dimer) {
      for (int i=0;i<N_t;++i) g_S_long(i,_,_) = itops.coefs2eval(g_S_dlr,t_relative(i)) ;
      std::cout<<std::endl;
       for (int i=0;i<N_t;++i) std::cout<<abs(G00_long(i,0,0)-g_S_long(i,0,0))<<" ";
+
+      std::cout<<std::endl<<"result"<<std::endl;
+    for (int i=0;i<r;++i) std::cout<<real(G00(i,0,0))<<" "; 
 }

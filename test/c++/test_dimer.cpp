@@ -82,7 +82,7 @@ TEST(strong_coupling, dimer) {
     double Z = sum(exp(-beta*eval));
    // std::cout<<((eval));
     double lambda = 640;
-    double eps = 3.0e-9;
+    double eps = 1.0e-12;
     auto dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     auto itops = imtime_ops(lambda, dlr_rf); // Get DLR imaginary time object
     auto const & dlr_it = itops.get_itnodes();
@@ -175,10 +175,11 @@ TEST(strong_coupling, dimer) {
     auto Delta_p = nda::vector<double> {-tp,tp}; 
     Delta_p *= beta;
     nda::vector<double> Delta_p_reflect = -Delta_p;
-    // auto Delta_decomp = hyb_decomp(Delta_M,Delta_p);
-    // auto Delta_decomp_reflect = hyb_decomp(Delta_M,Delta_p_reflect);
-    auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf);
-    auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf);
+    auto Delta_decomp = hyb_decomp(Delta_M,Delta_p);
+    auto Delta_decomp_reflect = hyb_decomp(Delta_M,Delta_p_reflect);
+    std::cout<<Delta_M<<Delta_p<<std::endl;
+    // auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf);
+    // auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf);
     Delta_decomp.check_accuracy(Deltat, dlr_it);
     Delta_decomp_reflect.check_accuracy(Deltat_reflect, dlr_it);
     auto Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag);
@@ -196,7 +197,7 @@ TEST(strong_coupling, dimer) {
     auto Dt4 = nda::array<int,2>{{0,3},{1,4},{2,5}};
 
     nda::array<dcomplex,3> G_S_tau_old = 0.0*G_S_tau; 
-    bool do_tca=true;
+    bool do_tca=false;
     
     for (int ppsc_iter = 0; ppsc_iter<10;++ppsc_iter){
        
@@ -263,6 +264,8 @@ TEST(strong_coupling, dimer) {
      for (int i=0;i<N_t;++i) g_S_long(i,_,_) = itops.coefs2eval(g_S_dlr,t_relative(i)) ;
      std::cout<<std::endl;
       for (int i=0;i<N_t;++i) std::cout<<abs(G00_long(i,0,0)-g_S_long(i,0,0))<<" ";
+      std::cout<<std::endl;
+      for (int i=0;i<r;++i) std::cout<<g_S(i,0,0)<<" ";
 
 }
 
