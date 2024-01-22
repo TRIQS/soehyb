@@ -70,7 +70,7 @@ if __name__ == '__main__':
     # diagramsolver.hyb_decomposition()
 
     #construct initial value of G(t) by time-ordered free Green's function
-    G_S = diagramsolver.free_greens(beta, H_S,eta_0,True)
+    G_S = diagramsolver.free_greens_ppsc(beta, H_S)
 
     G_S_old = np.zeros_like(G_S)
 
@@ -101,10 +101,10 @@ if __name__ == '__main__':
 
         # G(t) = G(t)*exp(-eta*t)
         Z_S = diagramsolver.partition_function(G_new)
-        eta = np.log(Z_S)/beta
-        H_S += eta * np.eye(H_S.shape[0])
+        deta = np.log(Z_S)/beta
         for k in range(r):
-            G_new[k,:,:] =  G_new[k,:,:] * np.exp(-tau_actual[k]*eta)
+            G_new[k,:,:] =  G_new[k,:,:] * np.exp(-tau_actual[k]*deta)
+        eta_0 += deta
         
         #linear damping
         G_S = 1.0*G_new+0.0*G_S_old
@@ -126,3 +126,4 @@ if __name__ == '__main__':
             num_diagram = diagramsolver.number_of_diagrams(order)
             # The below line is expected to be parallelized 
             g_S = g_S + par*pow(-1,order)*diagramsolver.G_calc_group(G_S, topology, np.int32(np.arange(num_diagram)), np.int32(N))
+    breakpoint()
