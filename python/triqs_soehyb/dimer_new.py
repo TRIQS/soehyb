@@ -44,7 +44,7 @@ if __name__ == '__main__':
     H_S, F, F_dag = two_band_init(U, v, mu)
 
     #calculate eta0, this is for the shift in dyspn solver later
-    eta_0 = calc_eta0(H_S)
+    eta_0 = 0.0
 
     # dlr parameters
     lamb, eps = 640.0, 1.0e-12
