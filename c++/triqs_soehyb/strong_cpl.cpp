@@ -124,32 +124,31 @@ nda::array<dcomplex,3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_ref
     int m = D.shape(0); // order of diagram
     int P = hyb_F_self.c.shape(0); //number of poles
     int n = F.shape(0); //impurity size
-    auto Diagram = nda::array<dcomplex,3>(r,n,n);
-    Diagram = 0;
+    auto Diagram = nda::array<dcomplex,3>::zeros({r,n,n});
     int total_num_fb_diagram = pow(2, m-1);// total number of forward and backward choices
     int num_diagram_per_fb = pow(P, m-1); //number of diagrams per fb
     int total_num_diagram = num_diagram_per_fb * total_num_fb_diagram; 
     std::cout << "total_num_diagram = " << num_diagram_per_fb*total_num_fb_diagram << "\n";
     utility::timer timer_run;
     timer_run.start();
-    #pragma omp parallel
-    {
-    #pragma omp for
+    //#pragma omp parallel
+    //{
+    //#pragma omp for
     for (int num=0;num<total_num_diagram;++num){
         auto fb = nda::vector<int>(m); //utility for iteration
         int num0 = floor(num/num_diagram_per_fb);
         int num2 = num % num_diagram_per_fb;
         for (int v = 1;v<m;++v) { fb[v] = num0 % 2; num0 = int(num0/2);}   
+	// BUG! This accumulation has a race condition between threads! FIXME!
         Diagram = Diagram + eval_one_diagram_G(hyb_F_self, hyb_F_reflect, D, Deltat, Deltat_reflect, Gt, itops, beta, F, F_dag, fb,num , m, n, r, N, P);
     }
-    }
+    // } #end pragma omp parallell
     std::cout << "Total time: " << timer_run << "\n";
     return Diagram;
 }
 nda::array<dcomplex,3> eval_one_diagram_G(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb,int num0, int m, int n, int r, int N, int P){
     //initialize diagram
-    auto Diagram = nda::array<dcomplex,3>(r,n,n);
-    Diagram = 0;
+    auto Diagram = nda::array<dcomplex,3>::zeros({r,n,n});
     if (m==1){
         //evaluate NCA diagram directly
         double constant = 1.0;
