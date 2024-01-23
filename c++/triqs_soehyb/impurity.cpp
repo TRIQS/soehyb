@@ -85,7 +85,7 @@ nda::array<dcomplex,3> fastdiagram::Sigma_calc_group(nda::array<dcomplex,3> Gt, 
     int Nd = diagramindex.shape(0);
     int m = D.shape(0);
     int num_diagram_per_fb = pow(P,m-1); 
-    auto Diagram = nda::array<dcomplex,3>(r,N,N);
+    auto Diagram = nda::array<dcomplex,3>::zeros({r,N,N});
     for (int id = 0; id<Nd; ++id){
         auto fb = nda::vector<int>(m); //utility for iteration
         int num = diagramindex(id);
@@ -132,7 +132,7 @@ nda::array<dcomplex,3> fastdiagram::Sigma_calc(nda::array<dcomplex,3> Gt, std::s
 nda::array<dcomplex,3> fastdiagram::G_calc_group(nda::array<dcomplex,3> Gt, nda::array<int,2> D, nda::array<int,1> diagramindex, int N){
     int Nd = diagramindex.shape(0);
     int m = D.shape(0);
-    auto Diagram = nda::array<dcomplex,3>(r,n,n);
+    auto Diagram = nda::array<dcomplex,3>::zeros({r,n,n});
     int num_diagram_per_fb = pow(P,m-1); 
     for (int id = 0; id<Nd; ++id){
         auto fb = nda::vector<int>(m); //utility for iteration
