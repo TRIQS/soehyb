@@ -11,6 +11,24 @@ from triqs_soehyb.pycppdlr import ImTimeOps
 
 from triqs_soehyb.impurity import Fastdiagram
 
+from triqs_soehyb.diag import all_connected_pairings
+
+from mpi4py import MPI as mpi
+
+
+def is_root():
+    comm = mpi.COMM_WORLD
+    rank = comm.Get_rank()
+    return rank == 0
+
+
+def scatter_array_over_ranks(arr):
+    comm = mpi.COMM_WORLD
+    size = comm.Get_size()
+    rank = comm.Get_rank()
+    arr_rank = np.array_split(np.array(arr), size, axis=0)[rank]
+    return arr_rank
+
 
 def spinless_dimer_ed(ntau=500, beta=1.0, t=1.0, ek=0.0, mu=0.01):
     
@@ -36,6 +54,53 @@ def calc_eta0(H, beta):
     return eta0
 
 
+def Sigma_calc_loop(fd, G_iaa, order):
+
+    assert( order >= 1 )
+    assert( type(fd) == Fastdiagram )
+
+    Sigma_iaa = np.zeros_like(G_iaa)
+
+    for order in range(1, order+1):
+        n_diags = fd.number_of_diagrams(order)
+        if is_root():
+            print(f"order = {order}")
+            print(f'n_diags = {n_diags}')
+        for sign, diag in all_connected_pairings(order):
+            diag_vec = np.vstack([ np.array(pair, dtype=np.int32) for pair in diag ])
+            diag_idx_vec = np.arange(n_diags, dtype=np.int32)
+            diag_idx_vec = scatter_array_over_ranks(diag_idx_vec)
+            Sigma_iaa -= sign * fd.Sigma_calc_group(G_iaa, diag_vec, diag_idx_vec)
+
+    mpi.COMM_WORLD.Allreduce(mpi.IN_PLACE, Sigma_iaa)
+            
+    return Sigma_iaa
+
+
+def G_calc_loop(fd, G_iaa, order, n_orb):
+
+    assert( order >= 1 )
+    assert( type(fd) == Fastdiagram )
+
+    n_dlr = G_iaa.shape[0]
+    g_iaa = np.zeros((n_dlr, n_orb, n_orb), dtype=complex)
+
+    for order in range(1, order+1):
+        n_diags = fd.number_of_diagrams(order)
+        if is_root():
+            print(f"order = {order}")
+            print(f'n_diags = {n_diags}')
+        for sign, diag in all_connected_pairings(order):
+            diag_vec = np.vstack([ np.array(pair, dtype=np.int32) for pair in diag ])
+            diag_idx_vec = np.arange(n_diags, dtype=np.int32)
+            diag_idx_vec = scatter_array_over_ranks(diag_idx_vec)
+            g_iaa -= sign * fd.G_calc_group(G_iaa, diag_vec, diag_idx_vec)
+
+    mpi.COMM_WORLD.Allreduce(mpi.IN_PLACE, g_iaa)
+            
+    return g_iaa
+
+
 def calc_spinless_dimer(
         beta = 1.0,
         t=1.0,
@@ -45,7 +110,7 @@ def calc_spinless_dimer(
         eps=1e-12,
         ppsc_tol=1e-9,
         ppsc_maxiter=100,
-        order='NCA',
+        order=1,
         mix=1.0,
         verbose=False,
         tau_j=None,
@@ -82,9 +147,21 @@ def calc_spinless_dimer(
     tau_i = fd.get_it_actual()
     eta = 0.
 
+    order_str = { 1 : 'NCA', 2 : 'OCA', 3 : 'TCA' }[order]
+    
     for ppsc_iter in range(ppsc_maxiter):
 
-        Sigma_iaa = fd.Sigma_calc(G_iaa, order)
+        Sigma_iaa = fd.Sigma_calc(G_iaa, order_str)
+
+        Sigma_iaa_ref = Sigma_calc_loop(fd, G_iaa, order)
+        diff = np.max(np.abs(Sigma_iaa - Sigma_iaa_ref))
+        if is_root():
+            print('-'*72)
+            print(f'Sigma_iaa diff : {diff:2.2E}')
+            print('-'*72)
+        np.testing.assert_array_almost_equal(Sigma_iaa, Sigma_iaa_ref)
+        #exit()
+        
         G_iaa_new = fd.time_ordered_dyson(beta, H_mat, eta, Sigma_iaa)
 
         Z = fd.partition_function(G_iaa_new)
@@ -96,10 +173,21 @@ def calc_spinless_dimer(
 
         G_iaa = mix*G_iaa_new + (1-mix)*G_iaa 
 
-        print(f'PPSC: iter = {ppsc_iter:3d} diff = {ppsc_diff:2.2E}')
+        if is_root():
+            print(f'PPSC: iter = {ppsc_iter:3d} diff = {ppsc_diff:2.2E}')
         if ppsc_diff < ppsc_tol: break
 
-    g_iaa = fd.G_calc(G_iaa, order)
+    g_iaa = fd.G_calc(G_iaa, order_str)
+    n_orb = g_iaa.shape[-1]
+    g_iaa_ref = G_calc_loop(fd, G_iaa, order, n_orb)
+
+    diff = np.max(np.abs(g_iaa - g_iaa_ref))
+    if is_root():
+        print('-'*72)
+        print(f'g_iaa diff : {diff:2.2E}')
+        print('-'*72)
+    np.testing.assert_array_almost_equal(g_iaa, g_iaa_ref)
+    #exit()
     
     class Dummy():
         def __init__(self):
@@ -146,9 +234,9 @@ def test_spinless_dimer(verbose=False):
         tau_j=tau_j,
         )
     
-    nca = calc_spinless_dimer(order='NCA', **opts, **ppsc_opts)
-    oca = calc_spinless_dimer(order='OCA', **opts, **ppsc_opts)    
-    tca = calc_spinless_dimer(order='TCA', **opts, **ppsc_opts)
+    nca = calc_spinless_dimer(order=1, **opts, **ppsc_opts)
+    oca = calc_spinless_dimer(order=2, **opts, **ppsc_opts)    
+    tca = calc_spinless_dimer(order=3, **opts, **ppsc_opts)
     
     if verbose:
         import itertools
