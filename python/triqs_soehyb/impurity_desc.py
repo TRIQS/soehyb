@@ -117,10 +117,10 @@ c.add_method("""nda::array<dcomplex, 3> time_ordered_dyson (double beta, nda::ar
 c.add_method("""int number_of_diagrams (int m)""",
              doc = r"""""")
 
-c.add_method("""nda::array<dcomplex, 3> Sigma_calc_group (nda::array<dcomplex, 3> Gt, nda::array<int, 2> D, nda::array<int, 1> diagramindex, int N)""",
+c.add_method("""nda::array<dcomplex, 3> Sigma_calc_group (nda::array<dcomplex, 3> Gt, nda::array<int, 2> D, nda::array<int, 1> diagramindex)""",
              doc = r"""""")
 
-c.add_method("""nda::array<dcomplex, 3> G_calc_group (nda::array<dcomplex, 3> Gt, nda::array<int, 2> D, nda::array<int, 1> diagramindex, int N)""",
+c.add_method("""nda::array<dcomplex, 3> G_calc_group (nda::array<dcomplex, 3> Gt, nda::array<int, 2> D, nda::array<int, 1> diagramindex)""",
              doc = r"""""")
 
 c.add_method("""void copy_aaa_result (nda::vector<double> pol0, nda::array<dcomplex, 3> weights0, nda::vector<double> pol_reflect0, nda::array<dcomplex, 3> weights_reflect0)""",

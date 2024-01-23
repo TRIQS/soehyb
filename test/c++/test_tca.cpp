@@ -79,7 +79,7 @@ TEST(strong_coupling, dimer) {
     auto begin = std::chrono::high_resolution_clock::now();
     //Evaluating the first Nd tca diagram of this topology
     int Nd = 1000;
-    auto Sigma_tca_1 = impsol.Sigma_calc_group(G0_S_tau, Dt1 ,arange(Nd),N);
+    auto Sigma_tca_1 = impsol.Sigma_calc_group(G0_S_tau, Dt1 ,arange(Nd));
     auto end = std::chrono::high_resolution_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
     double t3 =  elapsed.count();
