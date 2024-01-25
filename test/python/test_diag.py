@@ -8,6 +8,10 @@ from triqs_soehyb.diag import pop_pair, flatten_pairing_to_list
 from triqs_soehyb.diag import all_pairings, all_connected_pairings, all_gf_pairings
 
 
+# Number of irreducible chord diagrams with 2n nodes. [https://oeis.org/A000699]
+n_strongly_irred_pairings = [ 1, 1, 1, 4, 27, 248, 2830, 38232, 593859, 10401712, 202601898, 4342263000 ]
+
+
 def test_pop_pair():
 
     vec = [1, 2, 3, 4]
@@ -47,8 +51,8 @@ def test_all_pairings():
             assert( parity == (-1)**perm.parity() )
             n_pairings += 1
 
-        assert( n_pairings == factorial2(2*order-1) )
         print(f'order = {order}, n_pairings = {n_pairings}')
+        assert( n_pairings == factorial2(2*order-1) )
 
 
 def test_all_connected_pairings():
@@ -69,6 +73,7 @@ def test_all_connected_pairings():
         for parity, pairing in all_connected_pairings(order):
             n_pairings += 1
         print(f'order = {order}, n_pairings = {n_pairings}')
+        assert( n_pairings == n_strongly_irred_pairings[order] )
 
 
 def test_gf_diagrams():
