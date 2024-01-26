@@ -93,7 +93,7 @@ if __name__ == '__main__':
                 topology = np.int32(np.array(pair))
                 num_diagram = diagramsolver.number_of_diagrams(order) 
                 # The below line is expected to be parallelized
-                Sigma_t = Sigma_t + par*pow(-1,order)*diagramsolver.Sigma_calc_group(G_S, topology, np.int32(np.arange(num_diagram)), np.int32(N))
+                Sigma_t = Sigma_t + par*pow(-1,order)*diagramsolver.Sigma_calc_group(G_S, topology, np.int32(np.arange(num_diagram)))
 
 
         #calculate pseudo-particle Green's function through time-ordered Dyson's equation
@@ -125,5 +125,5 @@ if __name__ == '__main__':
             topology = np.int32(np.array(pair))
             num_diagram = diagramsolver.number_of_diagrams(order)
             # The below line is expected to be parallelized 
-            g_S = g_S + par*pow(-1,order)*diagramsolver.G_calc_group(G_S, topology, np.int32(np.arange(num_diagram)), np.int32(N))
+            g_S = g_S + par*pow(-1,order)*diagramsolver.G_calc_group(G_S, topology, np.int32(np.arange(num_diagram)))
     breakpoint()
