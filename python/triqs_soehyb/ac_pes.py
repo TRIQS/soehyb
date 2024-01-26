@@ -4,7 +4,7 @@
 import numpy as np 
 import scipy
 import scipy.optimize
-import cvxpy as cp
+# import cvxpy as cp
 # import mosek
 from aaa import *
 def eval_with_pole(pol, Z, weight):
