@@ -6,7 +6,7 @@ import scipy
 import scipy.optimize
 # import cvxpy as cp
 # import mosek
-from aaa import *
+from triqs_soehyb.aaa import *
 def eval_with_pole(pol, Z, weight):
     pol_t = np.reshape(pol,[pol.size,1])
     M = 1/(Z-pol_t)
