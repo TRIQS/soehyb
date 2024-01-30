@@ -112,10 +112,18 @@ class Solver(object):
         self.eta = 0.
 
 
-    def set_hybridization(self, Delta_iaa):
+    def set_hybridization(self, Delta_iaa,poledlrflag=True,eps=1e-8):
 
-        self.fd.hyb_init(Delta_iaa)
-        self.fd.hyb_decomposition()
+        if poledlrflag==True:
+            self.fd.hyb_init(Delta_iaa)
+            self.fd.hyb_decomposition()
+        else:
+            from triqs_soehyb.ac_pes import polefitting
+            self.fd.hyb_init(Delta_iaa,poledlrflag)
+            weights, pol, error = polefitting(self.fd.Deltaiw, 1j*self.fd.dlr_if,eps= eps)
+            weights_reflect, pol_reflect, error_reflect = polefitting(self.fd.Deltaiw_reflect, 1j*self.fd.dlr_if,eps= eps)
+            self.fd.copy_aaa_result(pol, weights,pol_reflect,weights_reflect)
+            self.fd.hyb_decomposition(poledlrflag)
 
 
     def solve(self, order, tol=1e-9, maxiter=10, mix=1.0, verbose=True):
