@@ -107,10 +107,10 @@ def polefitting(Deltaiw, Z, Np_max=50,eps = 1e-5):
         r = aaa_matrix_real(Deltaiw, Z, mmax=mmax)
         pol = np.real(r.pol())
         weight, _, residue = get_weight(pol, Z, Deltaiw,cleanflag=True)
-        pol, weight = aaa_reduce(pol, weight)
+        pol, weight = aaa_reduce(pol, weight,eps)
         fhere = lambda pole: erroreval(pole,Z, Deltaiw,cleanflag=True)
         res = scipy.optimize.minimize(fhere,pol, method='L-BFGS-B', jac=True,options= {"disp" :False,"gtol":1e-10,"ftol":1e-10})
         weight, _, residue = get_weight(res.x, Z, Deltaiw,cleanflag=True)
         if np.linalg.norm(residue)<eps:
             return weight, res.x, np.linalg.norm(residue)
-        return weight, res.x, np.linalg.norm(residue)
+    return weight, res.x, np.linalg.norm(residue)
