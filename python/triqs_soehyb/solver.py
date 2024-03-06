@@ -45,7 +45,7 @@ def Sigma_calc_loop(fd, G_iaa, order, verbose=False):
             diag_vec = np.vstack([ np.array(pair, dtype=np.int32) for pair in diag ])
             diag_idx_vec = np.arange(n_diags, dtype=np.int32)
             diag_idx_vec = scatter_array_over_ranks(diag_idx_vec)
-            Sigma_iaa -= sign * fd.Sigma_calc_group(G_iaa, diag_vec, diag_idx_vec)
+            Sigma_iaa += (-1)**order * sign * fd.Sigma_calc_group(G_iaa, diag_vec, diag_idx_vec)
 
     mpi.COMM_WORLD.Allreduce(mpi.IN_PLACE, Sigma_iaa)
             
@@ -71,7 +71,8 @@ def G_calc_loop(fd, G_iaa, order, n_orb, verbose=False):
             diag_vec = np.vstack([ np.array(pair, dtype=np.int32) for pair in diag ])
             diag_idx_vec = np.arange(n_diags, dtype=np.int32)
             diag_idx_vec = scatter_array_over_ranks(diag_idx_vec)
-            g_iaa -= sign * fd.G_calc_group(G_iaa, diag_vec, diag_idx_vec)
+            g_iaa += (-1)**order * sign * \
+                fd.G_calc_group(G_iaa, diag_vec, diag_idx_vec)
 
     mpi.COMM_WORLD.Allreduce(mpi.IN_PLACE, g_iaa)
             
@@ -95,12 +96,13 @@ class Solver(object):
 
         self.ed = TriqsExactDiagonalization(H_loc, fundamental_operators, beta)
 
-        mat_c_dag = np.array(self.ed.rep.sparse_operators.c_dag[0].todense()) 
-        mat_c = mat_c_dag.T.conj()
+        self.F = np.array([np.array(
+            self.ed.rep.sparse_operators.c_dag[idx].T.conj().todense())
+                           for idx in range(len(fundamental_operators)) ])
+        self.F_dag = np.array([np.array(
+            self.ed.rep.sparse_operators.c_dag[idx].todense())
+                           for idx in range(len(fundamental_operators)) ])
         
-        self.F = np.array([mat_c])
-        self.F_dag = np.array([mat_c_dag])
-    
         self.fd = Fastdiagram(beta, lamb, eps, self.F, self.F_dag)
         self.tau_i = self.fd.get_it_actual()
         
