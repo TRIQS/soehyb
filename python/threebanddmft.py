@@ -146,7 +146,7 @@ def run_calc(beta, lamb, eps, order,
     delta_diff = np.inf 
     for dmft_iter in range(dmft_maxiter):
         Impurity = Solver(beta, lamb, eps, H, fundamental_operators)
-        Impurity.set_hybridization(delta_iaa = delta_iaa,poledlrflag=False,delta_diff = delta_diff,fittingeps = 2e-6,printing=True)
+        Impurity.set_hybridization(delta_iaa = delta_iaa,poledlrflag=False,delta_diff = delta_diff,fittingeps = 1e-7,verbose=True)
         Impurity.solve(max_order,  ppsc_maxiter=ppsc_maxiter,ppsc_tol = ppsc_tol, update_eta_exact = True , verbose=verbose)          
         g_iaa_old = g_iaa
         #calculate single-particle Green's functions diagrams

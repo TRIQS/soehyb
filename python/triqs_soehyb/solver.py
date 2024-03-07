@@ -130,7 +130,7 @@ class Solver(object):
             #decomposition and reflection of Delta(t) using aaa poles
             
             self.fd.hyb_init(delta_iaa,poledlrflag)
-            epstol=min(fittingeps,delta_diff/100)
+            epstol=min(fittingeps,delta_diff/1000)
             Npmax = len(self.fd.dlr_if)-1
             weights, pol, error = polefitting(self.fd.Deltaiw, 1j*self.fd.dlr_if,eps= epstol,Np_max = Npmax,Hermitian=Hermitian)
             if is_root() and verbose:
