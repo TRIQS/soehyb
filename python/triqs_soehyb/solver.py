@@ -1,13 +1,19 @@
+
+import time
+
 import numpy as np
+from scipy.optimize import root_scalar
 
 from mpi4py import MPI as mpi
 
 from pyed.TriqsExactDiagonalization import TriqsExactDiagonalization
-from scipy.optimize import root_scalar
-import time
+
 from .pycppdlr import build_dlr_rf
 from .pycppdlr import ImTimeOps
 
+from pydlr import kernel # fixme! remove pydlr dependence
+
+from .ac_pes import polefitting
 from .impurity import Fastdiagram
 from .diag import all_connected_pairings
 
@@ -24,13 +30,18 @@ def scatter_array_over_ranks(arr):
     rank = comm.Get_rank()
     arr_rank = np.array_split(np.array(arr), size, axis=0)[rank]
     return arr_rank
+
+
 def Sigma_calc_loop(fd, G_iaa,max_order,verbose=True):
+
     assert( max_order >= 1 )
     assert( type(fd) == Fastdiagram )
+    
     if verbose:
         start_time = time.time()    
 
-    Sigma_t = np.zeros((G_iaa.shape[0], G_iaa.shape[1], G_iaa.shape[2]),dtype=np.complex128)
+    Sigma_t = np.zeros((G_iaa.shape[0], G_iaa.shape[1], G_iaa.shape[2]), dtype=complex)
+    
     for ord in range(1, max_order+1):
         n_diags = fd.number_of_diagrams(ord)
         if is_root() and verbose:
@@ -43,17 +54,24 @@ def Sigma_calc_loop(fd, G_iaa,max_order,verbose=True):
             diag_idx_vec = np.arange(n_diags, dtype=np.int32)
             diag_idx_vec = scatter_array_over_ranks(diag_idx_vec)
             Sigma_t += pow(-1,ord)* sign * fd.Sigma_calc_group(G_iaa, diag_vec, diag_idx_vec)
+
     mpi.COMM_WORLD.Allreduce(mpi.IN_PLACE, Sigma_t)
+
     if is_root() and verbose:
         end_time = time.time()
         elapsed_time = end_time - start_time
         print("Time spent is ",elapsed_time)
+
     return Sigma_t
 
+
 def G_calc_loop(fd, G_iaa, max_order,n_g,verbose=True):
+
     if verbose:
-        start_time = time.time() 
-    g_iaa = np.zeros((G_iaa.shape[0], n_g, n_g),dtype=np.complex128)
+        start_time = time.time()
+    
+    g_iaa = np.zeros((G_iaa.shape[0], n_g, n_g), dtype=complex)
+
     for ord in range(1, max_order+1):
         n_diags = fd.number_of_diagrams(ord)
         if is_root() and verbose:
@@ -66,20 +84,20 @@ def G_calc_loop(fd, G_iaa, max_order,n_g,verbose=True):
             diag_idx_vec = np.arange(n_diags, dtype=np.int32)
             diag_idx_vec = scatter_array_over_ranks(diag_idx_vec)
             g_iaa += pow(-1,ord)* sign * fd.G_calc_group(G_iaa, diag_vec, diag_idx_vec)
+
     mpi.COMM_WORLD.Allreduce(mpi.IN_PLACE, g_iaa) 
 
     if is_root() and verbose:
         end_time = time.time()
         elapsed_time = end_time - start_time
         print("Time spent is ",elapsed_time)
+        
     return g_iaa
 
-from .ac_pes import polefitting
 
 def g_iaa_reconstruct(poles,weights,tau_i):
     G = np.zeros((tau_i.shape[0],weights.shape[1],weights.shape[1]), dtype = np.complex128)
     
-    from pydlr import kernel
     for n in range(poles.shape[0]): 
         for i in range(tau_i.shape[0]):
             # print(i)
@@ -87,10 +105,8 @@ def g_iaa_reconstruct(poles,weights,tau_i):
     return G
 
 
-
 class Solver(object):
 
-    
     def __init__(self, beta, lamb, eps, H_loc, fundamental_operators):
 
         self.lamb = lamb
@@ -119,28 +135,68 @@ class Solver(object):
         self.G_iaa = self.G0_iaa.copy()
 
         self.eta = 0.
-    
-    def set_hybridization(self,delta_iaa,poledlrflag=True,delta_diff = 1.0,fittingeps = 2e-6,verbose=True,Hermitian=False):
+
+        
+    def set_hybridization(self, delta_iaa,
+                          poledlrflag=True, delta_diff=1.0, fittingeps=2e-6,
+                          Hermitian=False, verbose=True):
+        
+        """ TODO: Explain interplay of all the flags
+
+        Set the hybridization function of the expansion.
+
+        Parameters
+        ----------
+
+        delta_iaa : (n, m, m) ndarray
+            Hybridization function on imaginary time DLR nodes.
+
+        poledlrflag : bool, optional
+            What does this flag do?
+            Use the full DLR representation to represent the hybridization function.
+            Default `True`
+        
+            (How about doint the inverse logic? and replace `poledlrflag` with flag called `compress=False`)
+            I think this would be more intuitive for the user to understand.
+
+        delta_diff : float, optional
+            What does this flag do?
+            Default 1.0
+
+        dittingeps : float, optional
+            What does this flag do?
+            Default 2e-6
+
+        Hermitian : bool, optional
+            What does this flag do?
+            Default `False`
+
+        verbose : bool, optional
+            Enable (more) verbose printouts of the method.
+            Defailt `True`
+        
+        """
+
+        
         if poledlrflag == True:
            
-            self.fd.hyb_init(delta_iaa,poledlrflag=True)
-            self.fd.hyb_decomposition(poledlrflag=True,eps = fittingeps/10)
+            self.fd.hyb_init(delta_iaa, poledlrflag=True)
+            self.fd.hyb_decomposition(poledlrflag=True, eps=fittingeps/10)
             
         else:
             #decomposition and reflection of Delta(t) using aaa poles
             
-            self.fd.hyb_init(delta_iaa,poledlrflag)
-            epstol=min(fittingeps,delta_diff/1000)
+            self.fd.hyb_init(delta_iaa, poledlrflag)
+            epstol = min(fittingeps, delta_diff/1000)
             Npmax = len(self.fd.dlr_if)-1
-            weights, pol, error = polefitting(self.fd.Deltaiw, 1j*self.fd.dlr_if,eps= epstol,Np_max = Npmax,Hermitian=Hermitian)
+            weights, pol, error = polefitting(self.fd.Deltaiw, 1j*self.fd.dlr_if,
+                                              eps=epstol, Np_max=Npmax, Hermitian=Hermitian)
+
             if is_root() and verbose:
-                print("Error in time domain")
-                
-                print(np.max(np.abs(delta_iaa + g_iaa_reconstruct(pol*self.beta,weights,self.tau_i/self.beta))))
-            
-            
+                diff = np.max(np.abs(delta_iaa + g_iaa_reconstruct(pol*self.beta, weights, self.tau_i/self.beta)))
+                print(f"Time domain diff {diff:2.2E}")
         
-            if error<epstol and len(pol)<len(self.tau_i):
+            if error < epstol and len(pol)<len(self.tau_i):
                 if is_root() and verbose:
                     print("using aaa poles, number of poles is ",len(pol))
                 self.fd.copy_aaa_result(pol, weights,-pol,weights)
@@ -153,8 +209,8 @@ class Solver(object):
                 self.fd.hyb_decomposition(poledlrflag=True,eps = fittingeps/10)
 
 
-  
-    def energyshift_bisection(self,Sigma_t,verbose=True):
+    def energyshift_bisection(self, Sigma_t, verbose=True):
+        
         def target_function(eta_h):
             G_new_eta=self.fd.time_ordered_dyson(self.beta,self.H_mat,eta_h,Sigma_t)
             Z_h = self.fd.partition_function(G_new_eta)
@@ -173,15 +229,17 @@ class Solver(object):
                 print("Energy shift failed")
                 print(sol)
 
-    def solve(self, max_order, ppsc_tol=1e-9, ppsc_maxiter=10, update_eta_exact = True , mix=1.0, verbose=True):
-        for ppsc_iter in range(ppsc_maxiter):
+                
+    def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True , mix=1.0, verbose=True):
+
+        for iter in range(maxiter):
             
             #calculate pseudo-particle self energy diagrams
-            Sigma_t = Sigma_calc_loop(self.fd, self.G_iaa,max_order,verbose=True)
+            Sigma_t = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=True)
 
             if update_eta_exact:
                 #decide eta through bisection
-                self.energyshift_bisection(Sigma_t,verbose=True)
+                self.energyshift_bisection(Sigma_t, verbose=verbose)
             
                 #solver pseudo-particle Dyson equatipon
                 G_iaa_new = self.fd.time_ordered_dyson(self.beta,self.H_mat,self.eta,Sigma_t)
@@ -192,18 +250,18 @@ class Solver(object):
                 G_iaa_new[:] *= np.exp(-self.tau_i * deta)[:, None, None]
                 self.eta += deta
 
-            #check what we get is partition function ==1
-            if is_root(): print(self.fd.partition_function(G_iaa_new))
+            if is_root():
+                # Expect Z = 1
+                Z = self.fd.partition_function(G_iaa_new)
+                print(f"Z = {Z}")
             
-            ppsc_diff = np.max(np.abs(self.G_iaa - G_iaa_new))
-
+            diff = np.max(np.abs(self.G_iaa - G_iaa_new))
             
             self.G_iaa = mix*G_iaa_new + (1-mix)*self.G_iaa 
             self.Sigma_iaa = Sigma_t
 
-            if is_root(): print(f'PPSC: iter = {ppsc_iter:3d} diff = {ppsc_diff:2.2E}')
-            if ppsc_diff < ppsc_tol: break
-            
+            if is_root(): print(f'PPSC: iter = {iter:3d} diff = {diff:2.2E}')
+            if diff < tol: break
 
 
     def calc_spgf(self, max_order, verbose=True):
