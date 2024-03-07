@@ -124,7 +124,7 @@ class Solver(object):
         if poledlrflag == True:
            
             self.fd.hyb_init(delta_iaa,poledlrflag=True)
-            self.fd.hyb_decomposition(poledlrflag=True)
+            self.fd.hyb_decomposition(poledlrflag=True,eps = fittingeps/10)
             
         else:
             #decomposition and reflection of Delta(t) using aaa poles
@@ -144,13 +144,13 @@ class Solver(object):
                 if is_root() and verbose:
                     print("using aaa poles, number of poles is ",len(pol))
                 self.fd.copy_aaa_result(pol, weights,-pol,weights)
-                self.fd.hyb_decomposition(poledlrflag)
+                self.fd.hyb_decomposition(poledlrflag,eps = fittingeps/10)
             else:
                 if is_root() and verbose:
                     print("using dlr poles")
             
                 self.fd.hyb_init(delta_iaa,poledlrflag=True)
-                self.fd.hyb_decomposition(poledlrflag=True)
+                self.fd.hyb_decomposition(poledlrflag=True,eps = fittingeps/10)
 
 
   
