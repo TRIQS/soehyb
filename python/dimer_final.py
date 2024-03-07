@@ -11,7 +11,15 @@ from itertools import product
 from triqs_soehyb.solver import *
 import matplotlib.pyplot as plt
 from triqs_soehyb.solver import *
+def construct_impurity_Hamiltonian( U, mu, v):
 
+    n_i = [ c_dag(0,i) * c(0,i) for i in range(2)]
+    n, d = np.sum(n_i), np.product(n_i)
+        
+    # Impurity
+    H_loc = U * d - mu * n - v * (c_dag(0,0) * c(0,1) + c_dag(0,1) * c(0,0))
+    fundamental_operators = [ c(0,i) for i in range(2) ]
+    return H_loc, fundamental_operators 
 def calc_two_band_spinless_ed(
         ntau=500,
         beta = 4.0,
@@ -64,19 +72,14 @@ if __name__ == '__main__':
     t, U, v, t1, ek, mu= 1.0, 4.0, 1.5, 1.5, 0.0, 0.0
     ntau = 1000
     gf_true = calc_two_band_spinless_ed(ntau,beta,U,v,t,t1,ek,mu)
+
+    lamb, eps = beta*20, 1.0e-12
     
 
-
-    n_i = [ c_dag(0,i) * c(0,i) for i in range(2)]
-    n, d = np.sum(n_i), np.product(n_i)
+    #construct impurity Hamiltonian
+    H_loc, fundamental_operators = construct_impurity_Hamiltonian(U, mu, v)
     
-    # Impurity
-    H_loc = U * d - mu * n - v * (c_dag(0,0) * c(0,1) + c_dag(0,1) * c(0,0))
-    fundamental_operators = [ c(0,i) for i in range(2) ]
-
-    lamb, eps = beta*100, 1.0e-12
-    dlr_rf = build_dlr_rf(lamb, eps)
-    ito = ImTimeOps(lamb, dlr_rf)
+    
     #construct solver
     Impurity = Solver(beta, lamb, eps, H_loc, fundamental_operators)
 
@@ -91,6 +94,10 @@ if __name__ == '__main__':
     #obtain actual imaginary time nodes on [0,beta]
     tau_grid = np.linspace(0,1,ntau)
     g_mesh_all = np.zeros((6,tau_grid.shape[0],delta_iaa.shape[1],delta_iaa.shape[1]),complex)
+    #itops tools
+    dlr_rf = build_dlr_rf(lamb, eps)
+    ito = ImTimeOps(lamb, dlr_rf)
+
 
     ppsc_maxiter, ppsc_tol =10, 1e-10
     verbose=True
@@ -114,4 +121,3 @@ if __name__ == '__main__':
     plt.show()
     filename = "result_twoband_maxorder="+str(max_order)+"_beta="+str(beta)+".npy"
     np.save(filename,g_mesh_all)
-    # breakpoit()
