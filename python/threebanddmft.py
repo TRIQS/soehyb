@@ -21,6 +21,7 @@ from triqs_soehyb.pycppdlr import ImTimeOps
 
 from triqs_soehyb.impurity import Fastdiagram
 from scipy.optimize import root_scalar
+from triqs_soehyb.solver import *
 def kernel(tau, omega):
     kernel = np.empty((len(tau), len(omega)))
 
@@ -75,16 +76,7 @@ def H_soc_from_levi_cevita(lamb_soc):
 
     return H_soc
 
-def is_root():
-    comm = mpi.COMM_WORLD
-    rank = comm.Get_rank()
-    return rank == 0
-def scatter_array_over_ranks(arr):
-    comm = mpi.COMM_WORLD
-    size = comm.Get_size()
-    rank = comm.Get_rank()
-    arr_rank = np.array_split(np.array(arr), size, axis=0)[rank]
-    return arr_rank
+
 
 def eval_semi_circ_tau(tau, beta, h, t):
     I = lambda x : -2 / np.pi / t**2 * \
@@ -94,15 +86,6 @@ def eval_semi_circ_tau(tau, beta, h, t):
 
 eval_semi_circ_tau = np.vectorize(eval_semi_circ_tau)
 
-def g_iaa_reconstruct(poles,weights,tau_i):
-    G = np.zeros((tau_i.shape[0],weights.shape[1],weights.shape[1]), dtype = np.complex128)
-    
-    from pydlr import kernel
-    for n in range(poles.shape[0]): 
-        for i in range(tau_i.shape[0]):
-            # print(i)
-            G[i,:,:] = G[i,:,:] + kernel(tau_i[i:i+1],poles[n:n+1])[0,0]*weights[n,:,:]
-    return G
 
 
 def run_calc(beta, lamb, eps, order,
@@ -126,14 +109,7 @@ def run_calc(beta, lamb, eps, order,
     dmft_maxiter = 100 # self-cons settings
     use_symmetry = False
 
-    order_dict = {
-        1 : ('nca', False, False),
-        2 : ('oca', True, False),
-        3 : ('tca', True, True),
-        }
 
-    order, oca, tca = order_dict[order]
-    
     verbose = False
 
     spin_names = ('up','do')
@@ -155,204 +131,50 @@ def run_calc(beta, lamb, eps, order,
 
     H += H_soc_from_levi_cevita(lamb_soc)
     
-    ed = TriqsExactDiagonalization(H, fundamental_operators, beta)
-    
     dlr_rf = build_dlr_rf(lamb, eps)
     ito = ImTimeOps(lamb, dlr_rf)
     r = ito.rank()
-    if is_root(): print(f'N_dlr = {r}')
-
-    F = np.array([np.array(
-        ed.rep.sparse_operators.c_dag[idx].T.conj().todense())
-        for idx in range(len(fundamental_operators)) ])
-
-    F_dag = np.array([np.array(
-        ed.rep.sparse_operators.c_dag[idx].todense())
-        for idx in range(len(fundamental_operators)) ])
+    if is_root(): print(f'N_dlr = {r}')   
     
-    fd0 = Fastdiagram(beta, lamb, eps, F, F_dag)
-    
-    tau_i = fd0.get_it_actual().real
-
-    delta_iaa = np.zeros((r, 2*norb, 2*norb), dtype=ed.ed.H.dtype)
+    tau_i = ito.get_itnodes()*beta
+    for i1 in range(r):
+        if tau_i[i1]<0: tau_i[i1] = tau_i[i1]+beta 
+   
+    delta_iaa = np.zeros((r, 2*norb, 2*norb), dtype=np.complex128)
     for idx, t_i in enumerate(T_diag):
         delta_iaa[:, idx, idx] = \
-            t_i**2 * eval_semi_circ_tau(tau_i, beta, h=0.0, t=t_i)
-    
-    # Setup impurity problem    
-    if is_root(): print("-> Atomic propagator G0")
-    H_mat = np.array(ed.ed.H.todense())
-    #np.testing.assert_array_almost_equal(H_mat, H_mat.T.conj())
-    G0_iaa = fd0.free_greens_ppsc(beta, H_mat)
-    #np.testing.assert_array_almost_equal(G0_iaa, np.transpose(G0_iaa.conj(), axes=(0, 2, 1)))
-    G_iaa = G0_iaa.copy()    
+            t_i**2 * eval_semi_circ_tau(tau_i, beta, h=0.0, t=t_i)   
 
     g_iaa = np.zeros_like(delta_iaa)
-    eta = 0.
-    # IW = dlr(lamb=100000,eps=1e-16).get_matsubara_frequencies(beta)
-    IW = 1.0j*np.arange(-99,99,2)*np.pi/beta
+
     delta_diff = np.inf 
     for dmft_iter in range(dmft_maxiter):
-        
-        fd1 = Fastdiagram(beta, lamb, eps, F, F_dag)
-        poledlrflag=True
-        fd1.hyb_init(delta_iaa,poledlrflag)
-        fd1.hyb_decomposition(poledlrflag)
-         #decomposition and reflection of Delta(t) using aaa poles
-        poledlrflag = False
-        fd2 = Fastdiagram(beta, lamb, eps, F, F_dag)
-        fd2.hyb_init(delta_iaa,poledlrflag)
-        
-        # from pydlr import dlr
-        # d1 = dlr(lamb=lamb,eps=eps)
-        # deltag = d1.lstsq_dlr_from_tau(tau_i, delta_iaa, beta)
-        
-       
-        # delta_iaa_reflect = d1.eval_dlr_tau(deltag,beta-tau_i,beta)
-        # deltag_reflect = d1.lstsq_dlr_from_tau(tau_i, delta_iaa_reflect, beta)
-        # breakpoint()
-        #*
-        # deltaiw_long = d1.eval_dlr_freq(deltag,IW,beta)
-        # _, _, residue = get_weight(dlr_rf/beta, IW, deltaiw_long,cleanflag=True)
-        # epstol = max(np.linalg.norm(residue)+1e-6/2,1e-6)
-        # deltaiw_reflect_long = d1.eval_dlr_freq(deltag_reflect,IW,beta)
-        # _, _, residue_r = get_weight(dlr_rf/beta, IW, deltaiw_reflect_long,cleanflag=True)
-        # epstol_r = max(np.linalg.norm(residue_r)+1e-6/2,1e-6)
-        epstol=min(2e-6,delta_diff/100)
-        # epstol_r = epstol*1.0
-        # weights, pol, error = polefitting(deltaiw_long, IW,eps= epstol,Np_max = int(len(IW)/2),Hermitian=False)
-        # weights_reflect, pol_reflect, error_reflect = polefitting(deltaiw_reflect_long, IW,eps= epstol_r,Np_max = int(len(IW)/2),Hermitian=False)
-        Npmax = len(fd2.dlr_if)-1
-        weights, pol, error = polefitting(fd2.Deltaiw, 1j*fd2.dlr_if,eps= epstol,Np_max = Npmax,Hermitian=False)
-        # weights_reflect, pol_reflect, error_reflect = polefitting(fd2.Deltaiw_reflect, 1j*fd2.dlr_if,eps= epstol_r,Np_max = Npmax,Hermitian=False)
-        if is_root():
-            print("Error in time domain")
-            print(np.max(np.abs(delta_iaa + g_iaa_reconstruct(pol*beta,weights,tau_i/beta))))
-            # print(np.max(np.abs(delta_iaa_reflect + g_iaa_reconstruct(-pol*beta,weights,tau_i/beta))))
-        # breakpoint()
-
-        # fd2.copy_aaa_result(pol, weights,pol_reflect,weights_reflect)
-        fd2.copy_aaa_result(pol, weights,-pol,weights)
-        fd2.hyb_decomposition(poledlrflag)
-        # if error<epstol and error_reflect<epstol and len(pol)<r and len(pol_reflect)<r:
-        if error<epstol and len(pol)<r:
-            fd = fd2
-            if is_root():
-                print("number of poles is ",len(pol))
-        else:
-            fd = fd1
-
-        # if is_root() and fallback==False:
-        #     print("Number of poles is ",len(pol))
-
-        for ppsc_iter in range(ppsc_maxiter):
-            start_time = time.time()
-
-            #calculate pseudo-particle self energy diagrams
-            Sigma_t = np.zeros((r, G_iaa.shape[1], G_iaa.shape[2]),dtype=np.complex128)
-            for ord in range(1, max_order+1):
-                n_diags = fd.number_of_diagrams(ord)
-                # if is_root():
-                    # print(f"order = {order}")
-                    # print(f'n_diags = {n_diags}')
-                for sign, diag in all_connected_pairings(ord):
-                    if  is_root():
-                        print(sign, diag)
-                    diag_vec = np.vstack([ np.array(pair, dtype=np.int32) for pair in diag ])
-                    diag_idx_vec = np.arange(n_diags, dtype=np.int32)
-                    diag_idx_vec = scatter_array_over_ranks(diag_idx_vec)
-                    Sigma_t -= sign * fd.Sigma_calc_group(G_iaa, diag_vec, diag_idx_vec)
-
-
-
-            mpi.COMM_WORLD.Allreduce(mpi.IN_PLACE, Sigma_t)
-            if is_root():
-                end_time = time.time()
-                elapsed_time = end_time - start_time
-                print("Time spent is ",elapsed_time)
-
-
-            #np.testing.assert_array_almost_equal(Sigma_iaa, np.transpose(Sigma_iaa.conj(), axes=(0, 2, 1)))
-            #G_iaa_new = fd.time_ordered_dyson(beta, H_mat, eta, Sigma_t) # has to give eta0 here to get correct G0
-            #np.testing.assert_array_almost_equal(G_iaa_new, np.transpose(G_iaa_new.conj(), axes=(0, 2, 1)))
-
-            if True:
-                def target_function(eta_h):
-                    G_new_eta=fd.time_ordered_dyson(beta,H_mat,eta_h,Sigma_t)
-                    Z_h = fd.partition_function(G_new_eta)
-                    Omega_h = np.log(np.abs(Z_h))/beta
-                    return Omega_h
-                Omega = target_function(eta)
-                if is_root():
-                    print("Current Omega is ",Omega)
-                if np.abs(Omega)>0:
-                    E_max = eta.real if Omega<0. else 0.5*lamb/beta
-                    E_min = eta.real if Omega>0. else 0.
-                    bracket=[E_min,E_max]
-                    sol=root_scalar(target_function, method='brenth', fprime=False, bracket=bracket, rtol=1e-10,options={'disp': True})
-                    eta = sol.root
-                    if not sol.converged and is_root():
-                        print("Energy shift failed")
-                        print(sol)
-            
-            G_iaa_new = fd.time_ordered_dyson(beta,H_mat,eta,Sigma_t)
-            if is_root():
-                print(fd.partition_function(G_iaa_new))
-                
-                
-            ppsc_diff = np.max(np.abs(G_iaa - G_iaa_new))
-
-            G_iaa = G_iaa_new
-
-            if is_root(): print(f'PPSC: iter = {ppsc_iter:3d} diff = {ppsc_diff:2.2E}')
-            if ppsc_diff < ppsc_tol: break
-            
+        Impurity = Solver(beta, lamb, eps, H, fundamental_operators)
+        Impurity.set_hybridization(poledlrflag=False,delta_iaa = delta_iaa,delta_diff = delta_diff,fittingeps = 2e-6,printing=True)
+        Impurity.solve(max_order,  ppsc_maxiter=ppsc_maxiter,ppsc_tol = ppsc_tol, update_eta_exact = True , verbose=True)          
         g_iaa_old = g_iaa
-
-        g_iaa = np.zeros((r, delta_iaa.shape[1], delta_iaa.shape[1]),dtype=np.complex128)
-        start_time = time.time()
-        for ord in range(1, max_order+1):
-            n_diags = fd.number_of_diagrams(ord)
-            # if is_root():
-                # print(f"order = {order}")
-                # print(f'n_diags = {n_diags}')
-            for sign, diag in all_connected_pairings(ord):
-                if  is_root():
-                    print(sign, diag)
-                diag_vec = np.vstack([ np.array(pair, dtype=np.int32) for pair in diag ])
-                diag_idx_vec = np.arange(n_diags, dtype=np.int32)
-                diag_idx_vec = scatter_array_over_ranks(diag_idx_vec)
-                g_iaa -= sign * fd.G_calc_group(G_iaa, diag_vec, diag_idx_vec)
-        mpi.COMM_WORLD.Allreduce(mpi.IN_PLACE, g_iaa) 
-
-        if is_root():
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            print("Time spent is ",elapsed_time)
-
-                
-        delta_iaa_old = delta_iaa
+        #calculate single-particle Green's functions diagrams
+        g_iaa = Impurity.calc_spgf(max_order, verbose=True)
+        # g_iaa = G_calc_loop(fd, G_iaa, max_order,delta_iaa.shape[1],verbose=True)
+        #calculate new hybridization function
         delta_iaa = np.einsum('a,iab,b->iab', T_diag, g_iaa, T_diag)
-        # delta_iaa_reflect = ito.reflect()
 
         delta_diff = np.max(np.abs(g_iaa - g_iaa_old))
-        
-        G_xaa = ito.vals2coefs(G_iaa)
-        rho_GG = -ito.coefs2eval(G_xaa, 1.0)
 
-        g_xaa = ito.vals2coefs(g_iaa)        
+       
+        g_xaa = ito.vals2coefs(g_iaa)
         rho_aa = -ito.coefs2eval(g_xaa, 1.0)
-
-        N = np.sum(np.diag(rho_aa)).real
-                 
-        if is_root():
+        N = np.sum(np.diag(rho_aa)).real         
+        if is_root():  
             print(
                 f'DMFT: iter {dmft_iter:3d}, ddelta {delta_diff:2.2E}' + \
-                ' - ' + f'PPSC: iter {ppsc_iter:3d}, dppgf {ppsc_diff:2.2E}' + \
-                f' - N {N:8.8E}')
+                ' - '  + f' - N {N:8.8E}')
 
         if delta_diff < dmft_tol: break
 
+
+
+    N = np.sum(np.diag(rho_aa)).real
     def interp(g_xaa, tau_j):
         eval = lambda t : ito.coefs2eval(g_xaa, t/beta)
         return np.vectorize(eval, signature='()->(m,m)')(tau_j)
@@ -366,7 +188,7 @@ def run_calc(beta, lamb, eps, order,
     delta_xaa = ito.vals2coefs(delta_iaa)
     delta_faa = interp(delta_xaa, tau_f)
 
-    G_xaa = ito.vals2coefs(G_iaa)
+    G_xaa = ito.vals2coefs(Impurity.G_iaa)
     G_faa = interp(G_xaa, tau_f)
 
     Sigma_xaa = ito.vals2coefs(Sigma_t)
