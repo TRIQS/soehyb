@@ -114,4 +114,4 @@ if __name__ == '__main__':
     plt.show()
     filename = "result_twoband_maxorder="+str(max_order)+"_beta="+str(beta)+".npy"
     np.save(filename,g_mesh_all)
-    breakpoint()
+    # breakpoit()
