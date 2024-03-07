@@ -120,7 +120,7 @@ class Solver(object):
 
         self.eta = 0.
     
-    def set_hybridization(self,poledlrflag,delta_iaa,delta_diff = 1.0,fittingeps = 2e-6,printing=True):
+    def set_hybridization(self,delta_iaa,poledlrflag=True,delta_diff = 1.0,fittingeps = 2e-6,printing=True):
         if poledlrflag == True:
            
             self.fd.hyb_init(delta_iaa,poledlrflag=True)
@@ -199,6 +199,7 @@ class Solver(object):
 
             
             self.G_iaa = mix*G_iaa_new + (1-mix)*self.G_iaa 
+            self.Sigma_iaa = Sigma_t
 
             if is_root(): print(f'PPSC: iter = {ppsc_iter:3d} diff = {ppsc_diff:2.2E}')
             if ppsc_diff < ppsc_tol: break
