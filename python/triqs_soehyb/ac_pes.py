@@ -116,7 +116,7 @@ def polefitting(Deltaiw, Z, Np_max=50,eps = 1e-5,Hermitian=True):
         # pol = pol[np.abs(np.imag(pol))<0.1]
         pol = np.real(pol)
         weight, _, residue = get_weight(pol, Z, Deltaiw,cleanflag=True,Hermitian=Hermitian)
-        # pol, weight = aaa_reduce(pol, weight,eps)
+        pol, weight = aaa_reduce(pol, weight,eps)
         fhere = lambda pole: erroreval(pole,Z, Deltaiw,cleanflag=True,Hermitian=Hermitian)
         res = scipy.optimize.minimize(fhere,pol, method='L-BFGS-B', jac=True,options= {"disp" :False,"gtol":1e-10,"ftol":1e-10})
         weight, _, residue = get_weight(res.x, Z, Deltaiw,cleanflag=True, Hermitian=Hermitian)
