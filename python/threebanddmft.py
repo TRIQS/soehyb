@@ -1,4 +1,3 @@
-
 from itertools import product
 import time
 import numpy as np
@@ -19,8 +18,6 @@ from scipy.integrate import quad
 from triqs_soehyb.pycppdlr import build_dlr_rf
 from triqs_soehyb.pycppdlr import ImTimeOps
 
-from triqs_soehyb.impurity import Fastdiagram
-from scipy.optimize import root_scalar
 from triqs_soehyb.solver import *
 def kernel(tau, omega):
     kernel = np.empty((len(tau), len(omega)))
@@ -110,12 +107,11 @@ def run_calc(beta, lamb, eps, order,
     use_symmetry = False
 
 
-    verbose = False
+    verbose = True
 
     spin_names = ('up','do')
     orb_names = list(range(norb))
     
-    fops = [(sn,on) for sn, on in product(spin_names, orb_names)]
     fundamental_operators = [ c(sn,on) for sn,on in product(spin_names, orb_names)]
 
     KanMat1, KanMat2 = U_matrix_kanamori(norb, U, J)
@@ -151,10 +147,10 @@ def run_calc(beta, lamb, eps, order,
     for dmft_iter in range(dmft_maxiter):
         Impurity = Solver(beta, lamb, eps, H, fundamental_operators)
         Impurity.set_hybridization(poledlrflag=False,delta_iaa = delta_iaa,delta_diff = delta_diff,fittingeps = 2e-6,printing=True)
-        Impurity.solve(max_order,  ppsc_maxiter=ppsc_maxiter,ppsc_tol = ppsc_tol, update_eta_exact = True , verbose=True)          
+        Impurity.solve(max_order,  ppsc_maxiter=ppsc_maxiter,ppsc_tol = ppsc_tol, update_eta_exact = True , verbose=verbose)          
         g_iaa_old = g_iaa
         #calculate single-particle Green's functions diagrams
-        g_iaa = Impurity.calc_spgf(max_order, verbose=True)
+        g_iaa = Impurity.calc_spgf(max_order, verbose=verbose)
         # g_iaa = G_calc_loop(fd, G_iaa, max_order,delta_iaa.shape[1],verbose=True)
         #calculate new hybridization function
         delta_iaa = np.einsum('a,iab,b->iab', T_diag, g_iaa, T_diag)
@@ -191,7 +187,7 @@ def run_calc(beta, lamb, eps, order,
     G_xaa = ito.vals2coefs(Impurity.G_iaa)
     G_faa = interp(G_xaa, tau_f)
 
-    Sigma_xaa = ito.vals2coefs(Sigma_t)
+    Sigma_xaa = ito.vals2coefs(Impurity.Sigma_iaa)
     Sigma_faa = interp(Sigma_xaa, tau_f)
     
     class Dummy():
