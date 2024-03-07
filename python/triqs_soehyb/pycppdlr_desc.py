@@ -36,6 +36,7 @@ c.add_constructor("""(double lambda, nda::array<double, 1> dlr_rf)""", doc = r""
 
 c.add_method("""nda::array<dcomplex, 3> vals2coefs(nda::array<dcomplex, 3> g)""")
 c.add_method("""nda::array<dcomplex, 3> coefs2vals(nda::array<dcomplex, 3> g)""")
+c.add_method("""nda::array<dcomplex, 3> reflect(nda::array<dcomplex, 3> g)""")
 c.add_method("""nda::array<dcomplex, 2> coefs2eval(nda::array<dcomplex, 3> g, double t)""")
 
 c.add_method("""nda::vector_const_view<double> get_itnodes()""")
