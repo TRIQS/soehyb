@@ -59,20 +59,20 @@ void fastdiagram::copy_aaa_result(nda::vector<double> pol0, nda::array<dcomplex,
     weights = weights0;
     weights_reflect = weights_reflect0;
 }
-void fastdiagram::hyb_decomposition(bool poledlrflag){
+void fastdiagram::hyb_decomposition(bool poledlrflag,double eps){
     // this->hyb_init(Deltat0,poledlrflag);
 
     if (poledlrflag == false) {
-        auto Delta_decomp = hyb_decomp(weights,pol); //decomposition of Delta(t) using DLR coefficient
-        auto Delta_decomp_reflect = hyb_decomp(weights_reflect,pol_reflect); // decomposition of Delta(-t) using DLR coefficient
+        auto Delta_decomp = hyb_decomp(weights,pol,eps); //decomposition of Delta(t) using DLR coefficient
+        auto Delta_decomp_reflect = hyb_decomp(weights_reflect,pol_reflect,eps); // decomposition of Delta(-t) using DLR coefficient
         Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag); // Compression of Delta(t) and F, F_dag matrices
         Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);  // Compression of Delta(-t) and F, F_dag matrices
     }
     else {
         auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)
         auto Deltadlr_reflect = itops.vals2coefs(Deltat_reflect); //obtain dlr coefficient of Delta(-t) 
-        auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf); //decomposition of Delta(t) using DLR coefficient
-        auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf); // decomposition of Delta(-t) using DLR coefficient
+        auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf,eps); //decomposition of Delta(t) using DLR coefficient
+        auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf,eps); // decomposition of Delta(-t) using DLR coefficient
         Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag); // Compression of Delta(t) and F, F_dag matrices
         Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);  // Compression of Delta(-t) and F, F_dag matrices
     }

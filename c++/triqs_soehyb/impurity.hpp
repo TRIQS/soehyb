@@ -38,7 +38,7 @@ class fastdiagram{
     * @param[in] Deltat hybridization function in imaginary time, nda array of size r*n*n
     * @param[in] poledlrflag flag for whether to use dlr for pole expansion. True for using dlr. False has not been implemented yet. 
     * */
-    void hyb_decomposition(bool poledlrflag=true);
+    void hyb_decomposition(bool poledlrflag=true, double eps=0.0);
 
     nda::vector<dcomplex> get_it_actual();
 

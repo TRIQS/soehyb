@@ -62,7 +62,7 @@ c.add_constructor("""(double beta, double lambda, double eps, nda::array<dcomple
 c.add_method("""void hyb_init (nda::array<dcomplex, 3> Deltat0, bool poledlrflag = true)""",
              doc = r"""""")
 
-c.add_method("""void hyb_decomposition (bool poledlrflag = true)""",
+c.add_method("""void hyb_decomposition (bool poledlrflag = true, double eps = 0.0)""",
              doc = r"""Parameters
 ----------
 [in]
