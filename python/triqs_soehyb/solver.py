@@ -42,7 +42,7 @@ def Sigma_calc_loop(fd, G_iaa,max_order,verbose=True):
             diag_vec = np.vstack([ np.array(pair, dtype=np.int32) for pair in diag ])
             diag_idx_vec = np.arange(n_diags, dtype=np.int32)
             diag_idx_vec = scatter_array_over_ranks(diag_idx_vec)
-            Sigma_t -= sign * fd.Sigma_calc_group(G_iaa, diag_vec, diag_idx_vec)
+            Sigma_t += pow(-1,ord)* sign * fd.Sigma_calc_group(G_iaa, diag_vec, diag_idx_vec)
     mpi.COMM_WORLD.Allreduce(mpi.IN_PLACE, Sigma_t)
     if is_root() and verbose:
         end_time = time.time()
@@ -65,7 +65,7 @@ def G_calc_loop(fd, G_iaa, max_order,n_g,verbose=True):
             diag_vec = np.vstack([ np.array(pair, dtype=np.int32) for pair in diag ])
             diag_idx_vec = np.arange(n_diags, dtype=np.int32)
             diag_idx_vec = scatter_array_over_ranks(diag_idx_vec)
-            g_iaa -= sign * fd.G_calc_group(G_iaa, diag_vec, diag_idx_vec)
+            g_iaa += pow(-1,ord)* sign * fd.G_calc_group(G_iaa, diag_vec, diag_idx_vec)
     mpi.COMM_WORLD.Allreduce(mpi.IN_PLACE, g_iaa) 
 
     if is_root() and verbose:
@@ -120,7 +120,7 @@ class Solver(object):
 
         self.eta = 0.
     
-    def set_hybridization(self,delta_iaa,poledlrflag=True,delta_diff = 1.0,fittingeps = 2e-6,printing=True):
+    def set_hybridization(self,delta_iaa,poledlrflag=True,delta_diff = 1.0,fittingeps = 2e-6,verbose=True,Hermitian=False):
         if poledlrflag == True:
            
             self.fd.hyb_init(delta_iaa,poledlrflag=True)
@@ -132,8 +132,8 @@ class Solver(object):
             self.fd.hyb_init(delta_iaa,poledlrflag)
             epstol=min(fittingeps,delta_diff/100)
             Npmax = len(self.fd.dlr_if)-1
-            weights, pol, error = polefitting(self.fd.Deltaiw, 1j*self.fd.dlr_if,eps= epstol,Np_max = Npmax,Hermitian=False)
-            if is_root() and printing:
+            weights, pol, error = polefitting(self.fd.Deltaiw, 1j*self.fd.dlr_if,eps= epstol,Np_max = Npmax,Hermitian=Hermitian)
+            if is_root() and verbose:
                 print("Error in time domain")
                 
                 print(np.max(np.abs(delta_iaa + g_iaa_reconstruct(pol*self.beta,weights,self.tau_i/self.beta))))
@@ -141,12 +141,12 @@ class Solver(object):
             
         
             if error<epstol and len(pol)<len(self.tau_i):
-                if is_root() and printing:
+                if is_root() and verbose:
                     print("using aaa poles, number of poles is ",len(pol))
                 self.fd.copy_aaa_result(pol, weights,-pol,weights)
                 self.fd.hyb_decomposition(poledlrflag)
             else:
-                if is_root() and printing:
+                if is_root() and verbose:
                     print("using dlr poles")
             
                 self.fd.hyb_init(delta_iaa,poledlrflag=True)
