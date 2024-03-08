@@ -149,7 +149,7 @@ class Solver(object):
 
         
     def set_hybridization(self, delta_iaa,
-                          poledlrflag=True, delta_diff=1.0, fittingeps=2e-6,
+                          compress=False, delta_diff=1.0, fittingeps=2e-6,
                           Hermitian=False, verbose=True):
         
         """ TODO: Explain interplay of all the flags
@@ -162,13 +162,12 @@ class Solver(object):
         delta_iaa : (n, m, m) ndarray
             Hybridization function on imaginary time DLR nodes.
 
-        poledlrflag : bool, optional
+        compress : bool, optional
             What does this flag do?
-            Use the full DLR representation to represent the hybridization function.
-            Default `True`
+            if True then use AAA-fitting poles; if False use dlr poles
+            Default `False`
         
-            (How about doint the inverse logic? and replace `poledlrflag` with flag called `compress=False`)
-            I think this would be more intuitive for the user to understand.
+            
 
         delta_diff : float, optional
             current difference of hybridization functions in DMFT iterations. 
@@ -191,7 +190,7 @@ class Solver(object):
         """
 
         
-        if poledlrflag == True:
+        if compress == False:
            
             self.fd.hyb_init(delta_iaa, poledlrflag=True)
             self.fd.hyb_decomposition(poledlrflag=True, eps=fittingeps/10)
@@ -199,7 +198,7 @@ class Solver(object):
         else:
             #decomposition and reflection of Delta(t) using aaa poles
             
-            self.fd.hyb_init(delta_iaa, poledlrflag)
+            self.fd.hyb_init(delta_iaa, poledlrflag=False)
             epstol = min(fittingeps, delta_diff/1000)
             Npmax = len(self.fd.dlr_if)-1
             weights, pol, error = polefitting(self.fd.Deltaiw, 1j*self.fd.dlr_if,
@@ -213,7 +212,7 @@ class Solver(object):
                 if is_root() and verbose:
                     print("using aaa poles, number of poles is ",len(pol))
                 self.fd.copy_aaa_result(pol, weights,-pol,weights)
-                self.fd.hyb_decomposition(poledlrflag,eps = fittingeps/10)
+                self.fd.hyb_decomposition(poledlrflag=False,eps = fittingeps/10)
             else:
                 if is_root() and verbose:
                     print("using dlr poles")
