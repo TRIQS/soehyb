@@ -11,12 +11,23 @@ from pyed.TriqsExactDiagonalization import TriqsExactDiagonalization
 from .pycppdlr import build_dlr_rf
 from .pycppdlr import ImTimeOps
 
-from pydlr import kernel # fixme! remove pydlr dependence
-
 from .ac_pes import polefitting
 from .impurity import Fastdiagram
 from .diag import all_connected_pairings
 
+def kernel(tau, omega):
+    kernel = np.empty((len(tau), len(omega)))
+
+    p, = np.where(omega > 0.)
+    m, = np.where(omega <= 0.)
+    w_p, w_m = omega[p].T, omega[m].T
+
+    tau = tau[:, None]
+
+    kernel[:, p] = np.exp(-tau*w_p) / (1 + np.exp(-w_p))
+    kernel[:, m] = np.exp((1. - tau)*w_m) / (1 + np.exp(w_m))
+
+    return kernel
 
 def is_root():
     comm = mpi.COMM_WORLD
