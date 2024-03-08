@@ -99,7 +99,7 @@ if __name__ == '__main__':
     verbose=True
     #ppsc iterations
     for max_order in [1,2,3]: 
-        Impurity.solve(max_order,  ppsc_maxiter=ppsc_maxiter,ppsc_tol = ppsc_tol, update_eta_exact = False , verbose=verbose)          
+        Impurity.solve(max_order,  maxiter=ppsc_maxiter,tol = ppsc_tol, update_eta_exact = False , verbose=verbose)          
         g_iaa = Impurity.calc_spgf(max_order, verbose=verbose)
         g_xaa = ito.vals2coefs(g_iaa)
         

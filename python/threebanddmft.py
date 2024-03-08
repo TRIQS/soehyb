@@ -144,7 +144,7 @@ def run_calc(beta, lamb, eps, order,
         Impurity = Solver(beta, lamb, eps, H, fundamental_operators)
         if dmft_iter==0: delta_iaa = construct_delta_iaa(Impurity.fd.get_it_actual().real, beta, T_diag, r, norb) 
         Impurity.set_hybridization(delta_iaa = delta_iaa,poledlrflag=poledlrflag,delta_diff = delta_diff,fittingeps = 1e-7,verbose=True)
-        Impurity.solve(max_order,  ppsc_maxiter=ppsc_maxiter,ppsc_tol = ppsc_tol, update_eta_exact = True , verbose=verbose)          
+        Impurity.solve(max_order,  maxiter=ppsc_maxiter,tol = ppsc_tol, update_eta_exact = True , verbose=verbose)          
         g_iaa_old = g_iaa
         #calculate single-particle Green's functions diagrams
         g_iaa = Impurity.calc_spgf(max_order, verbose=verbose)
