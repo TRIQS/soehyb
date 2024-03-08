@@ -160,15 +160,17 @@ class Solver(object):
             I think this would be more intuitive for the user to understand.
 
         delta_diff : float, optional
-            What does this flag do?
+            current difference of hybridization functions in DMFT iterations. 
+            The pole fitting tolerance will be enforced to be smaller than delta_diff/1000 to ensure the pole fitting error will not affect DMFT iterations.
+            In one-shot impurity solvers, one can neglect this argument. 
             Default 1.0
 
-        dittingeps : float, optional
-            What does this flag do?
+        fittingeps : float, optional
+            The pole fitting error tolerance
             Default 2e-6
 
         Hermitian : bool, optional
-            What does this flag do?
+            Choice of whether to enforce the weight matrices to be Hermitian or not. 
             Default `False`
 
         verbose : bool, optional
