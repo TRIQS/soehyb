@@ -83,31 +83,14 @@ def eval_semi_circ_tau(tau, beta, h, t):
 
 eval_semi_circ_tau = np.vectorize(eval_semi_circ_tau)
 
+def construct_delta_iaa(tau_i, beta, T_diag, r, norb):
+    delta_iaa = np.zeros((r, 2*norb, 2*norb), dtype=np.complex128)
+    for idx, t_i in enumerate(T_diag):
+        delta_iaa[:, idx, idx] = \
+            t_i**2 * eval_semi_circ_tau(tau_i, beta, h=0.0, t=t_i)   
+    return delta_iaa
 
-
-def run_calc(beta, lamb, eps, order,
-             mu=3.9530058540332917,
-             lamb_soc=0.,
-             write_h5=False, plot_flag=True):
-    max_order=order
-    U = 4.6
-    J = 0.8
-    norb = 3
-    
-    half_filling_shift = 0.5*(5*U - 10*J)
-    mu += half_filling_shift
-    t_diag = np.array([0.5, 0.5, 1.0])
-    T_diag = np.concatenate([t_diag, t_diag])
-    delta_cf = -1.0
-    
-    ppsc_tol = 1e-6
-    ppsc_maxiter = 1
-    dmft_tol = 1e-6
-    dmft_maxiter = 100 # self-cons settings
-    use_symmetry = False
-
-
-    verbose = True
+def construct_impurity_Hamiltonian(norb, U, J, mu, delta_cf):
 
     spin_names = ('up','do')
     orb_names = list(range(norb))
@@ -126,27 +109,41 @@ def run_calc(beta, lamb, eps, order,
     H += delta_cf * N_2 # using that orbital 2 is xy
 
     H += H_soc_from_levi_cevita(lamb_soc)
+    return H,  fundamental_operators
+def run_calc(beta, lamb, eps, order,
+             mu=3.9530058540332917,
+             lamb_soc=0.,poledlrflag=False,
+             write_h5=False, plot_flag=True,ntau=1000):
+    max_order=order
+
+    U, J, norb, delta_cf = 4.6, 0.8, 3,-1.0
+    half_filling_shift = 0.5*(5*U - 10*J)
+    mu += half_filling_shift
+    t_diag = np.array([0.5, 0.5, 1.0])
+    T_diag = np.concatenate([t_diag, t_diag])
     
+    ppsc_tol, ppsc_maxiter = 1e-6, 1
+    dmft_tol, dmft_maxiter = 1e-6, 100
+
+    verbose = True
+
+    #construct local Hamiltonians
+    H,  fundamental_operators = construct_impurity_Hamiltonian(norb, U, J, mu, delta_cf)
+    
+    #itops tools
     dlr_rf = build_dlr_rf(lamb, eps)
     ito = ImTimeOps(lamb, dlr_rf)
     r = ito.rank()
     if is_root(): print(f'N_dlr = {r}')   
     
-    tau_i = ito.get_itnodes()*beta
-    for i1 in range(r):
-        if tau_i[i1]<0: tau_i[i1] = tau_i[i1]+beta 
-   
-    delta_iaa = np.zeros((r, 2*norb, 2*norb), dtype=np.complex128)
-    for idx, t_i in enumerate(T_diag):
-        delta_iaa[:, idx, idx] = \
-            t_i**2 * eval_semi_circ_tau(tau_i, beta, h=0.0, t=t_i)   
-
-    g_iaa = np.zeros_like(delta_iaa)
+    
+    g_iaa = np.zeros((r, 2*norb, 2*norb), dtype=np.complex128)
 
     delta_diff = np.inf 
     for dmft_iter in range(dmft_maxiter):
         Impurity = Solver(beta, lamb, eps, H, fundamental_operators)
-        Impurity.set_hybridization(delta_iaa = delta_iaa,poledlrflag=False,delta_diff = delta_diff,fittingeps = 1e-7,verbose=True)
+        if dmft_iter==0: delta_iaa = construct_delta_iaa(Impurity.fd.get_it_actual().real, beta, T_diag, r, norb) 
+        Impurity.set_hybridization(delta_iaa = delta_iaa,poledlrflag=poledlrflag,delta_diff = delta_diff,fittingeps = 1e-7,verbose=True)
         Impurity.solve(max_order,  ppsc_maxiter=ppsc_maxiter,ppsc_tol = ppsc_tol, update_eta_exact = True , verbose=verbose)          
         g_iaa_old = g_iaa
         #calculate single-particle Green's functions diagrams
@@ -157,7 +154,6 @@ def run_calc(beta, lamb, eps, order,
 
         delta_diff = np.max(np.abs(g_iaa - g_iaa_old))
 
-       
         g_xaa = ito.vals2coefs(g_iaa)
         rho_aa = -ito.coefs2eval(g_xaa, 1.0)
         N = np.sum(np.diag(rho_aa)).real         
@@ -176,99 +172,18 @@ def run_calc(beta, lamb, eps, order,
         return np.vectorize(eval, signature='()->(m,m)')(tau_j)
 
 
-    tau_f = np.linspace(0, beta, num=100)
+    tau_f = np.linspace(0, beta, num=ntau)
 
-    g_xaa = ito.vals2coefs(g_iaa)
-    g_faa = interp(g_xaa, tau_f)
-
-    delta_xaa = ito.vals2coefs(delta_iaa)
-    delta_faa = interp(delta_xaa, tau_f)
-
-    G_xaa = ito.vals2coefs(Impurity.G_iaa)
-    G_faa = interp(G_xaa, tau_f)
-
-    Sigma_xaa = ito.vals2coefs(Impurity.Sigma_iaa)
-    Sigma_faa = interp(Sigma_xaa, tau_f)
-    
+    g_xaa, delta_xaa, G_xaa, Sigma_xaa = ito.vals2coefs(g_iaa), ito.vals2coefs(delta_iaa),ito.vals2coefs(Impurity.G_iaa), ito.vals2coefs(Impurity.Sigma_iaa)
+    g_faa,delta_faa, G_faa, Sigma_faa = interp(g_xaa, tau_f), interp(delta_xaa, tau_f), interp(G_xaa, tau_f),interp(Sigma_xaa, tau_f)
     class Dummy():
         def __init__(self):
             pass
 
     d = Dummy()
     d.N = N
-    
-    if is_root() and write_h5:
-        filename = f'data_cro_fastdiag_{order}_beta_{beta}_soc_{lamb_soc}.h5'
-        print(f'--> Writing: {filename}')
-        with HDFArchive(filename, 'w') as A:
+    d.g_faa,d.delta_faa, d.G_faa, d.Sigma_faa = g_faa,delta_faa, G_faa, Sigma_faa
 
-            A['g_iaa'] = g_iaa
-            A['delta_iaa'] = delta_iaa
-            A['tau_i'] = tau_i
-            
-            A['g_faa'] = g_faa
-            A['delta_faa'] = delta_faa
-            A['tau_f'] = tau_f
-
-            A['G_faa'] = G_faa
-            A['Sigma_faa'] = Sigma_faa
-
-            A['rho'] = rho_aa
-            
-            A['beta'] = beta
-            A['order'] = order
-
-            A['lamb'] = lamb
-            A['eps'] = eps
-
-            A['H'] = H
-            
-            A['U'] = U
-            A['J'] = J
-            A['mu'] = mu
-            A['t_diag'] = t_diag
-            A['delta_cf'] = delta_cf
-            A['lamb_soc'] = lamb_soc
-            A['N'] = N
-
-    if is_root() and plot_flag:
-        import matplotlib.pyplot as plt
-
-        plt.figure(figsize=(8, 8))
-        subp = [6, 6, 1]
-
-        nspinorb = 6
-        rng = [0, 1, 5, 3, 4, 2]
-        lables = [
-            r'$yz \uparrow$',
-            r'$xz \uparrow$',
-            r'$xy \uparrow$',
-            r'$yz \downarrow$',
-            r'$xz \downarrow$',
-            r'$xy \downarrow$',
-            ]
-        for a, b in product(rng, repeat=2):
-            plt.subplot(*subp); subp[-1] += 1
-            la, lb = lables[a], lables[b]
-            plt.title(la + ', ' + lb, fontsize=7)
-            for flt in [np.real, np.imag]:
-                l = plt.plot(
-                    tau_i, flt(g_iaa[:, a, b]),
-                    '.', label=f'g {a},{b}', alpha=0.5)
-                color = l[0].get_color()
-                plt.plot(
-                    tau_f, flt(g_faa[:, a, b]),
-                    '-', color=color, alpha=0.75)
-            #plt.xlabel(r'$\tau$')
-            if a != b: plt.ylim([-0.1, 0.1])
-            else: plt.ylim([-1, 0.05])
-
-        plt.tight_layout()
-        plt.savefig(
-            f'figure_fastdiag_cro_order_{order}_lamb_soc_{lamb_soc}.pdf')
-        plt.show()
-
-    #return ppsc
     return d
 
             
@@ -292,10 +207,10 @@ def fix_N_calc(N_target, mu0, mu1, func):
 
 if __name__ == '__main__':
 
-    order = 2
+    order = 1
     
     parms = [
-        ( 5., 100., 1e-8),
+        ( 5., 100., 1e-8,2),
         # ( 5., 1000., 1e-8),
         ]
 
@@ -315,7 +230,7 @@ if __name__ == '__main__':
 
     lamb_socs = [0.2]
     
-    for beta, lamb, eps in parms:
+    for beta, lamb, eps,order in parms:
 
         for lamb_soc in lamb_socs:
 
@@ -329,7 +244,7 @@ if __name__ == '__main__':
             def N_func(mu, write_h5=False):
                 p = run_calc(beta, lamb, eps, order,
                              lamb_soc=lamb_soc,
-                             mu=mu,
+                             mu=mu,poledlrflag=False,
                              write_h5=write_h5, plot_flag = False)
                 return p.N
 
@@ -343,7 +258,15 @@ if __name__ == '__main__':
                 print('='*72)
                 print('='*72)
 
-            p = N_func(mu, write_h5=True)
+            # p = N_func(mu, write_h5=True)
+            poledlrflag=False
+            result = run_calc(beta, lamb, eps, order,
+                             lamb_soc=lamb_soc,
+                             mu=mu,poledlrflag=poledlrflag,
+                             write_h5=False, plot_flag = False)
+            np.save("dmft_order="+str(order)+"_dlrpole="+str(poledlrflag)+".npy",result.g_faa)
+            
+
             
         
 
