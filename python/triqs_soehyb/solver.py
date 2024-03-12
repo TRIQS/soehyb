@@ -118,7 +118,7 @@ def g_iaa_reconstruct(poles,weights,tau_i):
 
 class Solver(object):
 
-    def __init__(self, beta, lamb, eps, H_loc, fundamental_operators,G0_iaa = None):
+    def __init__(self, beta, lamb, eps, H_loc, fundamental_operators,G0_iaa = np.array([np.inf])):
 
         self.lamb = lamb
         self.eps = eps
@@ -142,10 +142,13 @@ class Solver(object):
 
         self.fd = Fastdiagram(beta, lamb, eps, self.F, self.F_dag)
         self.tau_i = self.fd.get_it_actual().real
-        if G0_iaa ==None:
-            self.G0_iaa = self.fd.free_greens_ppsc(beta, self.H_mat)
-        else:
+        if len(G0_iaa.shape)==3:
+            if is_root():
+                print("using previous DMFT G")
             self.G0_iaa = G0_iaa
+            
+        else:
+            self.G0_iaa = self.fd.free_greens_ppsc(beta, self.H_mat)
         self.G_iaa = self.G0_iaa.copy()
 
         self.eta = 0.
