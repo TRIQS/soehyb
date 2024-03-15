@@ -24,6 +24,10 @@ using namespace nda;
 
 module.add_function("""nda::vector<double> build_dlr_rf(double lambda, double eps)""")
 
+module.add_enum(c_name = "cppdlr::statistic_t",
+         c_namespace = "",
+         values = ["cppdlr::Boson","cppdlr::Fermion"])
+
 # The class imtime_ops
 c = class_(
         py_type = "ImTimeOps",  # name of the python class
@@ -38,6 +42,8 @@ c.add_method("""nda::array<dcomplex, 3> vals2coefs(nda::array<dcomplex, 3> g)"""
 c.add_method("""nda::array<dcomplex, 3> coefs2vals(nda::array<dcomplex, 3> g)""")
 c.add_method("""nda::array<dcomplex, 3> reflect(nda::array<dcomplex, 3> g)""")
 c.add_method("""nda::array<dcomplex, 2> coefs2eval(nda::array<dcomplex, 3> g, double t)""")
+
+c.add_method("""nda::array<dcomplex, 3> convolve(double beta, cppdlr::statistic_t statistic, nda::array<dcomplex, 3> fc, nda::array<dcomplex, 3> gc, bool time_order = false)""")
 
 c.add_method("""nda::vector_const_view<double> get_itnodes()""")
 c.add_method("""nda::vector_const_view<double> get_rfnodes()""")
