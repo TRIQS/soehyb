@@ -43,7 +43,7 @@ def scatter_array_over_ranks(arr):
     return arr_rank
 
 
-def Sigma_calc_loop(fd, G_iaa,max_order,verbose=True):
+def Sigma_calc_loop(fd, G_iaa, max_order, verbose=True):
 
     assert( max_order >= 1 )
     assert( type(fd) == Fastdiagram )
@@ -55,12 +55,14 @@ def Sigma_calc_loop(fd, G_iaa,max_order,verbose=True):
     
     for ord in range(1, max_order+1):
         n_diags = fd.number_of_diagrams(ord)
+        
         if is_root() and verbose:
-            print(f"order = {ord}")
-            print(f'n_diags = {n_diags}')
+            print(f"PPSC: Sigma order = {ord}, n_diags = {n_diags}")
+
         for sign, diag in all_connected_pairings(ord):
-            if  is_root() and verbose:
-                print(sign, diag)
+
+            #if is_root() and verbose: print(sign, diag)
+            
             diag_vec = np.vstack([ np.array(pair, dtype=np.int32) for pair in diag ])
             diag_idx_vec = np.arange(n_diags, dtype=np.int32)
             diag_idx_vec = scatter_array_over_ranks(diag_idx_vec)
@@ -71,12 +73,12 @@ def Sigma_calc_loop(fd, G_iaa,max_order,verbose=True):
     if is_root() and verbose:
         end_time = time.time()
         elapsed_time = end_time - start_time
-        print("Time spent is ",elapsed_time)
+        print(f"PPSC: Sigma time {elapsed_time:2.2E}s.")
 
     return Sigma_t
 
 
-def G_calc_loop(fd, G_iaa, max_order,n_g,verbose=True):
+def G_calc_loop(fd, G_iaa, max_order, n_g, verbose=True):
 
     if verbose:
         start_time = time.time()
@@ -85,12 +87,14 @@ def G_calc_loop(fd, G_iaa, max_order,n_g,verbose=True):
 
     for ord in range(1, max_order+1):
         n_diags = fd.number_of_diagrams(ord)
+
         if is_root() and verbose:
-            print(f"order = {ord}")
-            print(f'n_diags = {n_diags}')
+            print(f"PPSC: SPGF order = {ord}, n_diags = {n_diags}")
+            
         for sign, diag in all_connected_pairings(ord):
-            if  is_root():
-                print(sign, diag)
+
+            #if is_root(): print(sign, diag)
+                
             diag_vec = np.vstack([ np.array(pair, dtype=np.int32) for pair in diag ])
             diag_idx_vec = np.arange(n_diags, dtype=np.int32)
             diag_idx_vec = scatter_array_over_ranks(diag_idx_vec)
@@ -101,7 +105,7 @@ def G_calc_loop(fd, G_iaa, max_order,n_g,verbose=True):
     if is_root() and verbose:
         end_time = time.time()
         elapsed_time = end_time - start_time
-        print("Time spent is ",elapsed_time)
+        print(f"PPSC: SPGF Time {elapsed_time:2.2E}s.")
         
     return g_iaa
 
@@ -194,7 +198,6 @@ class Solver(object):
             Defailt `True`
         
         """
-
         
         if compress == False:
            
@@ -212,16 +215,16 @@ class Solver(object):
 
             if is_root() and verbose:
                 diff = np.max(np.abs(delta_iaa + g_iaa_reconstruct(pol*self.beta, weights, self.tau_i/self.beta)))
-                print(f"Time domain diff {diff:2.2E}")
+                print(f"PPSC: Hybridization fit tau-diff {diff:2.2E}")
         
             if error < epstol and len(pol)<len(self.tau_i):
                 if is_root() and verbose:
-                    print("using aaa poles, number of poles is ",len(pol))
+                    print(f"PPSC: Hybridization using {len(pol)} AAA poles.")
                 self.fd.copy_aaa_result(pol, weights,-pol,weights)
                 self.fd.hyb_decomposition(poledlrflag=False,eps = fittingeps/10)
             else:
                 if is_root() and verbose:
-                    print("using dlr poles")
+                    print("PPSC: Hybridization using all DLR poles.")
             
                 self.fd.hyb_init(delta_iaa,poledlrflag=True)
                 self.fd.hyb_decomposition(poledlrflag=True,eps = fittingeps/10)
@@ -230,39 +233,47 @@ class Solver(object):
     def energyshift_bisection(self, Sigma_t, verbose=True):
         
         def target_function(eta_h):
-            G_new_eta=self.fd.time_ordered_dyson(self.beta,self.H_mat,eta_h,Sigma_t)
+            G_new_eta = self.fd.time_ordered_dyson(
+                self.beta, self.H_mat, eta_h, Sigma_t)
             Z_h = self.fd.partition_function(G_new_eta)
-            Omega_h = np.log(np.abs(Z_h))/self.beta
+            Omega_h = np.log(np.abs(Z_h)) / self.beta            
             return Omega_h
+        
         Omega = target_function(self.eta)
+
         if is_root() and verbose:
-            print("Current Omega is ",Omega)
-        if np.abs(Omega)>0:
+            print(f"PPSC: Omega = {Omega}")
+
+        if np.abs(Omega) > 0:
+            
             E_max = self.eta.real if Omega<0. else 0.5*self.lamb/self.beta
             E_min = self.eta.real if Omega>0. else 0.
-            bracket=[E_min,E_max]
-            sol=root_scalar(target_function, method='brenth', fprime=False, bracket=bracket, rtol=1e-10,options={'disp': True})
-            self.eta = sol.root
+            
+            bracket=[E_min, E_max]
+            
+            sol = root_scalar(target_function, method='brenth',
+                              fprime=False, bracket=bracket, rtol=1e-10, options={'disp': True})
+            
             if not sol.converged and is_root():
-                print("Energy shift failed")
+                print("PPSC: Warning! Energy shift failed.")
                 print(sol)
 
-                
-    def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True , mix=1.0, verbose=True):
+            return sol.root
+
+
+    def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True, mix=1.0, verbose=True):
 
         for iter in range(maxiter):
             
-            #calculate pseudo-particle self energy diagrams
             Sigma_t = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=True)
 
             if update_eta_exact:
-                #decide eta through bisection
-                self.energyshift_bisection(Sigma_t, verbose=verbose)
-            
-                #solver pseudo-particle Dyson equatipon
-                G_iaa_new = self.fd.time_ordered_dyson(self.beta,self.H_mat,self.eta,Sigma_t)
+                self.eta = self.energyshift_bisection(Sigma_t, verbose=verbose)
+                G_iaa_new = self.fd.time_ordered_dyson(self.beta, self.H_mat, self.eta, Sigma_t)
+
             else:
                 G_iaa_new = self.fd.time_ordered_dyson(self.beta, self.H_mat, self.eta, Sigma_t)
+
                 Z = self.fd.partition_function(G_iaa_new)
                 deta = np.log(Z) / self.beta
                 G_iaa_new[:] *= np.exp(-self.tau_i * deta)[:, None, None]
@@ -271,7 +282,7 @@ class Solver(object):
             if is_root():
                 # Expect Z = 1
                 Z = self.fd.partition_function(G_iaa_new)
-                print(f"Z = {Z}")
+                print(f"PPSC: Z-1 = {Z-1:2.2E}")
             
             diff = np.max(np.abs(self.G_iaa - G_iaa_new))
             
