@@ -122,7 +122,7 @@ def g_iaa_reconstruct(poles,weights,tau_i):
 
 class Solver(object):
 
-    def __init__(self, beta, lamb, eps, H_loc, fundamental_operators,G0_iaa = np.array([np.inf])):
+    def __init__(self, beta, lamb, eps, H_loc, fundamental_operators, G0_iaa=None):
 
         self.lamb = lamb
         self.eps = eps
@@ -136,25 +136,26 @@ class Solver(object):
 
         self.ed = TriqsExactDiagonalization(H_loc, fundamental_operators, beta)
 
-        self.F_dag = np.array([np.array(self.ed.rep.sparse_operators.c_dag[idx].todense()) for idx in range(len(fundamental_operators))])
+        self.F_dag = np.array([
+            np.array(self.ed.rep.sparse_operators.c_dag[idx].todense())
+            for idx in range(len(fundamental_operators))])
+
         self.F = np.array([np.array(
             self.ed.rep.sparse_operators.c_dag[idx].T.conj().todense())
             for idx in range(len(fundamental_operators)) ])
-
         
         self.H_mat = np.array(self.ed.ed.H.todense())
 
         self.fd = Fastdiagram(beta, lamb, eps, self.F, self.F_dag)
         self.tau_i = self.fd.get_it_actual().real
-        if len(G0_iaa.shape)==3:
-            if is_root():
-                print("using previous DMFT G")
+        
+        if type(G0_iaa) == np.ndarray and len(G0_iaa.shape) == 3:
+            if is_root(): print("PPSC: Starting from given G0_iaa")
             self.G0_iaa = G0_iaa
-            
         else:
             self.G0_iaa = self.fd.free_greens_ppsc(beta, self.H_mat)
-        self.G_iaa = self.G0_iaa.copy()
 
+        self.G_iaa = self.G0_iaa.copy()
         self.eta = 0.
 
         
@@ -162,9 +163,7 @@ class Solver(object):
                           compress=False, delta_diff=1.0, fittingeps=2e-6,
                           Hermitian=False, verbose=True):
         
-        """ TODO: Explain interplay of all the flags
-
-        Set the hybridization function of the expansion.
+        """Set the hybridization function of the expansion.
 
         Parameters
         ----------
@@ -173,15 +172,15 @@ class Solver(object):
             Hybridization function on imaginary time DLR nodes.
 
         compress : bool, optional
-            What does this flag do?
-            if True then use AAA-fitting poles; if False use dlr poles
+            The hybridization is by default represented using the DLR poles. When enabling
+            compression the representation is reduced to an (if possible) even smaller
+            number of customized poles, using the AAA algorithm.
             Default `False`
-        
-            
 
         delta_diff : float, optional
-            current difference of hybridization functions in DMFT iterations. 
-            The pole fitting tolerance will be enforced to be smaller than delta_diff/1000 to ensure the pole fitting error will not affect DMFT iterations.
+            Current maximal difference between DMFT self-consistent steps in the  hybridization function. 
+            The pole fitting tolerance `fittingeps` will be constrained to `fittingeps < delta_diff / 1000`
+            to ensure the pole fitting error will not affect the self-consistent iterations.
             In one-shot impurity solvers, one can neglect this argument. 
             Default 1.0
 
@@ -190,7 +189,7 @@ class Solver(object):
             Default 2e-6
 
         Hermitian : bool, optional
-            Choice of whether to enforce the weight matrices to be Hermitian or not. 
+            Enforce the hybridization representation to be Hermitian. 
             Default `False`
 
         verbose : bool, optional
@@ -199,42 +198,46 @@ class Solver(object):
         
         """
         
-        if compress == False:
-           
+        if compress == False:        
             self.fd.hyb_init(delta_iaa, poledlrflag=True)
             self.fd.hyb_decomposition(poledlrflag=True, eps=fittingeps/10)
             
         else:
-            #decomposition and reflection of Delta(t) using aaa poles
+            # decomposition and reflection of Delta(t) using aaa poles
             
             self.fd.hyb_init(delta_iaa, poledlrflag=False)
             epstol = min(fittingeps, delta_diff/1000)
-            Npmax = len(self.fd.dlr_if)-1
-            weights, pol, error = polefitting(self.fd.Deltaiw, 1j*self.fd.dlr_if,
-                                              eps=epstol, Np_max=Npmax, Hermitian=Hermitian)
+            Npmax = len(self.fd.dlr_if) - 1
+            
+            weights, pol, error = polefitting(
+                self.fd.Deltaiw, 1j*self.fd.dlr_if,
+                eps=epstol, Np_max=Npmax, Hermitian=Hermitian)
 
             if is_root() and verbose:
-                diff = np.max(np.abs(delta_iaa + g_iaa_reconstruct(pol*self.beta, weights, self.tau_i/self.beta)))
+                diff = np.max(np.abs(
+                    delta_iaa + g_iaa_reconstruct(
+                        pol*self.beta, weights, self.tau_i/self.beta)))
                 print(f"PPSC: Hybridization fit tau-diff {diff:2.2E}")
         
             if error < epstol and len(pol)<len(self.tau_i):
                 if is_root() and verbose:
                     print(f"PPSC: Hybridization using {len(pol)} AAA poles.")
-                self.fd.copy_aaa_result(pol, weights,-pol,weights)
-                self.fd.hyb_decomposition(poledlrflag=False,eps = fittingeps/10)
+                    
+                self.fd.copy_aaa_result(pol, weights, -pol, weights)
+                self.fd.hyb_decomposition(poledlrflag=False, eps=fittingeps/10)
             else:
                 if is_root() and verbose:
                     print("PPSC: Hybridization using all DLR poles.")
             
-                self.fd.hyb_init(delta_iaa,poledlrflag=True)
-                self.fd.hyb_decomposition(poledlrflag=True,eps = fittingeps/10)
+                self.fd.hyb_init(delta_iaa, poledlrflag=True)
+                self.fd.hyb_decomposition(poledlrflag=True, eps=fittingeps/10)
 
 
-    def energyshift_bisection(self, Sigma_t, verbose=True):
+    def energyshift_bisection(self, Sigma_iaa, verbose=True):
         
         def target_function(eta_h):
             G_new_eta = self.fd.time_ordered_dyson(
-                self.beta, self.H_mat, eta_h, Sigma_t)
+                self.beta, self.H_mat, eta_h, Sigma_iaa)
             Z_h = self.fd.partition_function(G_new_eta)
             Omega_h = np.log(np.abs(Z_h)) / self.beta            
             return Omega_h
@@ -246,8 +249,8 @@ class Solver(object):
 
         if np.abs(Omega) > 0:
             
-            E_max = self.eta.real if Omega<0. else 0.5*self.lamb/self.beta
-            E_min = self.eta.real if Omega>0. else 0.
+            E_max = self.eta.real if Omega < 0. else 0.5*self.lamb/self.beta
+            E_min = self.eta.real if Omega > 0. else 0.
             
             bracket=[E_min, E_max]
             
@@ -261,18 +264,52 @@ class Solver(object):
             return sol.root
 
 
+    def energyshift_newton(self, Sigma_iaa, tol=1e-10, verbose=True):
+
+        def target_function(eta):
+        
+            G_iaa_new = self.fd.time_ordered_dyson(self.beta, self.H_mat, eta, Sigma_iaa)
+            Z = self.fd.partition_function(G_iaa_new)
+            Omega = np.log(np.abs(Z)) / self.beta
+
+            if verbose and is_root():
+                print(f'Z = {Z}')
+                print(f'Omega = {Omega}')
+
+            G_xaa = self.ito.vals2coefs(G_iaa_new)
+            GG_xaa = self.ito.convolve(self.beta, "cppdlr::Fermion", G_xaa, G_xaa, True)
+            TrGGb = self.fd.partition_function(GG_xaa)
+            dOmega = TrGGb / self.beta / Z
+
+            return Omega, dOmega
+
+        from scipy.optimize import root_scalar
+        
+        sol = root_scalar(
+            target_function, x0=self.eta, method='newton', fprime=True, rtol=tol)
+
+        if not sol.converged and is_root():
+            print('PPSC: Warning! Energy shift Newton search failed.')
+            print(sol)
+
+        if not sol.converged:
+            return self.energyshift_bisection(Sigma_iaa, verbose=verbose)
+        
+        return sol.root
+        
+
     def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True, mix=1.0, verbose=True):
 
         for iter in range(maxiter):
             
-            Sigma_t = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=True)
+            Sigma_iaa = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=verbose)
 
             if update_eta_exact:
-                self.eta = self.energyshift_bisection(Sigma_t, verbose=verbose)
-                G_iaa_new = self.fd.time_ordered_dyson(self.beta, self.H_mat, self.eta, Sigma_t)
-
+                self.eta = self.energyshift_newton(Sigma_iaa, verbose=False)
+                G_iaa_new = self.fd.time_ordered_dyson(self.beta, self.H_mat, self.eta, Sigma_iaa)
+                
             else:
-                G_iaa_new = self.fd.time_ordered_dyson(self.beta, self.H_mat, self.eta, Sigma_t)
+                G_iaa_new = self.fd.time_ordered_dyson(self.beta, self.H_mat, self.eta, Sigma_iaa)
 
                 Z = self.fd.partition_function(G_iaa_new)
                 deta = np.log(Z) / self.beta
@@ -287,7 +324,7 @@ class Solver(object):
             diff = np.max(np.abs(self.G_iaa - G_iaa_new))
             
             self.G_iaa = mix*G_iaa_new + (1-mix)*self.G_iaa 
-            self.Sigma_iaa = Sigma_t
+            self.Sigma_iaa = Sigma_iaa
 
             if is_root(): print(f'PPSC: iter = {iter:3d} diff = {diff:2.2E}')
             if diff < tol: break
