@@ -24,8 +24,6 @@
 #include <nda/linalg/eigenelements.hpp>
 #include <type_traits>
 
-#include "timer.hpp"
-
 namespace cppdlr {
 
   /**
