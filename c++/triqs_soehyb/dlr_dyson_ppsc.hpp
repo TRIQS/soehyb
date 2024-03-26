@@ -24,6 +24,8 @@
 #include <nda/linalg/eigenelements.hpp>
 #include <type_traits>
 
+#include "timer.hpp"
+
 namespace cppdlr {
 
   /**
@@ -56,11 +58,8 @@ namespace cppdlr {
       // grid.
 
       int r    = itops_ptr->rank();                       // DLR rank
-      auto g0  = free_gf_ppsc(beta, itops, h); // Free Green's function (right hand side of Dyson equation
-      auto g0c = itops_ptr->vals2coefs(g0);               // DLR coefficients of free Green's function
-
-      // Get matrix of convolution by free Green's function
-      g0mat = itops_ptr->convmat(beta, Fermion, g0c, time_order);
+      g0  = free_gf_ppsc(beta, itops, h); // Free Green's function (right hand side of Dyson equation
+      g0c = itops_ptr->vals2coefs(g0);               // DLR coefficients of free Green's function
 
       // Get right hand side of Dyson equation
       if constexpr (std::floating_point<Ht>) { // If h is real scalar, rhs is a vector
@@ -94,11 +93,18 @@ namespace cppdlr {
       int r     = itops_ptr->rank();          // DLR rank
       auto sigc = itops_ptr->vals2coefs(sig); // DLR coefficients of self-energy
 
-      // Obtain Dyson equation system matrix I - G0 * Sig, where G0 and Sig are the
-      // matrices of convolution by the free Green's function and self-energy,
-      // respectively.
-      auto sysmat = make_regular(nda::eye<double>(r * norb) - g0mat * eta - g0mat * itops_ptr->convmat(beta, Fermion, sigc, time_order));
-
+      // Obtain Dyson equation system matrix I - G0 * eta - G0 * Sig by only
+      // building a single matrix of convolution for (G0 * eta - G0 * Sig)
+      // the product G0 * Sig is computed using matrix free convolution
+      // avoiding matrix matrix operations (2x speedup and 1/2 memory foot print)
+      
+      auto ggs = itops_ptr->convolve(beta, Fermion, g0c, sigc, time_order);
+      ggs += eta * g0;
+      ggs *= -1.0;
+      
+      nda::matrix<Sh> sysmat = itops_ptr->convmat(beta, Fermion, itops_ptr->vals2coefs(ggs), time_order);
+      sysmat += nda::eye<double>(r * norb);
+      
       // Factorize system matrix
       auto ipiv = nda::vector<int>(r * norb);
       nda::lapack::getrf(sysmat, ipiv);
@@ -108,6 +114,7 @@ namespace cppdlr {
       g         = rhs;                                                                // Get right hand side of Dyson equation
       auto g_rs = nda::matrix_view<get_value_t<Tg>>(nda::reshape(g, norb, r * norb)); // Reshape g to be compatible w/ LAPACK
       nda::lapack::getrs(sysmat, g_rs, ipiv);                                         // Back solve
+
       if constexpr (std::floating_point<Ht>) {                                        // If h is scalar, g is scalar-valued
         return g;
       } else { // Otherwise, g is matrix-valued, and need to transpose some indices after solve to undo LAPACK formatting
@@ -123,7 +130,8 @@ namespace cppdlr {
 
     typename std::conditional_t<std::floating_point<Ht>, nda::array<Sh, 1>, nda::array<Sh, 3>>
        rhs; ///< Right hand side of Dyson equation (in format compatible w/ LAPACK); vector if Hamiltonian is scalar, rank-3 array otherwise
-    nda::matrix<Sh> g0mat; ///< Matrix of convolution by free Green's function
+    nda::array<Sh, 3> g0; ///< free Green's function 
+    nda::array<Sh, 3> g0c; ///< free Green's function DLR coefficients
   };
 
   /**
