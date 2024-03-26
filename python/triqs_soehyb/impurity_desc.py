@@ -9,6 +9,7 @@ module = module_(full_name = "impurity", doc = r"", app_name = "impurity")
 
 # Add here all includes
 module.add_include("impurity.hpp")
+module.add_include("dlr_dyson_ppsc.hpp")
 
 # Add here anything to add in the C++ code at the start, e.g. namespace using
 module.add_preamble("""
@@ -128,6 +129,21 @@ c.add_method("""void copy_aaa_result (nda::vector<double> pol0, nda::array<dcomp
 
 module.add_class(c)
 
+
+# The class dyson_it_ppsc
+c = class_(
+        py_type = "DysonItPPSC",  # name of the python class
+        c_type = "dyson_it_ppsc<nda::array<dcomplex, 2> >",   # name of the C++ class
+        doc = r"""""",   # doc of the C++ class
+        hdf5 = False,
+)
+
+c.add_constructor("""(double beta, imtime_ops itops, nda::array<dcomplex, 2> H)""", doc = r"""""")
+
+c.add_method("""nda::array<dcomplex, 3> solve(nda::array_view<dcomplex, 3> Sigma_t, double eta)""",
+             doc = r"""""")
+
+module.add_class(c)
 
 
 module.generate_code()
