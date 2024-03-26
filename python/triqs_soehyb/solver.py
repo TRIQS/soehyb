@@ -11,23 +11,11 @@ from pyed.TriqsExactDiagonalization import TriqsExactDiagonalization
 from .pycppdlr import build_dlr_rf
 from .pycppdlr import ImTimeOps
 
-from .ac_pes import polefitting
 from .impurity import Fastdiagram, DysonItPPSC
+from .ac_pes import polefitting, kernel
 from .diag import all_connected_pairings
 
-def kernel(tau, omega):
-    kernel = np.empty((len(tau), len(omega)))
 
-    p, = np.where(omega > 0.)
-    m, = np.where(omega <= 0.)
-    w_p, w_m = omega[p].T, omega[m].T
-
-    tau = tau[:, None]
-
-    kernel[:, p] = np.exp(-tau*w_p) / (1 + np.exp(-w_p))
-    kernel[:, m] = np.exp((1. - tau)*w_m) / (1 + np.exp(w_m))
-
-    return kernel
 
 def is_root():
     comm = mpi.COMM_WORLD
@@ -210,9 +198,13 @@ class Solver(object):
             self.fd.hyb_init(delta_iaa, poledlrflag=False)
             epstol = min(fittingeps, delta_diff/1000)
             Npmax = len(self.fd.dlr_if) - 1
-            
+            tau_f = np.linspace(0, self.beta, num=100)
+            def interp(g_xaa, tau_j):
+                eval = lambda t : self.ito.coefs2eval(g_xaa, t/self.beta)
+                return np.vectorize(eval, signature='()->(m,m)')(tau_j)
+            Deltat = interp(self.ito.vals2coefs(delta_iaa), tau_f)
             weights, pol, error = polefitting(
-                self.fd.Deltaiw, 1j*self.fd.dlr_if,
+                self.fd.Deltaiw, 1j*self.fd.dlr_if, Deltat, tau_f, self.beta,
                 eps=epstol, Np_max=Npmax, Hermitian=Hermitian)
 
             if is_root() and verbose:
