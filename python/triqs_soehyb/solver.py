@@ -12,7 +12,7 @@ from .pycppdlr import build_dlr_rf
 from .pycppdlr import ImTimeOps
 
 from .ac_pes import polefitting
-from .impurity import Fastdiagram
+from .impurity import Fastdiagram, DysonItPPSC
 from .diag import all_connected_pairings
 
 def kernel(tau, omega):
@@ -105,7 +105,7 @@ def G_calc_loop(fd, G_iaa, max_order, n_g, verbose=True):
     if is_root() and verbose:
         end_time = time.time()
         elapsed_time = end_time - start_time
-        print(f"PPSC: SPGF Time {elapsed_time:2.2E}s.")
+        print(f"PPSC: SPGF time {elapsed_time:2.2E}s.")
         
     return g_iaa
 
@@ -157,6 +157,8 @@ class Solver(object):
 
         self.G_iaa = self.G0_iaa.copy()
         self.eta = 0.
+
+        self.dyson = DysonItPPSC(beta, self.ito, self.H_mat)
 
         
     def set_hybridization(self, delta_iaa,
@@ -236,16 +238,15 @@ class Solver(object):
     def energyshift_bisection(self, Sigma_iaa, verbose=True):
         
         def target_function(eta_h):
-            G_new_eta = self.fd.time_ordered_dyson(
-                self.beta, self.H_mat, eta_h, Sigma_iaa)
-            Z_h = self.fd.partition_function(G_new_eta)
+            G_iaa_new = self.dyson.solve(Sigma_iaa, eta)
+            Z_h = self.fd.partition_function(G_iaa_new)
             Omega_h = np.log(np.abs(Z_h)) / self.beta            
             return Omega_h
         
         Omega = target_function(self.eta)
 
         if is_root() and verbose:
-            print(f"PPSC: Omega = {Omega}")
+            print(f'PPSC: Eta bisection: Z-1 = {Z-1:+2.2E}, Omega = {Omega:+2.2E}')
 
         if np.abs(Omega) > 0:
             
@@ -268,13 +269,13 @@ class Solver(object):
 
         def target_function(eta):
         
-            G_iaa_new = self.fd.time_ordered_dyson(self.beta, self.H_mat, eta, Sigma_iaa)
+            G_iaa_new = self.dyson.solve(Sigma_iaa, eta)
+            
             Z = self.fd.partition_function(G_iaa_new)
             Omega = np.log(np.abs(Z)) / self.beta
 
             if verbose and is_root():
-                print(f'Z = {Z}')
-                print(f'Omega = {Omega}')
+                print(f'PPSC: Eta Newton: Z-1 = {Z-1:+2.2E}, Omega = {Omega:+2.2E}')
 
             G_xaa = self.ito.vals2coefs(G_iaa_new)
             GG_xaa = self.ito.convolve(self.beta, "cppdlr::Fermion", G_xaa, G_xaa, True)
@@ -283,8 +284,6 @@ class Solver(object):
 
             return Omega, dOmega
 
-        from scipy.optimize import root_scalar
-        
         sol = root_scalar(
             target_function, x0=self.eta, method='newton', fprime=True, rtol=tol)
 
@@ -304,23 +303,31 @@ class Solver(object):
             
             Sigma_iaa = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=verbose)
 
+            if verbose:
+                dyson_start_time = time.time()
+                
             if update_eta_exact:
-                self.eta = self.energyshift_newton(Sigma_iaa, verbose=False)
-                G_iaa_new = self.fd.time_ordered_dyson(self.beta, self.H_mat, self.eta, Sigma_iaa)
+                self.eta = self.energyshift_newton(Sigma_iaa, tol=0.1*tol, verbose=verbose)
+                G_iaa_new = self.dyson.solve(Sigma_iaa, self.eta)
                 
             else:
-                G_iaa_new = self.fd.time_ordered_dyson(self.beta, self.H_mat, self.eta, Sigma_iaa)
-
+                G_iaa_new = self.dyson.solve(Sigma_iaa, self.eta)
+                
                 Z = self.fd.partition_function(G_iaa_new)
-                deta = np.log(Z) / self.beta
+                deta = np.log(np.abs(Z)) / self.beta
                 G_iaa_new[:] *= np.exp(-self.tau_i * deta)[:, None, None]
                 self.eta += deta
-
+                
+            if is_root() and verbose:
+                dyson_end_time = time.time()
+                dyson_elapsed_time = dyson_end_time - dyson_start_time
+                print(f"PPSC: Dyson time {dyson_elapsed_time:2.2E}s.")
+                
             if is_root():
                 # Expect Z = 1
                 Z = self.fd.partition_function(G_iaa_new)
-                print(f"PPSC: Z-1 = {Z-1:2.2E}")
-            
+                print(f"PPSC: Z-1 = {Z-1:+2.2E}")
+
             diff = np.max(np.abs(self.G_iaa - G_iaa_new))
             
             self.G_iaa = mix*G_iaa_new + (1-mix)*self.G_iaa 
