@@ -110,7 +110,7 @@ def g_iaa_reconstruct(poles,weights,tau_i):
 
 class Solver(object):
 
-    def __init__(self, beta, lamb, eps, H_loc, fundamental_operators, G0_iaa=None):
+    def __init__(self, beta, lamb, eps, H_loc, fundamental_operators):
 
         self.lamb = lamb
         self.eps = eps
@@ -137,12 +137,12 @@ class Solver(object):
         self.fd = Fastdiagram(beta, lamb, eps, self.F, self.F_dag)
         self.tau_i = self.fd.get_it_actual().real
         
-        if type(G0_iaa) == np.ndarray and len(G0_iaa.shape) == 3:
-            if is_root(): print("PPSC: Starting from given G0_iaa")
-            self.G0_iaa = G0_iaa
-        else:
-            self.G0_iaa = self.fd.free_greens_ppsc(beta, self.H_mat)
-
+        # if type(G0_iaa) == np.ndarray and len(G0_iaa.shape) == 3:
+        #     if is_root(): print("PPSC: Starting from given G0_iaa")
+        #     self.G0_iaa = G0_iaa
+        # else:
+        #     self.G0_iaa = self.fd.free_greens_ppsc(beta, self.H_mat)
+        self.G0_iaa = self.fd.free_greens_ppsc(beta, self.H_mat)
         self.G_iaa = self.G0_iaa.copy()
         self.eta = 0.
 
@@ -292,8 +292,9 @@ class Solver(object):
         return sol.root
         
 
-    def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True, mix=1.0, verbose=True):
-
+    def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True, mix=1.0, verbose=True, G0_iaa = None):
+        if type(G0_iaa) == np.ndarray and len(G0_iaa.shape) == 3:
+            self.G_iaa = G0_iaa
         for iter in range(maxiter):
             
             Sigma_iaa = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=verbose)
