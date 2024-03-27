@@ -119,6 +119,7 @@ hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda:
 }
 
 nda::array<dcomplex,3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
+    auto Gt_reflect = itops.reflect(Gt);
     int r = Gt.shape(0); // size of time grid
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
@@ -140,19 +141,19 @@ nda::array<dcomplex,3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_ref
         int num2 = num % num_diagram_per_fb;
         for (int v = 1;v<m;++v) { fb[v] = num0 % 2; num0 = int(num0/2);}   
 	// BUG! This accumulation has a race condition between threads! FIXME!
-        Diagram = Diagram + eval_one_diagram_G(hyb_F_self, hyb_F_reflect, D, Deltat, Deltat_reflect, Gt, itops, beta, F, F_dag, fb,num , m, n, r, N, P);
+        Diagram = Diagram + eval_one_diagram_G(hyb_F_self, hyb_F_reflect, D, Deltat, Deltat_reflect, Gt, Gt_reflect, itops, beta, F, F_dag, fb,num , m, n, r, N, P);
     }
     // } #end pragma omp parallell
     std::cout << "Total time: " << timer_run << "\n";
     return Diagram;
 }
-nda::array<dcomplex,3> eval_one_diagram_G(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb,int num0, int m, int n, int r, int N, int P){
+nda::array<dcomplex,3> eval_one_diagram_G(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,nda::array_const_view<dcomplex,3> Gt_reflect, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb,int num0, int m, int n, int r, int N, int P){
     //initialize diagram
     auto Diagram = nda::array<dcomplex,3>::zeros({r,n,n});
     if (m==1){
         //evaluate NCA diagram directly
         double constant = 1.0;
-        final_evaluation(Diagram,Gt,itops.reflect(Gt),F,F_dag,n,r,N,constant);
+        final_evaluation(Diagram,Gt,Gt_reflect,F,F_dag,n,r,N,constant);
         return Diagram;
     }
     auto R = nda::vector<int>(m); //utility for iteration
@@ -222,6 +223,7 @@ nda::array<dcomplex,3> eval_one_diagram_G(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
 }
 
 nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb){
+    auto Gt_reflect = itops.reflect(Gt);
     auto const &dlr_it = itops.get_itnodes();  
     //obtain basic parameters
     int r = Gt.shape(0); // size of time grid
@@ -239,7 +241,7 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
     if (m==1){
         //evaluate NCA diagram directly
         double constant = 1.0;
-        final_evaluation(Diagram,Gt,itops.reflect(Gt),F,F_dag,n,r,N,constant);
+        final_evaluation(Diagram,Gt,Gt_reflect,F,F_dag,n,r,N,constant);
         return Diagram;
     }
 
@@ -249,7 +251,7 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
     {
     #pragma omp for
     for (int num=0;num<total_num_diagram;++num){
-        Diagram = Diagram + eval_one_diagram_G(hyb_F_self, hyb_F_reflect, D, Deltat, Deltat_reflect, Gt, itops, beta, F, F_dag, fb,num , m, n, r, N, P);
+        Diagram = Diagram + eval_one_diagram_G(hyb_F_self, hyb_F_reflect, D, Deltat, Deltat_reflect, Gt,Gt_reflect, itops, beta, F, F_dag, fb,num , m, n, r, N, P);
     }   
     }
     return Diagram; 
@@ -349,7 +351,6 @@ nda::array<dcomplex,3> G_OCA_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::ar
     return Diagram; 
 }
 nda::array<dcomplex,3> evaluate_one_diagram(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect, nda::array_const_view<int,2> D, nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb, bool backward, int num0, int m, int n, int r, int N, int P){
-    
     if (m==1){
         //calculate NCA diagram directly
         auto Diagram = nda::array<dcomplex,3>(r,N,N);
@@ -618,7 +619,8 @@ void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcom
            for (int b =0;b<n;++b) T2(k,b,_,_) = matmul(T(k,_,_),F_dag(b,_,_));
         }
         for (int k=0;k<r;++k){
-            T2(k,_,_,_) = arraymult(transpose(Deltat_reflect(k,_,_)), T2(k,_,_,_));
+            T2(k,_,_,_) = arraymult((Deltat_reflect(k,_,_)), T2(k,_,_,_)); //deleted transpose of Deltat_reflect
+            // T2(k,_,_,_) = arraymult((transpose(Deltat_reflect(k,_,_))), T2(k,_,_,_)); 
         }
         // T = sum_a Fdag_a T2(a,ts) 
         for (int k=0;k<r;++k){

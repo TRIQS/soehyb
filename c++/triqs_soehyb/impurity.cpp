@@ -42,7 +42,9 @@ nda::array<dcomplex,3> fastdiagram::free_greens_ppsc(double beta, nda::array<dco
 }
 void fastdiagram::hyb_init(nda::array<dcomplex,3> Deltat0, bool poledlrflag){
     Deltat = Deltat0;
-    Deltat_reflect = itops.reflect(Deltat); // obtain Delta(-t) from Delta(t)
+    auto Deltat_reflect_intermediate = itops.reflect(Deltat); // obtain Delta(-t) from Delta(t)
+    Deltat_reflect = Deltat_reflect_intermediate;
+    for (int i=0;i<r;++i) Deltat_reflect(i,_,_) = transpose(Deltat_reflect_intermediate(i,_,_));
     if (poledlrflag == false) {
         auto ifops = imfreq_ops(lambda, dlr_rf,Fermion);
         dlr_if = ((2.0*ifops.get_ifnodes())+1.0)*(std::atan2(0,-1))/beta;
@@ -136,18 +138,19 @@ nda::array<dcomplex,3> fastdiagram::G_calc_group(nda::array<dcomplex,3> Gt, nda:
     int m = D.shape(0);
     auto Diagram = nda::array<dcomplex,3>::zeros({r,n,n});
     int num_diagram_per_fb = pow(P,m-1); 
+    auto Gt_reflect = itops.reflect(Gt);
+    // for (int i=0; i<r; ++i) Gt_reflect(i,_,_) = transpose(Gt_reflect(i,_,_));
     for (int id = 0; id<Nd; ++id){
         auto fb = nda::vector<int>(m); //utility for iteration
         int num = diagramindex(id);
         int num0 = floor(num/num_diagram_per_fb);
         int num2 = num % num_diagram_per_fb;
         for (int v = 1;v<m;++v) { fb[v] = num0 % 2; num0 = int(num0/2);}   
-        Diagram = Diagram + eval_one_diagram_G(Delta_F, Delta_F_reflect, D, Deltat, Deltat_reflect, Gt, itops, beta, F, F_dag, fb,num , m, n, r, N, P); 
+        Diagram = Diagram + eval_one_diagram_G(Delta_F, Delta_F_reflect, D, Deltat, Deltat_reflect, Gt,Gt_reflect, itops, beta, F, F_dag, fb,num , m, n, r, N, P); 
     }
     return Diagram;
 }
 nda::array<dcomplex,3> fastdiagram::G_calc(nda::array<dcomplex,3> Gt, std::string order){
-
     if ( order.compare("NCA") != 0 && order.compare("OCA") != 0 && order.compare("TCA") != 0)
         throw std::runtime_error("order needs to be NCA, OCA or TCA\n");
 
