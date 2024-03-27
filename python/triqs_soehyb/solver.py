@@ -216,8 +216,11 @@ class Solver(object):
             if error < epstol and len(pol)<len(self.tau_i):
                 if is_root() and verbose:
                     print(f"PPSC: Hybridization using {len(pol)} AAA poles.")
-                    
-                self.fd.copy_aaa_result(pol, weights, -pol, weights)
+                
+                weights_reflect = weights.copy()
+                for i in range(weights.shape[0]):
+                    weights_reflect[i,:,:] = np.transpose(weights[i,:,:])
+                self.fd.copy_aaa_result(pol, weights, -pol, weights_reflect)
                 self.fd.hyb_decomposition(poledlrflag=False, eps=fittingeps/10)
             else:
                 if is_root() and verbose:
