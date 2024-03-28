@@ -226,7 +226,7 @@ class Solver(object):
                 self.fd.hyb_decomposition(poledlrflag=False, eps=fittingeps/delta_iaa.shape[1])
             else:
                 if is_root() and verbose:
-                    print("PPSC: Hybridization using all DLR poles.")
+                    print(f"PPSC: Hybridization using all {self.ito.rank()} DLR poles.")
             
                 self.fd.hyb_init(delta_iaa, poledlrflag=True)
                 self.fd.hyb_decomposition(poledlrflag=True, eps=fittingeps/delta_iaa.shape[1])
@@ -294,23 +294,28 @@ class Solver(object):
         return sol.root
         
 
-    def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True, mix=1.0, verbose=True, G0_iaa = None):
-        if type(G0_iaa) == np.ndarray and len(G0_iaa.shape) == 3:
+    def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True, mix=1.0, verbose=True, G0_iaa=None):
+
+        if G0_iaa is not None:
+            assert( type(G0_iaa) == np.ndarray )
+            assert( G0_iaa.shape == self.G_iaa.shape )
             self.G_iaa = G0_iaa
+
+        diff = 1.0
+            
         for iter in range(maxiter):
             
             Sigma_iaa = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=verbose)
 
             if verbose:
                 dyson_start_time = time.time()
-                
+
             if update_eta_exact:
-                self.eta = self.energyshift_newton(Sigma_iaa, tol=0.1*tol, verbose=verbose)
+                self.eta = self.energyshift_newton(Sigma_iaa, tol=0.1*diff, verbose=verbose)
                 G_iaa_new = self.dyson.solve(Sigma_iaa, self.eta)
                 
             else:
                 G_iaa_new = self.dyson.solve(Sigma_iaa, self.eta)
-                
                 Z = self.fd.partition_function(G_iaa_new)
                 deta = np.log(np.abs(Z)) / self.beta
                 G_iaa_new[:] *= np.exp(-self.tau_i * deta)[:, None, None]
