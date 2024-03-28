@@ -106,7 +106,7 @@ def eval_dlr_freq(G_xaa, z,  beta, dlr_rf):
 
 class Solver(object):
 
-    def __init__(self, beta, lamb, eps, H_loc, fundamental_operators):
+    def __init__(self, beta, lamb, eps, H_loc, fundamental_operators,ntau=100):
 
         self.lamb = lamb
         self.eps = eps
@@ -143,6 +143,14 @@ class Solver(object):
         self.eta = 0.
 
         self.dyson = DysonItPPSC(beta, self.ito, self.H_mat)
+
+       
+
+        self.tau_f = np.linspace(0, self.beta, num=ntau)
+        def interp(g_xaa):
+            eval = lambda t : self.ito.coefs2eval(g_xaa, t/self.beta)
+            return np.vectorize(eval, signature='()->(m,m)')(self.tau_f)
+        self.interp = interp
 
         
     def set_hybridization(self, delta_iaa,
@@ -194,19 +202,20 @@ class Solver(object):
             self.fd.hyb_init(delta_iaa, poledlrflag=False)
             epstol = min(fittingeps, delta_diff/100)
             Npmax = len(self.fd.dlr_if) - 1
-            tau_f = np.linspace(0, self.beta, num=100)
-            def interp(g_xaa, tau_j):
-                eval = lambda t : self.ito.coefs2eval(g_xaa, t/self.beta)
-                return np.vectorize(eval, signature='()->(m,m)')(tau_j)
-            Deltat = interp(delta_xaa, tau_f)
+
             Nwmax = int(np.max(np.abs(self.fd.dlr_if/(np.pi/self.beta))))
             if Nwmax%2 ==0: Nwmax += 1
-            dlr_if_long = np.arange(-Nwmax, Nwmax+1, 2)*np.pi/self.beta
- 
-            Deltaiw_long = eval_dlr_freq(delta_xaa, 1j*dlr_if_long, self.beta, self.dlr_rf)
-            Npmax = len(dlr_if_long) -1
+            self.dense_matsubara_grid = np.arange(-Nwmax, Nwmax+1, 2)*np.pi/self.beta
+            
+            # def interp(g_xaa, tau_j):
+            #     eval = lambda t : self.ito.coefs2eval(g_xaa, t/self.beta)
+            #     return np.vectorize(eval, signature='()->(m,m)')(tau_j)
+            # Deltat = interp(delta_xaa, tau_f)
+            Deltat = self.interp(delta_xaa)
+            Deltaiw_long = eval_dlr_freq(delta_xaa, 1j*self.dense_matsubara_grid, self.beta, self.dlr_rf)
+            Npmax = Deltaiw_long.shape[0] -1
             weights, pol, error = polefitting(
-                Deltaiw_long, 1.j*dlr_if_long, delta_iaa, self.tau_i, Deltat, tau_f,self.beta,
+                Deltaiw_long, 1.j*self.dense_matsubara_grid, delta_iaa, self.tau_i, Deltat, self.tau_f,self.beta,
                 eps=epstol, Np_max=Npmax, Hermitian=Hermitian)
 
 
