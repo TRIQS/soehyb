@@ -75,9 +75,14 @@ void fastdiagram::hyb_decomposition(bool poledlrflag,double eps){
     }
     else {
         auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)
-        auto Deltadlr_reflect = itops.vals2coefs(Deltat_reflect); //obtain dlr coefficient of Delta(-t) 
+        
         auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf,eps); //decomposition of Delta(t) using DLR coefficient
-        auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf,eps); // decomposition of Delta(-t) using DLR coefficient
+        nda::array<dcomplex,3> Deltadlr_reflect = Deltadlr*1.0;
+        for (int i = 0; i < Deltadlr.shape(0); ++i){
+            Deltadlr_reflect(i,_,_) = transpose(Deltadlr(i,_,_));
+        }
+        nda::vector<double> dlr_rf_reflect = -dlr_rf;
+        auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf_reflect,eps); // decomposition of Delta(-t) using DLR coefficient
         Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag); // Compression of Delta(t) and F, F_dag matrices
         Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);  // Compression of Delta(-t) and F, F_dag matrices
     }
