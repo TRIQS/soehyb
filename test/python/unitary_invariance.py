@@ -52,7 +52,7 @@ def get_ppsc_soe_gf(H, delta_iaa, beta, order=1, ntau=100):
 
     print(delta_iaa.shape)
     S.set_hybridization(
-        delta_iaa, compress=False, Hermitian=True, verbose=True)
+        delta_iaa, compress=True, Hermitian=True, verbose=True)
         
     S.solve(order, tol=1e-12, maxiter=1, mix=1., update_eta_exact=True, verbose=True)
 
@@ -150,5 +150,5 @@ def test_unitary_symmetry_for_ppsc(order=1, verbose=False):
         
 if __name__ == '__main__':
 
-    test_unitary_symmetry_for_ppsc(order=1, verbose=True)
-    test_unitary_symmetry_for_ppsc(order=2, verbose=True)
+    for order in [1, 2, 3]:
+        test_unitary_symmetry_for_ppsc(order=order, verbose=False)
