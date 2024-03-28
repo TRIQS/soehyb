@@ -201,23 +201,15 @@ class Solver(object):
             delta_xaa = self.ito.vals2coefs(delta_iaa) 
             self.fd.hyb_init(delta_iaa, poledlrflag=False)
             epstol = min(fittingeps, delta_diff/100)
-            Npmax = len(self.fd.dlr_if) - 1
 
-            Nwmax = int(np.max(np.abs(self.fd.dlr_if/(np.pi/self.beta))))
-            if Nwmax%2 ==0: Nwmax += 1
-            self.dense_matsubara_grid = np.arange(-Nwmax, Nwmax+1, 2)*np.pi/self.beta
-            
-            # def interp(g_xaa, tau_j):
-            #     eval = lambda t : self.ito.coefs2eval(g_xaa, t/self.beta)
-            #     return np.vectorize(eval, signature='()->(m,m)')(tau_j)
-            # Deltat = interp(delta_xaa, tau_f)
+            dlr_if_dense = self.fd.dlr_if_dense
+
             Deltat = self.interp(delta_xaa)
-            Deltaiw_long = eval_dlr_freq(delta_xaa, 1j*self.dense_matsubara_grid, self.beta, self.dlr_rf)
-            Npmax = Deltaiw_long.shape[0] -1
+            Deltaiw_dense = eval_dlr_freq(delta_xaa, 1j*dlr_if_dense, self.beta, self.dlr_rf)
+            Npmax = Deltaiw_dense.shape[0] -1
             weights, pol, error = polefitting(
-                Deltaiw_long, 1.j*self.dense_matsubara_grid, delta_iaa, self.tau_i, Deltat, self.tau_f,self.beta,
+                Deltaiw_dense, 1.j*dlr_if_dense, delta_iaa, self.tau_i, Deltat, self.tau_f,self.beta,
                 eps=epstol, Np_max=Npmax, Hermitian=Hermitian)
-
 
             if is_root() and verbose:
                 
