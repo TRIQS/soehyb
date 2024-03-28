@@ -194,14 +194,14 @@ class Solver(object):
         
         if compress == False:        
             self.fd.hyb_init(delta_iaa, poledlrflag=True)
-            self.fd.hyb_decomposition(poledlrflag=True, eps=fittingeps/10)
+            self.fd.hyb_decomposition(poledlrflag=True, eps=fittingeps/delta_iaa.shape[1])
             
         else:
             # decomposition and reflection of Delta(t) using aaa poles
             delta_xaa = self.ito.vals2coefs(delta_iaa) 
             self.fd.hyb_init(delta_iaa, poledlrflag=False)
-            epstol = min(fittingeps, delta_diff/100)
-
+            # epstol = min(fittingeps, delta_diff/100)
+            epstol =min(1e-6, max(fittingeps, delta_diff/100))
             dlr_if_dense = self.fd.dlr_if_dense
 
             Deltat = self.interp(delta_xaa)
@@ -223,13 +223,13 @@ class Solver(object):
                 for i in range(weights.shape[0]):
                     weights_reflect[i,:,:] = np.transpose(weights[i,:,:])
                 self.fd.copy_aaa_result(pol, weights)
-                self.fd.hyb_decomposition(poledlrflag=False, eps=fittingeps/10)
+                self.fd.hyb_decomposition(poledlrflag=False, eps=fittingeps/delta_iaa.shape[1])
             else:
                 if is_root() and verbose:
                     print("PPSC: Hybridization using all DLR poles.")
             
                 self.fd.hyb_init(delta_iaa, poledlrflag=True)
-                self.fd.hyb_decomposition(poledlrflag=True, eps=fittingeps/10)
+                self.fd.hyb_decomposition(poledlrflag=True, eps=fittingeps/delta_iaa.shape[1])
 
 
     def energyshift_bisection(self, Sigma_iaa, verbose=True):
