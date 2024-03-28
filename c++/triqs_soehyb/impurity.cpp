@@ -55,11 +55,14 @@ void fastdiagram::hyb_init(nda::array<dcomplex,3> Deltat0, bool poledlrflag){
         Deltaiw_reflect = ifops.coefs2vals(beta, Deltadlr_reflect);
     }
 }
-void fastdiagram::copy_aaa_result(nda::vector<double> pol0, nda::array<dcomplex,3> weights0, nda::vector<double> pol_reflect0, nda::array<dcomplex,3> weights_reflect0){
+void fastdiagram::copy_aaa_result(nda::vector<double> pol0, nda::array<dcomplex,3> weights0){
     pol = pol0*beta;
-    pol_reflect = pol_reflect0*beta;
+    pol_reflect = -1.0*pol;
     weights = weights0;
-    weights_reflect = weights_reflect0;
+    weights_reflect = weights0;
+    for (int i = 0; i < weights.shape(0); ++i){
+        weights_reflect(i,_,_) = transpose(weights(i,_,_));
+    }
 }
 void fastdiagram::hyb_decomposition(bool poledlrflag,double eps){
     // this->hyb_init(Deltat0,poledlrflag);

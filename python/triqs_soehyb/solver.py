@@ -221,7 +221,7 @@ class Solver(object):
                 weights_reflect = weights.copy()
                 for i in range(weights.shape[0]):
                     weights_reflect[i,:,:] = np.transpose(weights[i,:,:])
-                self.fd.copy_aaa_result(pol, weights, -pol, weights_reflect)
+                self.fd.copy_aaa_result(pol, weights)
                 self.fd.hyb_decomposition(poledlrflag=False, eps=fittingeps/10)
             else:
                 if is_root() and verbose:

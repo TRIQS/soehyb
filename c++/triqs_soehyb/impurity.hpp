@@ -80,7 +80,7 @@ class fastdiagram{
     nda::array<dcomplex,3> Deltaiw_reflect;
     nda::vector<dcomplex> dlr_if;
 
-    void copy_aaa_result(nda::vector<double> pol0, nda::array<dcomplex,3> weights0, nda::vector<double> pol_reflect0, nda::array<dcomplex,3> weights_reflect0);
+    void copy_aaa_result(nda::vector<double> pol0, nda::array<dcomplex,3> weights0);
     
     private:
     double beta; //inverse temperature
