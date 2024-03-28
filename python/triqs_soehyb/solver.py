@@ -98,15 +98,11 @@ def G_calc_loop(fd, G_iaa, max_order, n_g, verbose=True):
     return g_iaa
 
 
-def g_iaa_reconstruct(poles,weights,tau_i):
-    G = np.zeros((tau_i.shape[0],weights.shape[1],weights.shape[1]), dtype = np.complex128)
-    
-    for n in range(poles.shape[0]): 
-        for i in range(tau_i.shape[0]):
-            # print(i)
-            G[i,:,:] = G[i,:,:] + kernel(tau_i[i:i+1],poles[n:n+1])[0,0]*weights[n,:,:]
-    return G
-
+def eval_dlr_freq(G_xaa, z,  beta, dlr_rf):
+    w_x = dlr_rf / beta
+    kernel_zx = 1./(z[:, None] - w_x[None, :])
+    G_zaa = np.einsum('zx,xab->zab',kernel_zx, G_xaa)
+    return G_zaa
 
 class Solver(object):
 
@@ -194,26 +190,31 @@ class Solver(object):
             
         else:
             # decomposition and reflection of Delta(t) using aaa poles
-            
+            delta_xaa = self.ito.vals2coefs(delta_iaa) 
             self.fd.hyb_init(delta_iaa, poledlrflag=False)
-            epstol = min(fittingeps, delta_diff/1000)
+            epstol = min(fittingeps, delta_diff/100)
             Npmax = len(self.fd.dlr_if) - 1
             tau_f = np.linspace(0, self.beta, num=100)
             def interp(g_xaa, tau_j):
                 eval = lambda t : self.ito.coefs2eval(g_xaa, t/self.beta)
                 return np.vectorize(eval, signature='()->(m,m)')(tau_j)
-            Deltat = interp(self.ito.vals2coefs(delta_iaa), tau_f)
+            Deltat = interp(delta_xaa, tau_f)
+            Nwmax = int(np.max(np.abs(self.fd.dlr_if/(np.pi/self.beta))))
+            if Nwmax%2 ==0: Nwmax += 1
+            dlr_if_long = np.arange(-Nwmax, Nwmax+1, 2)*np.pi/self.beta
+ 
+            Deltaiw_long = eval_dlr_freq(delta_xaa, 1j*dlr_if_long, self.beta, self.dlr_rf)
+            Npmax = len(dlr_if_long) -1
             weights, pol, error = polefitting(
-                self.fd.Deltaiw, 1j*self.fd.dlr_if, Deltat, tau_f, self.beta,
+                Deltaiw_long, 1.j*dlr_if_long, delta_iaa, self.tau_i, Deltat, tau_f,self.beta,
                 eps=epstol, Np_max=Npmax, Hermitian=Hermitian)
 
+
             if is_root() and verbose:
-                diff = np.max(np.abs(
-                    delta_iaa + g_iaa_reconstruct(
-                        pol*self.beta, weights, self.tau_i/self.beta)))
-                print(f"PPSC: Hybridization fit tau-diff {diff:2.2E}")
+                
+                print(f"PPSC: Hybridization fit tau-diff {error:2.2E}")
         
-            if error < epstol and len(pol)<len(self.tau_i):
+            if error < epstol and len(pol)<=len(self.tau_i):
                 if is_root() and verbose:
                     print(f"PPSC: Hybridization using {len(pol)} AAA poles.")
                 
