@@ -363,6 +363,34 @@ class Solver(object):
         
         n_g = self.F.shape[0]
         g_iaa = G_calc_loop(self.fd, self.G_iaa, max_order, n_g, verbose=verbose)
+
+        self.g_iaa = g_iaa
         
         return g_iaa
         
+
+    def get_many_body_density_matrix(self):
+
+        assert( hasattr(self, 'G_iaa') )
+        G_xaa = self.ito.vals2coefs(self.G_iaa)
+        rho_GG = -self.ito.coefs2eval(G_xaa, 1.0)
+        
+        return rho_GG
+
+    
+    def get_single_particle_density_matrix(self):
+
+        assert( hasattr(self, 'g_iaa') )
+
+        g_xaa = self.ito.vals2coefs(self.g_iaa)
+        rho_aa = -self.ito.coefs2eval(g_xaa, 1.0)
+        
+        return rho_aa
+
+    
+    def get_density(self, tol=1e-12):
+
+        N = np.sum(np.diag(self.get_single_particle_density_matrix()))
+        assert( np.abs(np.imag(N)) < tol )
+        
+        return N.real
