@@ -50,7 +50,6 @@ def get_ppsc_soe_gf(H, delta_iaa, beta, order=1, ntau=100):
     
     S = Solver(beta, lamb, eps, H, fundamental_operators)
 
-    print(delta_iaa.shape)
     S.set_hybridization(
         delta_iaa, compress=True, Hermitian=True, verbose=True)
         

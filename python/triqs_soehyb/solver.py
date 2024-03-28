@@ -16,6 +16,13 @@ from .ac_pes import polefitting, kernel
 from .diag import all_connected_pairings
 
 
+def logo():
+    """ http://patorjk.com/software/taag/#p=display&f=Small&t=PPSC-soe """
+    return r"""  ___ ___  ___  ___                 
+ | _ \ _ \/ __|/ __|__ ___ ___  ___ 
+ |  _/  _/\__ \ (_|___(_-</ _ \/ -_)
+ |_| |_|  |___/\___|  /__/\___/\___|"""
+
 
 def is_root():
     comm = mpi.COMM_WORLD
@@ -106,7 +113,7 @@ def eval_dlr_freq(G_xaa, z,  beta, dlr_rf):
 
 class Solver(object):
 
-    def __init__(self, beta, lamb, eps, H_loc, fundamental_operators,ntau=100):
+    def __init__(self, beta, lamb, eps, H_loc, fundamental_operators, ntau=100):
 
         self.lamb = lamb
         self.eps = eps
@@ -132,25 +139,37 @@ class Solver(object):
 
         self.fd = Fastdiagram(beta, lamb, eps, self.F, self.F_dag)
         self.tau_i = self.fd.get_it_actual().real
-        
-        # if type(G0_iaa) == np.ndarray and len(G0_iaa.shape) == 3:
-        #     if is_root(): print("PPSC: Starting from given G0_iaa")
-        #     self.G0_iaa = G0_iaa
-        # else:
-        #     self.G0_iaa = self.fd.free_greens_ppsc(beta, self.H_mat)
+                
         self.G0_iaa = self.fd.free_greens_ppsc(beta, self.H_mat)
         self.G_iaa = self.G0_iaa.copy()
         self.eta = 0.
 
         self.dyson = DysonItPPSC(beta, self.ito, self.H_mat)
 
-       
-
+        # -- AAA pole fitting setups
+        
         self.tau_f = np.linspace(0, self.beta, num=ntau)
+        
         def interp(g_xaa):
             eval = lambda t : self.ito.coefs2eval(g_xaa, t/self.beta)
             return np.vectorize(eval, signature='()->(m,m)')(self.tau_f)
+
         self.interp = interp
+
+        self._print_info()
+
+
+    def _print_info(self):
+
+        if is_root():
+            print(logo())
+            print()
+            print(f'beta = {self.beta}')
+            print(f'lamb = {self.lamb:2.2E}, eps = {self.eps:2.2E}, N_DLR = {self.ito.rank()}')
+            print(f'fundamental_operators = {self.fundamental_operators}')
+            print(f'H_loc = {self.H_loc}')
+            print(f'H_mat.shape = {self.H_mat.shape}')
+            print()
 
         
     def set_hybridization(self, delta_iaa,
