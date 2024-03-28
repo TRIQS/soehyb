@@ -47,12 +47,9 @@ void fastdiagram::hyb_init(nda::array<dcomplex,3> Deltat0, bool poledlrflag){
     for (int i=0;i<r;++i) Deltat_reflect(i,_,_) = transpose(Deltat_reflect_intermediate(i,_,_));
     if (poledlrflag == false) {
         auto ifops = imfreq_ops(lambda, dlr_rf,Fermion);
-        dlr_if = ((2.0*ifops.get_ifnodes())+1.0)*(std::atan2(0,-1))/beta;
-        
-        auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)
-        auto Deltadlr_reflect = itops.vals2coefs(Deltat_reflect); //obtain dlr coefficient of Delta(-t)
-        Deltaiw = ifops.coefs2vals(beta, Deltadlr);
-        Deltaiw_reflect = ifops.coefs2vals(beta, Deltadlr_reflect);
+        int Nwmax = int(max_element(abs((2.0*ifops.get_ifnodes())+1.0)));
+        if (Nwmax%2 ==0) Nwmax += 1;
+        dlr_if_dense =  nda::arange(-Nwmax, Nwmax+1, 2)*std::atan2(0,-1)/beta;
     }
 }
 void fastdiagram::copy_aaa_result(nda::vector<double> pol0, nda::array<dcomplex,3> weights0){

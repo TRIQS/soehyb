@@ -78,7 +78,7 @@ class fastdiagram{
 
     nda::array<dcomplex,3> Deltaiw;
     nda::array<dcomplex,3> Deltaiw_reflect;
-    nda::vector<dcomplex> dlr_if;
+    nda::vector<dcomplex> dlr_if_dense;
 
     void copy_aaa_result(nda::vector<double> pol0, nda::array<dcomplex,3> weights0);
     

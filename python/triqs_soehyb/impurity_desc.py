@@ -38,7 +38,7 @@ c.add_member(c_name = "Deltaiw_reflect",
              read_only= False,
              doc = r"""""")
 
-c.add_member(c_name = "dlr_if",
+c.add_member(c_name = "dlr_if_dense",
              c_type = "nda::vector<dcomplex>",
              read_only= False,
              doc = r"""""")
