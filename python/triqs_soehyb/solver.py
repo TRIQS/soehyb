@@ -147,7 +147,7 @@ class Solver(object):
         self.dyson = DysonItPPSC(beta, self.ito, self.H_mat)
 
         # -- AAA pole fitting setups
-        
+        ntau = max(ntau, int(10*lamb)) # This is a hacky solution to be fixed later 
         self.tau_f = np.linspace(0, self.beta, num=ntau)
         
         def interp(g_xaa):
