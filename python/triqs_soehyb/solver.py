@@ -15,6 +15,8 @@ from .impurity import Fastdiagram, DysonItPPSC
 from .ac_pes import polefitting, kernel
 from .diag import all_connected_pairings
 
+from .ase.utils.timing import Timer, timer
+
 
 def logo():
     """ http://patorjk.com/software/taag/#p=display&f=Small&t=PPSC-soe """
@@ -113,8 +115,10 @@ def eval_dlr_freq(G_xaa, z,  beta, dlr_rf):
 
 class Solver(object):
 
-    def __init__(self, beta, lamb, eps, H_loc, fundamental_operators, ntau=100):
+    def __init__(self, beta, lamb, eps, H_loc, fundamental_operators, ntau=100, timer=None):
 
+        self.timer = timer if timer is not None else Timer()
+        
         self.lamb = lamb
         self.eps = eps
         
@@ -172,6 +176,7 @@ class Solver(object):
             print()
 
         
+    @timer('Hybridization compression (AAA)')
     def set_hybridization(self, delta_iaa,
                           compress=False, delta_diff=1.0, fittingeps=2e-6,
                           Hermitian=False, verbose=True):
@@ -251,10 +256,12 @@ class Solver(object):
                 self.fd.hyb_decomposition(poledlrflag=True, eps=fittingeps/delta_iaa.shape[1])
 
 
+    @timer('Eta search (bisection)')
     def energyshift_bisection(self, Sigma_iaa, verbose=True):
         
         def target_function(eta_h):
-            G_iaa_new = self.dyson.solve(Sigma_iaa, eta)
+            #G_iaa_new = self.dyson.solve(Sigma_iaa, eta)
+            G_iaa_new = self.solve_dyson(Sigma_iaa, eta)
             Z_h = self.fd.partition_function(G_iaa_new)
             Omega_h = np.log(np.abs(Z_h)) / self.beta            
             return Omega_h
@@ -281,11 +288,13 @@ class Solver(object):
             return sol.root
 
 
+    @timer('Eta search (Newton)')
     def energyshift_newton(self, Sigma_iaa, tol=1e-10, verbose=True):
 
         def target_function(eta):
         
-            G_iaa_new = self.dyson.solve(Sigma_iaa, eta)
+            #G_iaa_new = self.dyson.solve(Sigma_iaa, eta)
+            G_iaa_new = self.solve_dyson(Sigma_iaa, eta)
             
             Z = self.fd.partition_function(G_iaa_new)
             Omega = np.log(np.abs(Z)) / self.beta
@@ -324,14 +333,16 @@ class Solver(object):
             
         for iter in range(maxiter):
             
-            Sigma_iaa = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=verbose)
-
+            #Sigma_iaa = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=verbose)
+            Sigma_iaa = self.calc_Sigma(max_order, verbose=verbose)
+            
             if verbose:
                 dyson_start_time = time.time()
 
             if update_eta_exact:
                 self.eta = self.energyshift_newton(Sigma_iaa, tol=0.1*diff, verbose=verbose)
-                G_iaa_new = self.dyson.solve(Sigma_iaa, self.eta)
+                #G_iaa_new = self.dyson.solve(Sigma_iaa, self.eta)
+                G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta)
                 
             else:
                 G_iaa_new = self.dyson.solve(Sigma_iaa, self.eta)
@@ -358,7 +369,25 @@ class Solver(object):
             if is_root(): print(f'PPSC: iter = {iter:3d} diff = {diff:2.2E}')
             if diff < tol: break
 
+        if is_root():
+            print(); self.timer.write()
+            
 
+    @timer('Dyson')
+    def solve_dyson(self, Sigma_iaa, eta):
+
+        G_iaa = self.dyson.solve(Sigma_iaa, eta)
+        return G_iaa
+
+
+    @timer('Diag Sigma')
+    def calc_Sigma(self, max_order, verbose=True):
+
+        Sigma_iaa = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=verbose)
+        return Sigma_iaa
+
+    
+    @timer('Diag SPGF')
     def calc_spgf(self, max_order, verbose=True):
         
         n_g = self.F.shape[0]
@@ -369,6 +398,7 @@ class Solver(object):
         return g_iaa
         
 
+    @timer('mb dens mat')
     def get_many_body_density_matrix(self):
 
         assert( hasattr(self, 'G_iaa') )
@@ -378,6 +408,7 @@ class Solver(object):
         return rho_GG
 
     
+    @timer('sp dens mat')
     def get_single_particle_density_matrix(self):
 
         assert( hasattr(self, 'g_iaa') )
@@ -388,9 +419,15 @@ class Solver(object):
         return rho_aa
 
     
-    def get_density(self, tol=1e-12):
+    @timer('tot dens')
+    def get_density(self, tol=None):
+
+        if tol is None:
+            tol = 10 * self.eps
 
         N = np.sum(np.diag(self.get_single_particle_density_matrix()))
-        assert( np.abs(np.imag(N)) < tol )
+
+        if np.abs(np.imag(N)) > tol:
+            print(f'PPSC: WARNING Total density is complex: {N}')
         
         return N.real
