@@ -161,7 +161,7 @@ class Solver(object):
         self.interp = interp
 
         self._print_info()
-
+        
 
     def _print_info(self):
 
@@ -371,6 +371,8 @@ class Solver(object):
 
         if is_root():
             print(); self.timer.write()
+
+        return diff
             
 
     @timer('Dyson')
@@ -407,6 +409,12 @@ class Solver(object):
         
         return rho_GG
 
+    @timer('mb exp val')
+    def get_expectation_value(self, triqs_operator):
+        op_mat = self.ed.rep.sparse_matrix(triqs_operator)
+        exp_val = np.sum(np.diag( op_mat @ self.get_many_body_density_matrix() ))
+        return exp_val
+    
     
     @timer('sp dens mat')
     def get_single_particle_density_matrix(self):
