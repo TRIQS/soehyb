@@ -439,3 +439,43 @@ class Solver(object):
             print(f'PPSC: WARNING Total density is complex: {N}')
         
         return N.real
+
+
+    def __skip_keys(self):
+        return ['timer', 'ito', 'fd', 'ed', 'interp', 'dyson']
+
+    
+    def __eq__(self, obj):
+
+        if obj.__dict__.keys() != self.__dict__.keys():
+            return False
+        
+        for key in self.__dict__.keys():
+            if key not in self.__skip_keys():
+                a = getattr(self, key)
+                b = getattr(obj, key)                
+                if not np.equal(a, b).all():
+                    return False
+
+        return True
+    
+        
+    def __reduce_to_dict__(self):
+        d = self.__dict__.copy()
+        keys = set(d.keys()).intersection(self.__skip_keys())
+        for key in keys: del d[key]
+        return d
+
+    
+    @classmethod
+    def __factory_from_dict__(cls, name, d):
+        arg_keys = ['beta', 'lamb', 'eps', 'H_loc', 'fundamental_operators']
+        ret = cls(*[ d[key] for key in arg_keys ])
+        ret.__dict__.update(d)
+        return ret
+    
+    
+# -- Register Solver in Triqs formats
+
+from h5.formats import register_class 
+register_class(Solver)    
