@@ -115,19 +115,38 @@ def eval_dlr_freq(G_xaa, z,  beta, dlr_rf):
 
 class Solver(object):
 
-    def __init__(self, beta, lamb, eps, H_loc, fundamental_operators, ntau=100, timer=None):
+    def __init__(self, beta, lamb, eps,
+                 H_loc, fundamental_operators,
+                 ntau=100, timer=None, G_iaa=None, eta=None):
 
         self.timer = timer if timer is not None else Timer()
+
+        self.__setup_dlr_basis(beta, lamb, eps)
+        self.__setup_ed_solver(beta, H_loc, fundamental_operators)
+        self.__setup_ppsc_solver()
+        self.__setup_initial_guess(G_iaa=G_iaa, eta=eta)
+    
+        # -- AAA pole fitting setups
+        ntau = max(ntau, int(10*lamb)) # This is a hacky solution to be fixed later 
+        self.tau_f = np.linspace(0, self.beta, num=ntau)
         
-        self.lamb = lamb
-        self.eps = eps
-        
+        def interp(g_xaa):
+            eval = lambda t : self.ito.coefs2eval(g_xaa, t/self.beta)
+            return np.vectorize(eval, signature='()->(m,m)')(self.tau_f)
+
+        self.interp = interp
+
+        self._print_info()
+
+
+    def __setup_dlr_basis(self, beta, lamb, eps):
+        self.beta, self.lamb, self.eps = beta, lamb, eps        
         self.dlr_rf = build_dlr_rf(lamb, eps)
         self.ito = ImTimeOps(lamb, self.dlr_rf)
-    
-        self.beta = beta
-        self.H_loc = H_loc
-        self.fundamental_operators = fundamental_operators
+        
+
+    def __setup_ed_solver(self, beta, H_loc, fundamental_operators):
+        self.H_loc, self.fundamental_operators = H_loc, fundamental_operators
 
         self.ed = TriqsExactDiagonalization(H_loc, fundamental_operators, beta)
 
@@ -140,29 +159,27 @@ class Solver(object):
             for idx in range(len(fundamental_operators)) ])
         
         self.H_mat = np.array(self.ed.ed.H.todense())
+        
 
-        self.fd = Fastdiagram(beta, lamb, eps, self.F, self.F_dag)
+    def __setup_ppsc_solver(self):
+        self.fd = Fastdiagram(self.beta, self.lamb, self.eps, self.F, self.F_dag)
         self.tau_i = self.fd.get_it_actual().real
                 
-        self.G0_iaa = self.fd.free_greens_ppsc(beta, self.H_mat)
-        self.G_iaa = self.G0_iaa.copy()
-        self.eta = 0.
+        self.G0_iaa = self.fd.free_greens_ppsc(self.beta, self.H_mat)
+        self.dyson = DysonItPPSC(self.beta, self.ito, self.H_mat)
 
-        self.dyson = DysonItPPSC(beta, self.ito, self.H_mat)
-
-        # -- AAA pole fitting setups
-        ntau = max(ntau, int(10*lamb)) # This is a hacky solution to be fixed later 
-        self.tau_f = np.linspace(0, self.beta, num=ntau)
         
-        def interp(g_xaa):
-            eval = lambda t : self.ito.coefs2eval(g_xaa, t/self.beta)
-            return np.vectorize(eval, signature='()->(m,m)')(self.tau_f)
+    def __setup_initial_guess(self, G_iaa=None, eta=None):
+        self.G_iaa = self.G0_iaa.copy() if G_iaa is None else G_iaa
+        self.eta = 0. if eta is None else eta
 
-        self.interp = interp
 
-        self._print_info()
+    def set_H_loc(self, H_loc):
+        self.H_loc = H_loc
+        self.__setup_ed_solver(self.beta, self.H_loc, self.fundamental_operators)
+        self.__setup_ppsc_solver()
+
         
-
     def _print_info(self):
 
         if is_root():
@@ -441,6 +458,12 @@ class Solver(object):
         return N.real
 
 
+    def interpolate_dlr_tau_to_tau(self, g_iaa, tau_j):
+        g_xaa = self.ito.vals2coefs(g_iaa)
+        eval = lambda t : self.ito.coefs2eval(g_xaa, t/self.beta)
+        return np.vectorize(eval, signature='()->(m,m)')(tau_j)
+    
+    
     def __skip_keys(self):
         return ['timer', 'ito', 'fd', 'ed', 'interp', 'dyson']
 
