@@ -107,17 +107,18 @@ def G_calc_loop(fd, G_iaa, max_order, n_g, verbose=True):
     return g_iaa
 
 
-def eval_dlr_freq(G_xaa, z,  beta, dlr_rf):
+def eval_dlr_freq(G_xaa, z, beta, dlr_rf):
     w_x = dlr_rf / beta
     kernel_zx = 1./(z[:, None] - w_x[None, :])
     G_zaa = np.einsum('zx,xab->zab',kernel_zx, G_xaa)
     return G_zaa
 
+
 class Solver(object):
 
     def __init__(self, beta, lamb, eps,
                  H_loc, fundamental_operators,
-                 ntau=100, timer=None, G_iaa=None, eta=None):
+                 ntau=100, timer=None, G_iaa=None, eta=None, verbose=True):
 
         self.timer = timer if timer is not None else Timer()
 
@@ -127,8 +128,8 @@ class Solver(object):
         self.__setup_initial_guess(G_iaa=G_iaa, eta=eta)
     
         # -- AAA pole fitting setups
-        ntau = max(ntau, int(10*lamb)) # This is a hacky solution to be fixed later 
-        self.tau_f = np.linspace(0, self.beta, num=ntau)
+        self.ntau = max(ntau, int(10*lamb)) # This is a hacky solution to be fixed later 
+        self.tau_f = np.linspace(0, self.beta, num=self.ntau)
         
         def interp(g_xaa):
             eval = lambda t : self.ito.coefs2eval(g_xaa, t/self.beta)
@@ -136,7 +137,8 @@ class Solver(object):
 
         self.interp = interp
 
-        self._print_info()
+        self.verbose = verbose
+        if verbose: self._print_info()
 
 
     def __setup_dlr_basis(self, beta, lamb, eps):
@@ -358,12 +360,11 @@ class Solver(object):
 
             if update_eta_exact:
                 self.eta = self.energyshift_newton(Sigma_iaa, tol=0.1*diff, verbose=verbose)
-                #G_iaa_new = self.dyson.solve(Sigma_iaa, self.eta)
                 G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta)
                 
             else:
-                G_iaa_new = self.dyson.solve(Sigma_iaa, self.eta)
-                Z = self.fd.partition_function(G_iaa_new)
+                G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta)
+                Z = self.partition_function(G_iaa_new)
                 deta = np.log(np.abs(Z)) / self.beta
                 G_iaa_new[:] *= np.exp(-self.tau_i * deta)[:, None, None]
                 self.eta += deta
@@ -375,7 +376,7 @@ class Solver(object):
                 
             if is_root():
                 # Expect Z = 1
-                Z = self.fd.partition_function(G_iaa_new)
+                Z = self.partition_function(G_iaa_new)
                 print(f"PPSC: Z-1 = {Z-1:+2.2E}")
 
             diff = np.max(np.abs(self.G_iaa - G_iaa_new))
@@ -394,10 +395,15 @@ class Solver(object):
 
     @timer('Dyson')
     def solve_dyson(self, Sigma_iaa, eta):
-
         G_iaa = self.dyson.solve(Sigma_iaa, eta)
         return G_iaa
 
+
+    @timer('Z')
+    def partition_function(self, G_iaa):
+        Z = self.fd.partition_function(G_iaa)
+        return Z
+    
 
     @timer('Diag Sigma')
     def calc_Sigma(self, max_order, verbose=True):
@@ -417,7 +423,7 @@ class Solver(object):
         return g_iaa
         
 
-    @timer('mb dens mat')
+    #@timer('mb dens mat')
     def get_many_body_density_matrix(self):
 
         assert( hasattr(self, 'G_iaa') )
@@ -426,14 +432,14 @@ class Solver(object):
         
         return rho_GG
 
-    @timer('mb exp val')
+    #@timer('mb exp val')
     def get_expectation_value(self, triqs_operator):
         op_mat = self.ed.rep.sparse_matrix(triqs_operator)
         exp_val = np.sum(np.diag( op_mat @ self.get_many_body_density_matrix() ))
         return exp_val
     
     
-    @timer('sp dens mat')
+    #@timer('sp dens mat')
     def get_single_particle_density_matrix(self):
 
         assert( hasattr(self, 'g_iaa') )
@@ -444,7 +450,7 @@ class Solver(object):
         return rho_aa
 
     
-    @timer('tot dens')
+    #@timer('tot dens')
     def get_density(self, tol=None):
 
         if tol is None:
@@ -493,7 +499,10 @@ class Solver(object):
     @classmethod
     def __factory_from_dict__(cls, name, d):
         arg_keys = ['beta', 'lamb', 'eps', 'H_loc', 'fundamental_operators']
-        ret = cls(*[ d[key] for key in arg_keys ])
+        argv_keys = ['ntau', 'G_iaa', 'eta', 'verbose']
+        d['verbose'] = False # -- Suppress printouts on reconstruction from dict
+        ret = cls(*[ d[key] for key in arg_keys ],
+                  **{ key : d[key] for key in argv_keys })
         ret.__dict__.update(d)
         return ret
     
