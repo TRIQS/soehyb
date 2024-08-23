@@ -536,10 +536,12 @@ class Solver(object):
     def __factory_from_dict__(cls, name, d):
         arg_keys = ['beta', 'lamb', 'eps', 'H_loc', 'fundamental_operators']
         argv_keys = ['ntau', 'G_iaa', 'eta', 'verbose']
+        verbose = d['verbose']
         d['verbose'] = False # -- Suppress printouts on reconstruction from dict
         ret = cls(*[ d[key] for key in arg_keys ],
                   **{ key : d[key] for key in argv_keys })
         ret.__dict__.update(d)
+        ret.verbose = verbose
         return ret
     
     
