@@ -276,11 +276,11 @@ class Solver(object):
 
 
     @timer('Eta search (bisection)')
-    def energyshift_bisection(self, Sigma_iaa, verbose=True):
+    def energyshift_bisection(self, Sigma_iaa, verbose=True, tol=1e-10):
         
         def target_function(eta_h):
             #G_iaa_new = self.dyson.solve(Sigma_iaa, eta)
-            G_iaa_new = self.solve_dyson(Sigma_iaa, eta)
+            G_iaa_new = self.solve_dyson(Sigma_iaa, eta, tol)
             Z_h = self.fd.partition_function(G_iaa_new)
             Omega_h = np.log(np.abs(Z_h)) / self.beta            
             return Omega_h
@@ -298,7 +298,7 @@ class Solver(object):
             bracket=[E_min, E_max]
             
             sol = root_scalar(target_function, method='brenth',
-                              fprime=False, bracket=bracket, rtol=1e-10, options={'disp': True})
+                              fprime=False, bracket=bracket, rtol=tol, options={'disp': True})
             
             if not sol.converged and is_root():
                 print("PPSC: Warning! Energy shift failed.")
@@ -313,7 +313,7 @@ class Solver(object):
         def target_function(eta):
         
             #G_iaa_new = self.dyson.solve(Sigma_iaa, eta)
-            G_iaa_new = self.solve_dyson(Sigma_iaa, eta)
+            G_iaa_new = self.solve_dyson(Sigma_iaa, eta, tol)
             
             Z = self.fd.partition_function(G_iaa_new)
             Omega = np.log(np.abs(Z)) / self.beta
@@ -322,8 +322,8 @@ class Solver(object):
                 print(f'PPSC: Eta Newton: Z-1 = {Z-1:+2.2E}, Omega = {Omega:+2.2E}')
 
             G_xaa = self.ito.vals2coefs(G_iaa_new)
-            GG_xaa = self.ito.convolve(self.beta, "cppdlr::Fermion", G_xaa, G_xaa, True)
-            TrGGb = self.fd.partition_function(GG_xaa)
+            GG_iaa = self.ito.convolve(self.beta, "cppdlr::Fermion", G_xaa, G_xaa, True)
+            TrGGb = self.fd.partition_function(GG_iaa)
             dOmega = TrGGb / self.beta / Z
 
             return Omega, dOmega
@@ -349,7 +349,10 @@ class Solver(object):
             self.G_iaa = G0_iaa
 
         diff = 1.0
-            
+
+        self.G0_iaa = self.fd.free_greens_ppsc(self.beta, self.H_mat)        
+        self.G0_xaa = self.ito.vals2coefs(self.G0_iaa)
+        
         for iter in range(maxiter):
             
             #Sigma_iaa = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=verbose)
@@ -360,10 +363,10 @@ class Solver(object):
 
             if update_eta_exact:
                 self.eta = self.energyshift_newton(Sigma_iaa, tol=0.1*diff, verbose=verbose)
-                G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta)
+                G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta, tol)
                 
             else:
-                G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta)
+                G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta, tol)
                 Z = self.partition_function(G_iaa_new)
                 deta = np.log(np.abs(Z)) / self.beta
                 G_iaa_new[:] *= np.exp(-self.tau_i * deta)[:, None, None]
@@ -394,10 +397,43 @@ class Solver(object):
             
 
     @timer('Dyson')
-    def solve_dyson(self, Sigma_iaa, eta):
-        G_iaa = self.dyson.solve(Sigma_iaa, eta)
+    def solve_dyson(self, Sigma_iaa, eta, tol):
+        #G_iaa = self.dyson.solve(Sigma_iaa, eta)
+        G_iaa = self.solve_dyson_iterative(Sigma_iaa, eta, G_iaa_guess=self.G_iaa, tol=0.1*tol)
         return G_iaa
 
+    @timer('Dyson Iterative')
+    def solve_dyson_iterative(self, Sigma_iaa, eta, G_iaa_guess=None, tol=1e-9):
+        """ Solve ( 1 - G0*(eta + Sigma)) * G = G0 teratively. """
+
+        shape_iaa = Sigma_iaa.shape
+        Sigma_xaa = self.ito.vals2coefs(Sigma_iaa)
+        G0Sigma_iaa = self.ito.convolve(self.beta, "cppdlr::Fermion", self.G0_xaa, Sigma_xaa, True)
+        
+        K_iaa = self.G0_iaa * eta + G0Sigma_iaa
+        K_xaa = self.ito.vals2coefs(K_iaa)
+
+        def matvec(x):
+            """ Apply the matrix ( 1 - K ) to G.  """
+            G_iaa = x.reshape(shape_iaa)
+            G_xaa = self.ito.vals2coefs(G_iaa)            
+            KG_iaa = self.ito.convolve(self.beta, "cppdlr::Fermion", K_xaa, G_xaa, True)
+            LHS_iaa = G_iaa - KG_iaa
+            return LHS_iaa.flatten()
+
+        from scipy.sparse.linalg import LinearOperator, bicgstab
+
+        x0 = self.G0_iaa.flatten() if G_iaa_guess is None else G_iaa_guess.flatten()
+        A = LinearOperator(shape=[x0.shape[0]]*2, matvec=matvec)
+        b = self.G0_iaa.flatten()
+
+        x, info = bicgstab(A, b, x0=x0, tol=tol)
+        if info != 0:
+            print(f'WARNING: scipy.sparse.linalg.bicgstab, info = {info}')
+
+        G_iaa = x.reshape(shape_iaa)
+        return G_iaa
+    
 
     @timer('Z')
     def partition_function(self, G_iaa):
