@@ -339,7 +339,134 @@ class Solver(object):
             return self.energyshift_bisection(Sigma_iaa, verbose=verbose)
         
         return sol.root
+
+
+    @timer('Eta and mu search (Newton)')
+    def energyshift_density_newton(self, Sigma_iaa, N_fix, tol=1e-10, verbose=True):
+
+        print(f'--> energyshift_density_newton: N_fix = {N_fix}, tol = {tol:2.2E}')
         
+        def target_function(x):
+            eta, mu = x
+
+            #G_iaa_new = self.dyson.solve(Sigma_iaa, eta)
+            G_iaa_new = self.solve_dyson(Sigma_iaa, eta, tol*0.01, mu_op=mu*self.N_op_mat)
+
+            G_xaa = self.ito.vals2coefs(G_iaa_new)
+
+            GG_iaa = self.ito.convolve(self.beta, "cppdlr::Fermion", G_xaa, G_xaa, True)
+            GNG_iaa = self.ito.convolve(self.beta, "cppdlr::Fermion", G_xaa, self.N_op_mat @ G_xaa, True)
+
+            TrGb = -self.fd.partition_function(G_iaa_new)
+            TrNGb = -self.fd.partition_function(self.N_op_mat @ G_iaa_new)
+
+            TrGGb = -self.fd.partition_function(GG_iaa)
+            TrNGGb = -self.fd.partition_function(self.N_op_mat @ GG_iaa)
+
+            TrGNGb = -self.fd.partition_function(GNG_iaa)
+            TrNGNGb = -self.fd.partition_function(self.N_op_mat @ GNG_iaa)
+
+            Z = - TrGb
+            N = - TrNGb / Z
+
+            Omega = - np.log(np.abs(Z)) / self.beta
+
+            F = np.array([Omega, N_fix - N]) # Root function
+
+            dOmega_deta = TrGGb / self.beta / Z
+            dOmega_dmu = TrGNGb / self.beta / Z
+
+            dN_deta = TrGGb * TrNGb / Z**2 + TrNGGb / Z
+            dN_dmu = TrGNGb * TrNGb / Z**2 + TrNGNGb / Z
+
+            # Jacobian
+
+            J = np.array([
+                [dOmega_deta, dOmega_dmu],
+                [dN_deta,     dN_dmu],
+                ])
+
+            if verbose and is_root():
+                print(f'PPSC: Eta mu Newton: eta = {eta:+6.6E}, mu = {mu:+6.6E}')
+                print(f'PPSC: Eta mu Newton: Z-1 = {Z-1:+2.2E}, Omega = {Omega:+2.2E}, N-Nfix = {N-N_fix:+2.2E}')
+
+            #print(f'F = {F}')
+            #print(f'J = \n{J}')
+
+            return F, J
+
+        x0 = np.array([self.eta, self.mu])
+
+        if False:
+            from scipy.optimize import check_grad, approx_fprime
+            func = lambda x: target_function(x)[0]
+            grad = lambda x: target_function(x)[1]
+            grad_err = check_grad(func, grad, x0)
+            print('='*72)
+            print(f'grad_err = {grad_err:+2.2E}')
+
+            J = grad(x0)
+            print(f'J =\n{J}')
+
+            J_approx = approx_fprime(x0, func)
+            print(f'J_approx =\n{J_approx}')
+            print('='*72)
+
+            exit()
+
+        from scipy.optimize import root
+        sol = root(
+            target_function, x0=x0, method='hybr', jac=True, tol=tol,
+            options=dict(factor=1.0))
+
+        if not sol.success and is_root():
+            print('PPSC: Warning! Energy and density shift Newton search failed.')
+            print(sol)
+
+        return sol.x
+
+
+    def solve_fix_N(self, max_order, N_fix, N_op, tol=1e-9, maxiter=10, mix=1.0, verbose=True, G0_iaa=None):
+
+        print('--> solve_fix_N')
+
+        if not hasattr(self, 'mu'):
+            self.mu = 0.0
+
+        #print(f'N_op = {N_op}')
+        self.N_op_mat = np.array(self.ed.rep.sparse_matrix(N_op).todense())
+        #print(f'N_op_mat =\n{N_op_mat}')
+        
+        if G0_iaa is not None:
+            assert( type(G0_iaa) == np.ndarray )
+            assert( G0_iaa.shape == self.G_iaa.shape )
+            self.G_iaa = G0_iaa
+
+        #diff = 1.0 # This is not ok when maxiter=1
+
+        self.G0_iaa = self.fd.free_greens_ppsc(self.beta, self.H_mat)
+        self.G0_xaa = self.ito.vals2coefs(self.G0_iaa)
+
+        for iter in range(maxiter):
+
+            Sigma_iaa = self.calc_Sigma(max_order, verbose=verbose)
+
+            #self.eta, self.mu = self.energyshift_density_newton(Sigma_iaa, N_fix, tol=0.001*diff, verbose=verbose)
+            self.eta, self.mu = self.energyshift_density_newton(Sigma_iaa, N_fix, tol=tol, verbose=verbose)
+
+            G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta, tol, mu_op=self.mu*self.N_op_mat)
+
+            diff = np.max(np.abs(self.G_iaa - G_iaa_new))
+
+            if is_root(): print(f'PPSC: iter = {iter:3d} diff = {diff:2.2E}')
+            if diff < tol: break
+
+            self.G_iaa = mix*G_iaa_new + (1-mix)*self.G_iaa
+            self.Sigma_iaa = Sigma_iaa
+
+        if is_root():
+            print(); self.timer.write()
+
 
     def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True, mix=1.0, verbose=True, G0_iaa=None):
 
@@ -384,7 +511,7 @@ class Solver(object):
 
             diff = np.max(np.abs(self.G_iaa - G_iaa_new))
             
-            self.G_iaa = mix*G_iaa_new + (1-mix)*self.G_iaa 
+            self.G_iaa = mix*G_iaa_new + (1-mix)*self.G_iaa
             self.Sigma_iaa = Sigma_iaa
 
             if is_root(): print(f'PPSC: iter = {iter:3d} diff = {diff:2.2E}')
@@ -397,20 +524,24 @@ class Solver(object):
             
 
     @timer('Dyson')
-    def solve_dyson(self, Sigma_iaa, eta, tol):
+    def solve_dyson(self, Sigma_iaa, eta, tol, mu_op=None):
         #G_iaa = self.dyson.solve(Sigma_iaa, eta)
-        G_iaa = self.solve_dyson_iterative(Sigma_iaa, eta, G_iaa_guess=self.G_iaa, tol=0.1*tol)
+        G_iaa = self.solve_dyson_iterative(Sigma_iaa, eta, G_iaa_guess=self.G_iaa, tol=tol, mu_op=mu_op)
         return G_iaa
 
     @timer('Dyson Iterative')
-    def solve_dyson_iterative(self, Sigma_iaa, eta, G_iaa_guess=None, tol=1e-9):
-        """ Solve ( 1 - G0*(eta + Sigma)) * G = G0 teratively. """
+    def solve_dyson_iterative(self, Sigma_iaa, eta, G_iaa_guess=None, tol=1e-9, mu_op=None):
+        """ Solve ( 1 - G0*(eta + Sigma)) * G = G0 iteratively. """
 
         shape_iaa = Sigma_iaa.shape
         Sigma_xaa = self.ito.vals2coefs(Sigma_iaa)
         G0Sigma_iaa = self.ito.convolve(self.beta, "cppdlr::Fermion", self.G0_xaa, Sigma_xaa, True)
         
         K_iaa = self.G0_iaa * eta + G0Sigma_iaa
+
+        if mu_op is not None:
+            K_iaa += self.G0_iaa @ mu_op
+            
         K_xaa = self.ito.vals2coefs(K_iaa)
 
         def matvec(x):
