@@ -342,15 +342,12 @@ class Solver(object):
 
 
     @timer('Eta and mu search (Newton)')
-    def energyshift_density_newton(self, Sigma_iaa, N_fix, tol=1e-10, verbose=True):
-
-        print(f'--> energyshift_density_newton: N_fix = {N_fix}, tol = {tol:2.2E}')
+    def energyshift_density_newton(self, Sigma_iaa, N_fix, tol=1e-10, verbose=True, single_step=True):
         
-        def target_function(x):
+        def target_function(x, verbose=True):
             eta, mu = x
 
-            #G_iaa_new = self.dyson.solve(Sigma_iaa, eta)
-            G_iaa_new = self.solve_dyson(Sigma_iaa, eta, tol*0.01, mu_op=mu*self.N_op_mat)
+            G_iaa_new = self.solve_dyson(Sigma_iaa, eta, tol, mu_op=mu*self.N_op_mat)
 
             G_xaa = self.ito.vals2coefs(G_iaa_new)
 
@@ -395,13 +392,15 @@ class Solver(object):
 
             return F, J
 
+
         x0 = np.array([self.eta, self.mu])
 
         if False:
+            # -- Numerical check of gradient
             from scipy.optimize import check_grad, approx_fprime
             func = lambda x: target_function(x)[0]
             grad = lambda x: target_function(x)[1]
-            grad_err = check_grad(func, grad, x0)
+            grad_err = check_grad(func, grad, x0, epsilon=1e-8)
             print('='*72)
             print(f'grad_err = {grad_err:+2.2E}')
 
@@ -414,16 +413,35 @@ class Solver(object):
 
             exit()
 
-        from scipy.optimize import root
-        sol = root(
-            target_function, x0=x0, method='hybr', jac=True, tol=tol,
-            options=dict(factor=1.0))
+        if single_step:
+            print(f'--> One Newton step in eta and mu: N_fix = {N_fix}, tol = {tol:2.2E}')
+            df, H = target_function(x0)
+            s = np.linalg.solve(H, -df)
+            print(f'norm(s) = {np.linalg.norm(s)}')
+            x = x0 + s
+            eta, mu = x
+            print(f'PPSC: Eta mu Newton: eta = {eta:+6.6E}, mu = {mu:+6.6E}')
+            return x
 
-        if not sol.success and is_root():
-            print('PPSC: Warning! Energy and density shift Newton search failed.')
-            print(sol)
+        else:
+            print(f'--> energyshift_density_newton: N_fix = {N_fix}, tol = {tol:2.2E}')
+            
+            from scipy.optimize import root
+            sol = root(
+                target_function, x0=x0, method='hybr', jac=True, tol=tol,
+                options=dict(
+                    #factor=1.0,
+                    #xtol=tol
+                    ))
 
-        return sol.x
+            F, J = target_function(sol.x, verbose=True)
+            print(f'F = {F}')
+
+            if not sol.success and is_root():
+                print('PPSC: Warning! Energy and density shift Newton search failed.')
+                print(sol)
+
+            return sol.x
 
 
     def solve_fix_N(self, max_order, N_fix, N_op, tol=1e-9, maxiter=10, mix=1.0, verbose=True, G0_iaa=None):
@@ -433,39 +451,32 @@ class Solver(object):
         if not hasattr(self, 'mu'):
             self.mu = 0.0
 
-        #print(f'N_op = {N_op}')
         self.N_op_mat = np.array(self.ed.rep.sparse_matrix(N_op).todense())
-        #print(f'N_op_mat =\n{N_op_mat}')
         
         if G0_iaa is not None:
             assert( type(G0_iaa) == np.ndarray )
             assert( G0_iaa.shape == self.G_iaa.shape )
             self.G_iaa = G0_iaa
 
-        #diff = 1.0 # This is not ok when maxiter=1
-
         self.G0_iaa = self.fd.free_greens_ppsc(self.beta, self.H_mat)
         self.G0_xaa = self.ito.vals2coefs(self.G0_iaa)
 
         for iter in range(maxiter):
 
-            Sigma_iaa = self.calc_Sigma(max_order, verbose=verbose)
-
-            #self.eta, self.mu = self.energyshift_density_newton(Sigma_iaa, N_fix, tol=0.001*diff, verbose=verbose)
-            self.eta, self.mu = self.energyshift_density_newton(Sigma_iaa, N_fix, tol=tol, verbose=verbose)
-
-            G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta, tol, mu_op=self.mu*self.N_op_mat)
+            self.Sigma_iaa = self.calc_Sigma(max_order, verbose=verbose)
+            self.eta, self.mu = self.energyshift_density_newton(self.Sigma_iaa, N_fix, tol=tol, verbose=verbose)
+            G_iaa_new = self.solve_dyson(self.Sigma_iaa, self.eta, tol, mu_op=self.mu*self.N_op_mat)
 
             diff = np.max(np.abs(self.G_iaa - G_iaa_new))
+            self.G_iaa = mix*G_iaa_new + (1-mix)*self.G_iaa
 
             if is_root(): print(f'PPSC: iter = {iter:3d} diff = {diff:2.2E}')
             if diff < tol: break
 
-            self.G_iaa = mix*G_iaa_new + (1-mix)*self.G_iaa
-            self.Sigma_iaa = Sigma_iaa
-
         if is_root():
             print(); self.timer.write()
+
+        return diff
 
 
     def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True, mix=1.0, verbose=True, G0_iaa=None):
@@ -524,11 +535,24 @@ class Solver(object):
             
 
     @timer('Dyson')
-    def solve_dyson(self, Sigma_iaa, eta, tol, mu_op=None):
-        #G_iaa = self.dyson.solve(Sigma_iaa, eta)
-        G_iaa = self.solve_dyson_iterative(Sigma_iaa, eta, G_iaa_guess=self.G_iaa, tol=tol, mu_op=mu_op)
+    def solve_dyson(self, Sigma_iaa, eta, tol, mu_op=None, iterative=False):
+        """ Dyson solver frontend
+
+        For direct solver or iterative solver (with given tolerance).
+        """
+        
+        if iterative:
+            assert( iter_tol is not None )
+            G_iaa = self.solve_dyson_iterative(Sigma_iaa, eta, G_iaa_guess=self.G_iaa, tol=tol, mu_op=mu_op)
+        else:
+            if mu_op is None:
+                G_iaa = self.dyson.solve(Sigma_iaa, eta)
+            else:
+                G_iaa = self.dyson.solve_with_op(Sigma_iaa, eta, np.array(mu_op, dtype=complex))
+            
         return G_iaa
 
+    
     @timer('Dyson Iterative')
     def solve_dyson_iterative(self, Sigma_iaa, eta, G_iaa_guess=None, tol=1e-9, mu_op=None):
         """ Solve ( 1 - G0*(eta + Sigma)) * G = G0 iteratively. """
