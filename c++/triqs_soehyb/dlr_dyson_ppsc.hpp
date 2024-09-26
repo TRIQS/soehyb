@@ -120,6 +120,53 @@ namespace cppdlr {
       }
     }
 
+    /**
+    * @brief Solve pseudo-particle Dyson equation for given self-energy, chemical potential, and operator.
+    *
+    * @tparam Tsig Type of self-energy
+    * @param[in] sig Self-energy at DLR imaginary time nodes
+    * @param[in] eta Chemical potential
+    * @param[in] op Static operator (used to vary the chemical potential)
+    *
+    * @return Green's function at DLR imaginary time nodes
+    *
+    * \note Free Green's function (right hand side of Dyson equation) specified
+    * at construction of dyson_it object
+    */
+    // Tsig is type of sig. Tg is type of Green's
+    // function, which is of type Tsig, with scalar type replaced by the common
+    // type of the Hamiltonian's scalar type, and the self-energy's scalar type
+    // (real if both are real, complex otherwise).
+    template <nda::MemoryArray Tsig, nda::MemoryArray Tg = make_common_t<Tsig, Sh, nda::get_value_t<Tsig>>> Tg solve_with_op(Tsig const &sig, double eta, nda::array<dcomplex, 2> const &op) const {
+
+      int r     = itops_ptr->rank();          // DLR rank
+      auto sigc = itops_ptr->vals2coefs(sig); // DLR coefficients of self-energy
+
+      auto ggs = itops_ptr->convolve(beta, Fermion, g0c, sigc, time_order);
+      ggs += eta * g0;
+      for(int k = 0; k < r; ++k) ggs(k,_,_) += nda::matmul(g0(k,_,_), op);
+      ggs *= -1.0;
+
+      nda::matrix<Sh> sysmat = itops_ptr->convmat(beta, Fermion, itops_ptr->vals2coefs(ggs), time_order);
+      sysmat += nda::eye<double>(r * norb);
+
+      // Factorize system matrix
+      auto ipiv = nda::vector<int>(r * norb);
+      nda::lapack::getrf(sysmat, ipiv);
+
+      // Solve Dyson equation
+      auto g    = Tg(sig.shape());                                                    // Declare Green's function
+      g         = rhs;                                                                // Get right hand side of Dyson equation
+      auto g_rs = nda::matrix_view<get_value_t<Tg>>(nda::reshape(g, norb, r * norb)); // Reshape g to be compatible w/ LAPACK
+      nda::lapack::getrs(sysmat, g_rs, ipiv);                                         // Back solve
+
+      if constexpr (std::floating_point<Ht>) {                                        // If h is scalar, g is scalar-valued
+        return g;
+      } else { // Otherwise, g is matrix-valued, and need to transpose some indices after solve to undo LAPACK formatting
+        return permuted_indices_view<nda::encode<3>({2, 0, 1})>(g);
+      }
+    }
+
     private:
     double beta;                           ///< Inverse temperature
     std::shared_ptr<imtime_ops> itops_ptr; ///< shared pointer to imtime_ops object

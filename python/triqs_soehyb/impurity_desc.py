@@ -143,6 +143,9 @@ c.add_constructor("""(double beta, imtime_ops itops, nda::array<dcomplex, 2> H)"
 c.add_method("""nda::array<dcomplex, 3> solve(nda::array_view<dcomplex, 3> Sigma_t, double eta)""",
              doc = r"""""")
 
+c.add_method("""nda::array<dcomplex, 3> solve_with_op(nda::array_view<dcomplex, 3> Sigma_t, double eta, nda::array_view<dcomplex, 2> op)""",
+             doc = r"""""")
+
 module.add_class(c)
 
 
