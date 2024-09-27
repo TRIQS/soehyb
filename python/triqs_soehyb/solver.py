@@ -159,6 +159,11 @@ class Solver(object):
         self.F = np.array([np.array(
             self.ed.rep.sparse_operators.c_dag[idx].T.conj().todense())
             for idx in range(len(fundamental_operators)) ])
+
+        self.N_op = 0 * self.ed.rep.sparse_operators.I
+        for c_dag in self.ed.rep.sparse_operators.c_dag:
+            self.N_op += c_dag * c_dag.T.conj()
+        self.N_op = np.array(self.N_op.todense())
         
         self.H_mat = np.array(self.ed.ed.H.todense())
         
@@ -166,14 +171,15 @@ class Solver(object):
     def __setup_ppsc_solver(self):
         self.fd = Fastdiagram(self.beta, self.lamb, self.eps, self.F, self.F_dag)
         self.tau_i = self.fd.get_it_actual().real
-                
+        
         self.G0_iaa = self.fd.free_greens_ppsc(self.beta, self.H_mat)
         self.dyson = DysonItPPSC(self.beta, self.ito, self.H_mat)
 
         
     def __setup_initial_guess(self, G_iaa=None, eta=None):
         self.G_iaa = self.G0_iaa.copy() if G_iaa is None else G_iaa
-        self.eta = 0. if eta is None else eta
+        self.eta = 0.0 if eta is None else eta
+        self.dmu = 0.0
 
 
     def set_H_loc(self, H_loc):
@@ -280,7 +286,7 @@ class Solver(object):
         
         def target_function(eta_h):
             #G_iaa_new = self.dyson.solve(Sigma_iaa, eta)
-            G_iaa_new = self.solve_dyson(Sigma_iaa, eta, tol)
+            G_iaa_new = self.solve_dyson(Sigma_iaa, eta, tol, dmu=self.dmu)
             Z_h = self.fd.partition_function(G_iaa_new)
             Omega_h = np.log(np.abs(Z_h)) / self.beta            
             return Omega_h
@@ -313,7 +319,7 @@ class Solver(object):
         def target_function(eta):
         
             #G_iaa_new = self.dyson.solve(Sigma_iaa, eta)
-            G_iaa_new = self.solve_dyson(Sigma_iaa, eta, tol)
+            G_iaa_new = self.solve_dyson(Sigma_iaa, eta, tol, dmu=self.dmu)
             
             Z = self.fd.partition_function(G_iaa_new)
             Omega = np.log(np.abs(Z)) / self.beta
@@ -342,26 +348,26 @@ class Solver(object):
 
 
     @timer('Eta and mu search (Newton)')
-    def energyshift_density_newton(self, Sigma_iaa, N_fix, tol=1e-10, verbose=True, single_step=True):
+    def energyshift_density_newton(self, Sigma_iaa, N_fix, tol=1e-10, verbose=True, single_step=False):
         
         def target_function(x, verbose=True):
-            eta, mu = x
+            eta, dmu = x
 
-            G_iaa_new = self.solve_dyson(Sigma_iaa, eta, tol, mu_op=mu*self.N_op_mat)
+            G_iaa_new = self.solve_dyson(Sigma_iaa, eta, tol, dmu=dmu)
 
             G_xaa = self.ito.vals2coefs(G_iaa_new)
 
             GG_iaa = self.ito.convolve(self.beta, "cppdlr::Fermion", G_xaa, G_xaa, True)
-            GNG_iaa = self.ito.convolve(self.beta, "cppdlr::Fermion", G_xaa, self.N_op_mat @ G_xaa, True)
+            GNG_iaa = self.ito.convolve(self.beta, "cppdlr::Fermion", G_xaa, self.N_op @ G_xaa, True)
 
             TrGb = -self.fd.partition_function(G_iaa_new)
-            TrNGb = -self.fd.partition_function(self.N_op_mat @ G_iaa_new)
+            TrNGb = -self.fd.partition_function(self.N_op @ G_iaa_new)
 
             TrGGb = -self.fd.partition_function(GG_iaa)
-            TrNGGb = -self.fd.partition_function(self.N_op_mat @ GG_iaa)
+            TrNGGb = -self.fd.partition_function(self.N_op @ GG_iaa)
 
             TrGNGb = -self.fd.partition_function(GNG_iaa)
-            TrNGNGb = -self.fd.partition_function(self.N_op_mat @ GNG_iaa)
+            TrNGNGb = -self.fd.partition_function(self.N_op @ GNG_iaa)
 
             Z = - TrGb
             N = - TrNGb / Z
@@ -384,7 +390,7 @@ class Solver(object):
                 ])
 
             if verbose and is_root():
-                print(f'PPSC: Eta mu Newton: eta = {eta:+6.6E}, mu = {mu:+6.6E}')
+                print(f'PPSC: Eta mu Newton: eta = {eta:+6.6E}, dmu = {dmu:+6.6E}')
                 print(f'PPSC: Eta mu Newton: Z-1 = {Z-1:+2.2E}, Omega = {Omega:+2.2E}, N-Nfix = {N-N_fix:+2.2E}')
 
             #print(f'F = {F}')
@@ -393,7 +399,7 @@ class Solver(object):
             return F, J
 
 
-        x0 = np.array([self.eta, self.mu])
+        x0 = np.array([self.eta, self.dmu])
 
         if False:
             # -- Numerical check of gradient
@@ -419,8 +425,8 @@ class Solver(object):
             s = np.linalg.solve(H, -df)
             print(f'norm(s) = {np.linalg.norm(s)}')
             x = x0 + s
-            eta, mu = x
-            print(f'PPSC: Eta mu Newton: eta = {eta:+6.6E}, mu = {mu:+6.6E}')
+            eta, dmu = x
+            print(f'PPSC: Eta mu Newton: eta = {eta:+6.6E}, mu = {dmu:+6.6E}')
             return x
 
         else:
@@ -434,8 +440,8 @@ class Solver(object):
                     #xtol=tol
                     ))
 
-            F, J = target_function(sol.x, verbose=True)
-            print(f'F = {F}')
+            #F, J = target_function(sol.x, verbose=True)
+            #print(f'F = {F}')
 
             if not sol.success and is_root():
                 print('PPSC: Warning! Energy and density shift Newton search failed.')
@@ -444,14 +450,10 @@ class Solver(object):
             return sol.x
 
 
-    def solve_fix_N(self, max_order, N_fix, N_op, tol=1e-9, maxiter=10, mix=1.0, verbose=True, G0_iaa=None):
+    def solve_fix_N(self, max_order, N_fix, tol=1e-9, maxiter=10, mix=1.0,
+                    G0_iaa=None, single_step=False, verbose=True):
 
         print('--> solve_fix_N')
-
-        if not hasattr(self, 'mu'):
-            self.mu = 0.0
-
-        self.N_op_mat = np.array(self.ed.rep.sparse_matrix(N_op).todense())
         
         if G0_iaa is not None:
             assert( type(G0_iaa) == np.ndarray )
@@ -464,8 +466,9 @@ class Solver(object):
         for iter in range(maxiter):
 
             self.Sigma_iaa = self.calc_Sigma(max_order, verbose=verbose)
-            self.eta, self.mu = self.energyshift_density_newton(self.Sigma_iaa, N_fix, tol=tol, verbose=verbose)
-            G_iaa_new = self.solve_dyson(self.Sigma_iaa, self.eta, tol, mu_op=self.mu*self.N_op_mat)
+            self.eta, self.dmu = self.energyshift_density_newton(
+                self.Sigma_iaa, N_fix, tol=tol, single_step=single_step, verbose=verbose)
+            G_iaa_new = self.solve_dyson(self.Sigma_iaa, self.eta, tol, dmu=self.dmu)
 
             diff = np.max(np.abs(self.G_iaa - G_iaa_new))
             self.G_iaa = mix*G_iaa_new + (1-mix)*self.G_iaa
@@ -501,13 +504,14 @@ class Solver(object):
 
             if update_eta_exact:
                 self.eta = self.energyshift_newton(Sigma_iaa, tol=0.1*diff, verbose=verbose)
-                G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta, tol)
+                G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta, tol, dmu=self.dmu)
                 
             else:
-                G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta, tol)
+                G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta, tol, dmu=self.dmu)
                 Z = self.partition_function(G_iaa_new)
                 deta = np.log(np.abs(Z)) / self.beta
                 G_iaa_new[:] *= np.exp(-self.tau_i * deta)[:, None, None]
+                print(f'deta = {deta}, eta = {self.eta}')
                 self.eta += deta
                 
             if is_root() and verbose:
@@ -535,26 +539,23 @@ class Solver(object):
             
 
     @timer('Dyson')
-    def solve_dyson(self, Sigma_iaa, eta, tol, mu_op=None, iterative=False):
+    def solve_dyson(self, Sigma_iaa, eta, tol, iterative=False, dmu=0.0):
         """ Dyson solver frontend
 
         For direct solver or iterative solver (with given tolerance).
         """
         
         if iterative:
-            assert( iter_tol is not None )
-            G_iaa = self.solve_dyson_iterative(Sigma_iaa, eta, G_iaa_guess=self.G_iaa, tol=tol, mu_op=mu_op)
+            G_iaa = self.solve_dyson_iterative(Sigma_iaa, eta, G_iaa_guess=self.G_iaa, tol=tol, dmu=dmu)
         else:
-            if mu_op is None:
-                G_iaa = self.dyson.solve(Sigma_iaa, eta)
-            else:
-                G_iaa = self.dyson.solve_with_op(Sigma_iaa, eta, np.array(mu_op, dtype=complex))
+            #G_iaa = self.dyson.solve(Sigma_iaa, eta)
+            G_iaa = self.dyson.solve_with_op(Sigma_iaa, eta, np.array(dmu * self.N_op, dtype=complex))
             
         return G_iaa
 
     
     @timer('Dyson Iterative')
-    def solve_dyson_iterative(self, Sigma_iaa, eta, G_iaa_guess=None, tol=1e-9, mu_op=None):
+    def solve_dyson_iterative(self, Sigma_iaa, eta, G_iaa_guess=None, tol=1e-9, dmu=0.0):
         """ Solve ( 1 - G0*(eta + Sigma)) * G = G0 iteratively. """
 
         shape_iaa = Sigma_iaa.shape
@@ -562,10 +563,7 @@ class Solver(object):
         G0Sigma_iaa = self.ito.convolve(self.beta, "cppdlr::Fermion", self.G0_xaa, Sigma_xaa, True)
         
         K_iaa = self.G0_iaa * eta + G0Sigma_iaa
-
-        if mu_op is not None:
-            K_iaa += self.G0_iaa @ mu_op
-            
+        K_iaa += dmu * self.G0_iaa @ self.N_op
         K_xaa = self.ito.vals2coefs(K_iaa)
 
         def matvec(x):
