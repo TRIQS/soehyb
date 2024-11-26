@@ -114,6 +114,10 @@ def eval_dlr_freq(G_xaa, z, beta, dlr_rf):
     return G_zaa
 
 
+def make_hermitian(A_iaa):
+    return 0.5*(A_iaa +  np.swapaxes(A_iaa.conj(), 1, 2))
+
+
 class Solver(object):
 
     def __init__(self, beta, lamb, eps,
@@ -472,6 +476,7 @@ class Solver(object):
 
             diff = np.max(np.abs(self.G_iaa - G_iaa_new))
             self.G_iaa = mix*G_iaa_new + (1-mix)*self.G_iaa
+            #self.G_iaa = make_hermitian(self.G_iaa)
 
             if is_root(): print(f'PPSC: iter = {iter:3d} diff = {diff:2.2E}')
             if diff < tol: break
@@ -511,7 +516,7 @@ class Solver(object):
                 Z = self.partition_function(G_iaa_new)
                 deta = np.log(np.abs(Z)) / self.beta
                 G_iaa_new[:] *= np.exp(-self.tau_i * deta)[:, None, None]
-                print(f'deta = {deta}, eta = {self.eta}')
+                if is_root(): print(f'deta = {deta}, eta = {self.eta}')
                 self.eta += deta
                 
             if is_root() and verbose:
@@ -527,6 +532,7 @@ class Solver(object):
             diff = np.max(np.abs(self.G_iaa - G_iaa_new))
             
             self.G_iaa = mix*G_iaa_new + (1-mix)*self.G_iaa
+            #self.G_iaa = make_hermitian(self.G_iaa)
             self.Sigma_iaa = Sigma_iaa
 
             if is_root(): print(f'PPSC: iter = {iter:3d} diff = {diff:2.2E}')
