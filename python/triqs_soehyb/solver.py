@@ -424,17 +424,17 @@ class Solver(object):
             exit()
 
         if single_step:
-            print(f'--> One Newton step in eta and mu: N_fix = {N_fix}, tol = {tol:2.2E}')
+            if is_root(): print(f'--> One Newton step in eta and mu: N_fix = {N_fix}, tol = {tol:2.2E}')
             df, H = target_function(x0)
             s = np.linalg.solve(H, -df)
-            print(f'norm(s) = {np.linalg.norm(s)}')
+            if is_root(): print(f'norm(s) = {np.linalg.norm(s)}')
             x = x0 + s
             eta, dmu = x
-            print(f'PPSC: Eta mu Newton: eta = {eta:+6.6E}, mu = {dmu:+6.6E}')
+            if is_root(): print(f'PPSC: Eta mu Newton: eta = {eta:+6.6E}, mu = {dmu:+6.6E}')
             return x
 
         else:
-            print(f'--> energyshift_density_newton: N_fix = {N_fix}, tol = {tol:2.2E}')
+            if is_root(): print(f'--> energyshift_density_newton: N_fix = {N_fix}, tol = {tol:2.2E}')
             
             from scipy.optimize import root
             sol = root(
@@ -457,7 +457,7 @@ class Solver(object):
     def solve_fix_N(self, max_order, N_fix, tol=1e-9, maxiter=10, mix=1.0,
                     G0_iaa=None, single_step=False, verbose=True):
 
-        print('--> solve_fix_N')
+        if is_root(): print('--> solve_fix_N')
         
         if G0_iaa is not None:
             assert( type(G0_iaa) == np.ndarray )
