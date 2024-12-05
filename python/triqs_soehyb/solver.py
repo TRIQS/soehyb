@@ -394,8 +394,8 @@ class Solver(object):
                 ])
 
             if verbose and is_root():
-                print(f'PPSC: Eta mu Newton: eta = {eta:+6.6E}, dmu = {dmu:+6.6E}')
-                print(f'PPSC: Eta mu Newton: Z-1 = {Z-1:+2.2E}, Omega = {Omega:+2.2E}, N-Nfix = {N-N_fix:+2.2E}')
+                print(f'PPSC: Z-1 = {Z-1:+2.2E}, Omega = {Omega:+2.2E}, N-Nfix = {N-N_fix:+2.2E} (Nfix={N_fix}, tol={tol:2.2E})')
+                print(f'PPSC: eta = {eta:+6.6E}, dmu = {dmu:+6.6E} (pre)')
 
             #print(f'F = {F}')
             #print(f'J = \n{J}')
@@ -424,13 +424,13 @@ class Solver(object):
             exit()
 
         if single_step:
-            if is_root(): print(f'--> One Newton step in eta and mu: N_fix = {N_fix}, tol = {tol:2.2E}')
+            #if is_root(): print(f'PPSC: N_fix = {N_fix}, tol = {tol:2.2E}')
             df, H = target_function(x0)
             s = np.linalg.solve(H, -df)
-            if is_root(): print(f'norm(s) = {np.linalg.norm(s)}')
+            #if is_root(): print(f'norm(s) = {np.linalg.norm(s)}')
             x = x0 + s
             eta, dmu = x
-            if is_root(): print(f'PPSC: Eta mu Newton: eta = {eta:+6.6E}, mu = {dmu:+6.6E}')
+            if is_root(): print(f'PPSC: eta = {eta:+6.6E}, dmu = {dmu:+6.6E} (post Newton step)')
             return x
 
         else:
@@ -470,15 +470,29 @@ class Solver(object):
         for iter in range(maxiter):
 
             self.Sigma_iaa = self.calc_Sigma(max_order, verbose=verbose)
+
+            eta_old, dmu_old = self.eta, self.dmu
+
             self.eta, self.dmu = self.energyshift_density_newton(
                 self.Sigma_iaa, N_fix, tol=tol, single_step=single_step, verbose=verbose)
+
+            if is_root():
+            #    print(f'PPSC: eta_old = {eta_old}, dmu_old = {dmu_old}')
+            #    print(f'PPSC: eta = {self.eta}, dmu = {self.dmu}')
+            #    print(f'PPSc: deta = {self.eta - eta_old}')
+                print(f'PPSC: Fix N mix = {mix}')
+            
             G_iaa_new = self.solve_dyson(self.Sigma_iaa, self.eta, tol, dmu=self.dmu)
 
             diff = np.max(np.abs(self.G_iaa - G_iaa_new))
+
             self.G_iaa = mix*G_iaa_new + (1-mix)*self.G_iaa
             #self.G_iaa = make_hermitian(self.G_iaa)
 
-            if is_root(): print(f'PPSC: iter = {iter:3d} diff = {diff:2.2E}')
+            self.eta = mix*self.eta + (1-mix)*eta_old # Try to stabilize!?
+            self.dmu = mix*self.dmu + (1-mix)*dmu_old # Try to stabilize!?
+            
+            if is_root(): print(f'PPSC: iter = {iter:3d} diff = {diff:2.2E} (tol = {tol:2.2E} maxiter = {maxiter})')
             if diff < tol: break
 
         if is_root():
