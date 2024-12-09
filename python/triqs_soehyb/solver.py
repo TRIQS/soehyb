@@ -54,7 +54,7 @@ def Sigma_calc_loop(fd, G_iaa, max_order, verbose=True):
         n_diags = fd.number_of_diagrams(ord)
         
         if is_root() and verbose:
-            print(f"PPSC: Sigma order = {ord}, n_diags = {n_diags}")
+            print(f"PPSC: Sigma order = {ord}, n_diags = {n_diags}", flush=True)
 
         for sign, diag in all_connected_pairings(ord):
 
@@ -86,7 +86,7 @@ def G_calc_loop(fd, G_iaa, max_order, n_g, verbose=True):
         n_diags = fd.number_of_diagrams(ord)
 
         if is_root() and verbose:
-            print(f"PPSC: SPGF order = {ord}, n_diags = {n_diags}")
+            print(f"PPSC: SPGF order = {ord}, n_diags = {n_diags}", flush=True)
             
         for sign, diag in all_connected_pairings(ord):
 
