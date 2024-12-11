@@ -283,26 +283,6 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
     return Diagram; 
 }
 
-void final_evaluation_bigmem(nda::array_view<dcomplex,3> Diagram,  nda::array_const_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> T_left, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,int &n, int &r, int &N, double &constant){ 
-
-  // There is no need to store these large temporary intermediate rank 4 arrays
-    auto GF_dag = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
-    auto GF_left = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
-    
-    for (int b=0;b<n;++b){
-        for (int k = 0;k<r;++k) GF_dag(b,k,_,_) = matmul(T(k,_,_), F_dag(b,_,_));
-        for (int k = 0;k<r;++k) GF_left(b,k,_,_) = matmul(T_left(k,_,_), F(b,_,_));  
-    }
-    //iterate over all entries of impurity Green's function
-    for (int b=0;b<n;++b){
-        for (int a=0;a<n;++a){
-            for (int k = 0;k<r;++k){
-                Diagram(k,a,b) += constant* trace(matmul(GF_left(a,k,_,_),GF_dag(b,k,_,_)));
-            }
-        }
-    } 
-
-}
 
 void final_evaluation(nda::array_view<dcomplex,3> Diagram,  nda::array_const_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> T_left, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,int &n, int &r, int &N, double &constant){ 
 
@@ -636,44 +616,6 @@ void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &con
         vertex(D(v,0),_,_,_) =V_tilde_here;
         vertex(D(v,1),_,_,_) = U_tilde_here;
     } 
-}
-
-void special_summation_bigmem(nda::array_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect, int &n, int &r, int &N, bool backward){
-
-  // This implementation is using b times more memory than needed
-
-  auto T2 = nda::array<dcomplex,4>(r,n,N,N);
-    auto T3 = nda::array<dcomplex,3>(T.shape());
-    T2=0;
-    // T2(b,ts) = T(ts)*F_b
-    for (int k=0;k<r;++k) {
-        for (int b =0;b<n;++b) T2(k,b,_,_) = matmul(T(k,_,_),F(b,_,_));
-    }
-    // T2(a,ts) = sum_b Delta(ts)_ab * T2(b,ts)
-    for (int k=0;k<r;++k){
-            T2(k,_,_,_) = arraymult(Deltat(k,_,_), T2(k,_,_,_));
-    }
-    // T = sum_a Fdag_a T2(a,ts) 
-    
-    T3=0;
-    for (int k=0;k<r;++k){
-        for (int a = 0;a<n;++a) T3(k,_,_) = T3(k,_,_)+matmul(F_dag(a,_,_),T2(k,a,_,_));
-    }  
-    if (backward==true){
-        T2=0;
-         for (int k=0;k<r;++k){
-           for (int b =0;b<n;++b) T2(k,b,_,_) = matmul(T(k,_,_),F_dag(b,_,_));
-        }
-        for (int k=0;k<r;++k){
-            T2(k,_,_,_) = arraymult((Deltat_reflect(k,_,_)), T2(k,_,_,_)); //deleted transpose of Deltat_reflect
-            // T2(k,_,_,_) = arraymult((transpose(Deltat_reflect(k,_,_))), T2(k,_,_,_)); 
-        }
-        // T = sum_a Fdag_a T2(a,ts) 
-        for (int k=0;k<r;++k){
-            for (int a = 0;a<n;++a) T3(k,_,_) = T3(k,_,_)+matmul(F(a,_,_),T2(k,a,_,_));
-        }  
-    }
-    T = T3;
 }
 
 void special_summation(nda::array_view<dcomplex,3> Gt, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect, int &n, int &r, int &N, bool backward){
