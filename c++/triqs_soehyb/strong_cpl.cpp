@@ -194,8 +194,6 @@ nda::array<dcomplex,3> eval_one_diagram_G(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
     auto T = nda::array<dcomplex,3>(r,N,N); //used for storing diagram (from 0 to t)
     auto T_left = nda::array<dcomplex,3>(r,N,N); //used for storing diagram (from t to beta)
 
-    auto GF_dag = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
-    auto GF_left = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
     //obtain R2, ... , Rm, store as R[1],...,R[m-1]
     for (int v = 1;v<m;++v){
         R[v] = num0 % P;
