@@ -78,52 +78,78 @@ void hyb_decomp::check_accuracy(nda::array_const_view<dcomplex,3> Deltat,nda::ve
     std::cout << "Max error in decomposition of Delta(t): " << max_element(abs((Deltat - Deltat_approx))) << std::endl; 
 }
 
-hyb_F::hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda::vector_const_view<double> dlr_it, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
-    if (F.shape(0)!= hyb_decomp.U.shape(1) ) throw std::runtime_error("F matrices not in the right format, or F matrices and hybridization shape do not match");
-    if (F.shape(1)!= F.shape(2)) throw std::runtime_error("F are not square matrices");
-    int N = F.shape(1);
-    int P = hyb_decomp.V.shape(0);
-    int r = dlr_it.shape(0); 
-    int vec_len = N*N;
+hyb_F::hyb_F(int N, int r, int n) :
+  N(N), r(r), n(n),
+  P(r*n), // using P = r*n for allocation
+  c(P), w(P), U_tilde(P, r, N, N), V_tilde(P, r, N, N), K_matrix(P, r) {}
 
-    // First construct U_c, V_c
+void hyb_F::update_inplace(const hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda::vector_const_view<double> dlr_it, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag) {
+
+    if (F.shape(0) != hyb_decomp.U.shape(1))
+      throw std::runtime_error("F matrices not in the right format, or F matrices and hybridization shape do not match");
+
+    if (F.shape(1) != F.shape(2))
+      throw std::runtime_error("F are not square matrices");
+    
+    int n_in = F.shape(0);
+    int N_in = F.shape(1);
+    int r_in = dlr_it.shape(0);
+    int P_in = hyb_decomp.V.shape(0);
+
+    if (N_in != N || r_in != r || n_in != n || P_in > r*n) { // Have preallocated storage with P = r*n
+      throw std::runtime_error("The number of poles P exceeds dlr rank r times single particle flavours n, P > r*n.");
+      /*
+      std::cout << "WARNING: hyb_F::update_inplace resize: "
+		<< "N, P, r = " << N << ", " << P << ", " << r
+		<< " in (N, P, r = " << N_in << ", " << P_in << ", " << r_in << ")\n";
+      N = N_in;
+      P = P_in;
+      r = r_in;
+      c.resize(P);
+      w.resize(P);
+      U_tilde.resize(P, r, N, N);
+      V_tilde.resize(P, r, N, N);
+      K_matrix.resize(P, r);
+      */
+    }
+
+    P = P_in;
+  
     auto U_c = arraymult(hyb_decomp.U,F_dag);
     auto V_c = arraymult(hyb_decomp.V,F); 
-    
-    
-    //Finally construct Utilde, Vtilde, and c, also store kernel K_matrix and poles w
-    c = nda::vector<double>(P);
-    U_tilde = nda::array<dcomplex,4>(P,r,N,N);
-    U_tilde = 0;
-    V_tilde = nda::array<dcomplex,4>(P,r,N,N);
-    V_tilde = 0;
-    K_matrix = nda::array<double,2>(P,r);
-    for (int R=0;R<P;++R){
-       for (int k=0;k<r;++k) K_matrix(R,k) = k_it(dlr_it(k),hyb_decomp.w(R)); 
+  
+    for (int R = 0; R < P; ++R) {
+      for (int k = 0; k < r; ++k) {
+	 K_matrix(R,k) = k_it(dlr_it(k), hyb_decomp.w(R));
+      }
     }
 
-    for (int R=0;R<P;++R){
-       for (int k=0;k<r;++k){
-            U_tilde(R,k,_,_)= K_matrix(R,k)*U_c(R,_,_);
-       }
-       if (hyb_decomp.w(R)<0){
-            for (int k=0;k<r;++k) V_tilde(R,k,_,_) = k_it(dlr_it(k),-hyb_decomp.w(R))*V_c(R,_,_);
-            c(R) = 1/k_it(0,-hyb_decomp.w(R));
-       }
-       else {
-            for (int k=0;k<r;++k) V_tilde(R,k,_,_) = K_matrix(R,k)*V_c(R,_,_);
-            c(R) = 1/k_it(0,hyb_decomp.w(R)); 
-       }
+    for (int R = 0; R < P; ++R) {
+      for (int k = 0; k < r; ++k) {
+	U_tilde(R, k, _, _) = K_matrix(R, k) * U_c(R, _, _);
+      }
+      if (hyb_decomp.w(R) < 0) {
+	for (int k = 0; k < r; ++k) {
+	  V_tilde(R, k, _, _) = k_it(dlr_it(k), -hyb_decomp.w(R)) * V_c(R, _, _);
+	}
+	c(R) = 1 / k_it(0, -hyb_decomp.w(R));
+      } else {
+	for (int k = 0; k < r; ++k) {
+	  V_tilde(R, k, _, _) = K_matrix(R, k) * V_c(R, _, _);
+	}
+	c(R) = 1 / k_it(0, hyb_decomp.w(R));
+      }
     }
-    w = hyb_decomp.w;
+    w() = hyb_decomp.w;
 }
+
 
 nda::array<dcomplex,3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<int,2> D,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt,imtime_ops &itops,double beta, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag){
     auto Gt_reflect = itops.reflect(Gt);
     int r = Gt.shape(0); // size of time grid
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
-    int P = hyb_F_self.c.shape(0); //number of poles
+    int P = hyb_F_self.P; //number of poles
     int n = F.shape(0); //impurity size
     auto Diagram = nda::array<dcomplex,3>::zeros({r,n,n});
     int total_num_fb_diagram = pow(2, m-1);// total number of forward and backward choices
@@ -229,7 +255,7 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
     int r = Gt.shape(0); // size of time grid
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
-    int P = hyb_F_self.c.shape(0); //number of poles
+    int P = hyb_F_self.P; //number of poles
     int n = F.shape(0); //impurity size
 
     
@@ -257,9 +283,12 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
     return Diagram; 
 }
 
-void final_evaluation(nda::array_view<dcomplex,3> Diagram,  nda::array_const_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> T_left, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,int &n, int &r, int &N, double &constant){ 
+void final_evaluation_bigmem(nda::array_view<dcomplex,3> Diagram,  nda::array_const_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> T_left, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,int &n, int &r, int &N, double &constant){ 
+
+  // There is no need to store these large temporary intermediate rank 4 arrays
     auto GF_dag = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
     auto GF_left = nda::array<dcomplex,4>(n,r,N,N); //used for storage in final evaluation
+    
     for (int b=0;b<n;++b){
         for (int k = 0;k<r;++k) GF_dag(b,k,_,_) = matmul(T(k,_,_), F_dag(b,_,_));
         for (int k = 0;k<r;++k) GF_left(b,k,_,_) = matmul(T_left(k,_,_), F(b,_,_));  
@@ -275,6 +304,19 @@ void final_evaluation(nda::array_view<dcomplex,3> Diagram,  nda::array_const_vie
 
 }
 
+void final_evaluation(nda::array_view<dcomplex,3> Diagram,  nda::array_const_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> T_left, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,int &n, int &r, int &N, double &constant){ 
+
+  for (int k = 0; k < r; ++k) {
+    for (int a = 0; a < n; ++a) {
+      for (int b = 0; b < n; ++b) {
+	auto GF_dag = matmul(T(k, _, _), F_dag(b, _, _));
+	auto GF_left = matmul(T_left(k, _, _), F(a, _, _));
+	Diagram(k, a, b) += constant * trace(matmul(GF_left,GF_dag));
+      }
+    }
+  } 
+}
+
 
 nda::array<dcomplex,3> G_OCA_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect,nda::array_const_view<dcomplex,3> Gt, imtime_ops &itops,double beta,nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::vector_const_view<int> fb){
     auto const &dlr_it = itops.get_itnodes();  
@@ -283,7 +325,7 @@ nda::array<dcomplex,3> G_OCA_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda::ar
     int r = Gt.shape(0); // size of time grid
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
-    int P = hyb_F_self.c.shape(0);
+    int P = hyb_F_self.P;
     int n = F.shape(0);
     
     
@@ -415,7 +457,7 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
     int r = Gt.shape(0); // size of time grid
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
-    int P = hyb_F_self.c.shape(0); //number of poles
+    int P = hyb_F_self.P; //number of poles
     int n = F.shape(0); //size of impurity
     
     //initialize diagram
@@ -458,7 +500,7 @@ nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F
     int r = Gt.shape(0); // size of time grid
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
-    int P = hyb_F_self.c.shape(0); //number of poles
+    int P = hyb_F_self.P; //number of poles
     int n = F.shape(0); //size of impurity
 
     auto Diagram = nda::array<dcomplex,3>::zeros({r,N,N});
@@ -520,7 +562,7 @@ nda::array<dcomplex,3> Sigma_OCA_calc(hyb_F &hyb_F,nda::array_const_view<dcomple
     int r = Gt.shape(0); // size of time grid
     int N = Gt.shape(1); // size of G matrices
     int m = D.shape(0); // order of diagram
-    int P = hyb_F.c.shape(0);
+    int P = hyb_F.P;
     int n = F.shape(0);
 
     
@@ -595,8 +637,12 @@ void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &con
         vertex(D(v,1),_,_,_) = U_tilde_here;
     } 
 }
-void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect, int &n, int &r, int &N, bool backward){
-    auto T2 = nda::array<dcomplex,4>(r,n,N,N);
+
+void special_summation_bigmem(nda::array_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect, int &n, int &r, int &N, bool backward){
+
+  // This implementation is using b times more memory than needed
+
+  auto T2 = nda::array<dcomplex,4>(r,n,N,N);
     auto T3 = nda::array<dcomplex,3>(T.shape());
     T2=0;
     // T2(b,ts) = T(ts)*F_b
@@ -628,6 +674,24 @@ void special_summation(nda::array_view<dcomplex,3> T, nda::array_const_view<dcom
         }  
     }
     T = T3;
+}
+
+void special_summation(nda::array_view<dcomplex,3> Gt, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect, int &n, int &r, int &N, bool backward){
+
+    auto Sigmat = nda::array<dcomplex,3>(Gt.shape());
+    
+    Sigmat() = 0;
+    
+    for (int a = 0; a < n; ++a) {
+      for (int b = 0; b < n; ++b) {
+	for (int t = 0; t < r; ++t) {
+	  Sigmat(t, _, _) += Deltat(t, a, b) * matmul(F_dag(a, _, _), matmul(Gt(t, _, _), F(b, _, _)));
+	  if ( backward )
+	    Sigmat(t, _, _) += Deltat_reflect(t, a, b) * matmul(F(a, _, _), matmul(Gt(t, _, _), F_dag(b, _, _)));
+	}
+      }
+    }
+    Gt() = Sigmat;
 }
 
 void multiplicate_onto(nda::array_const_view<dcomplex,3> Ft, nda::array_view<dcomplex,3> Gt){

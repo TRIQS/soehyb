@@ -44,23 +44,42 @@ class hyb_decomp {
   * @brief Class responsible for compressing hybridization function with F and F_dag matrices, built on top of hyb_decomp class
 * */
 class hyb_F {
+
     public:
+  
+    int N; // size of local Hilbert space
+    int r; // number of DLR coefficients
+    int n; // number of single particle flavours
+    int P; // number of poles in compressed representation P <= n*r
+
+    // All arrays below are allocated with P = n*r
     nda::vector<double> c; // constant corresponding to each pole, of size P
     nda::vector<double> w; // poles, of size P
     nda::array<dcomplex,4> U_tilde; // compression of U and F, of size (P,r,N,N)
     nda::array<dcomplex,4> V_tilde; // compression of F_dag and V, of size (P,r,N,N) 
     nda::array<double,2> K_matrix; // K(w,tau) matrix with w being poles and tau in dlr_it
-    
+
     /** 
     * @brief Constructor for hyb_F
+    * @param[in] N size of local Hilbert space
+    * @param[in] r number of DLR coefficients
+    * @param[in] n number of single particle flavours
+    * */
+    hyb_F(int N, int r, int n);
+ 
+    hyb_F() = delete; // Disable copy constructor
+
+    /** 
+    * @brief Update factorization inplace
     * @param[in] hyb_decomp hyb_decomp class
     * @param[in] dlr_rf DLR real frequencies
     * @param[in] dlr_it DLR imaginary time nodes
     * @param[in] F impurity operator in pseudo-particle space, of size n*N*N
     * @param[in] F_dag impurity operator in pseudo-particle space, of size n*N*N
     * */
-    hyb_F(hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda::vector_const_view<double> dlr_it, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
-    hyb_F() = default;    
+    void update_inplace(const hyb_decomp &hyb_decomp,
+			nda::vector_const_view<double> dlr_rf, nda::vector_const_view<double> dlr_it,
+			nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag);
 };
 
 
