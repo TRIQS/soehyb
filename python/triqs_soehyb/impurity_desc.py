@@ -43,7 +43,7 @@ c.add_member(c_name = "dlr_if_dense",
              read_only= False,
              doc = r"""""")
 
-c.add_constructor("""(double beta, double lambda, double eps, nda::array<dcomplex, 3> F, nda::array<dcomplex, 3> F_dag)""", doc = r"""Parameters
+c.add_constructor("""(double beta, double lambda, imtime_ops itops, nda::array<dcomplex, 3> F, nda::array<dcomplex, 3> F_dag)""", doc = r"""Parameters
 ----------
 [in]
      beta inverse temperature
@@ -52,7 +52,7 @@ c.add_constructor("""(double beta, double lambda, double eps, nda::array<dcomple
      lambda DLR cutoff parameter
 
 [in]
-     eps DLR accuracy tolerance
+     itops DLR imaginary time operator class instance
 
 [in]
      F impurity annihilation operator in pseudo-particle space, of size n*N*N

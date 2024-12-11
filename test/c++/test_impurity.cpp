@@ -167,8 +167,8 @@ TEST(strong_coupling, dimer) {
     auto eta_0 = E0_HS - log(Z_HS)/beta;
 
     auto G0_S_tau = free_gf(beta, itops, H_S,eta_0,true);
-    
-    auto impsol = fastdiagram(beta,lambda,eps,F,F_dag); 
+
+    auto impsol = fastdiagram(beta,lambda,itops,F,F_dag);
     impsol.hyb_init(Deltat);
     impsol.hyb_decomposition();
     auto tau_actual = impsol.get_it_actual();

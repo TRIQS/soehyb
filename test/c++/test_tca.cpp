@@ -67,7 +67,7 @@ TEST(strong_coupling, dimer) {
 
 
     //preparing impurity solver (hyb decomposition)
-    auto impsol = fastdiagram(beta,lambda,eps,F,F_dag); 
+    auto impsol = fastdiagram(beta,lambda,itops,F,F_dag);
     impsol.hyb_init(Deltat);
     impsol.hyb_decomposition();
 

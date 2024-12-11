@@ -173,7 +173,7 @@ class Solver(object):
         
 
     def __setup_ppsc_solver(self):
-        self.fd = Fastdiagram(self.beta, self.lamb, self.eps, self.F, self.F_dag)
+        self.fd = Fastdiagram(self.beta, self.lamb, self.ito, self.F, self.F_dag)
         self.tau_i = self.fd.get_it_actual().real
         
         self.G0_iaa = self.fd.free_greens_ppsc(self.beta, self.H_mat)
@@ -272,9 +272,6 @@ class Solver(object):
                 if is_root() and verbose:
                     print(f"PPSC: Hybridization using {len(pol)} AAA poles.")
                 
-                weights_reflect = weights.copy()
-                for i in range(weights.shape[0]):
-                    weights_reflect[i,:,:] = np.transpose(weights[i,:,:])
                 self.fd.copy_aaa_result(pol, weights)
                 self.fd.hyb_decomposition(poledlrflag=False, eps=fittingeps/delta_iaa.shape[1])
             else:
@@ -517,7 +514,7 @@ class Solver(object):
             
             #Sigma_iaa = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=verbose)
             Sigma_iaa = self.calc_Sigma(max_order, verbose=verbose)
-            
+
             if verbose:
                 dyson_start_time = time.time()
 
@@ -532,7 +529,7 @@ class Solver(object):
                 G_iaa_new[:] *= np.exp(-self.tau_i * deta)[:, None, None]
                 if is_root(): print(f'deta = {deta}, eta = {self.eta}')
                 self.eta += deta
-                
+
             if is_root() and verbose:
                 dyson_end_time = time.time()
                 dyson_elapsed_time = dyson_end_time - dyson_start_time

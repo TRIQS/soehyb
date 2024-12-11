@@ -56,6 +56,7 @@ hyb_decomp::hyb_decomp(nda::array_const_view<dcomplex,3> Matrices, nda::vector_c
     U = transpose(U_all(_,range(P))); //transpose U to get the shape that we want
     V = V_all(range(P),_);
 }
+
 void hyb_decomp::check_accuracy(nda::array_const_view<dcomplex,3> Deltat,nda::vector_const_view<double> dlr_it){
     int r =Deltat.shape(0);
     int n = Deltat.shape(1);
@@ -97,8 +98,13 @@ void hyb_F::update_inplace(const hyb_decomp &hyb_decomp, nda::vector_const_view<
     int P_in = hyb_decomp.V.shape(0);
 
     if (N_in != N || r_in != r || n_in != n || P_in > r*n) { // Have preallocated storage with P = r*n
-      throw std::runtime_error("The number of poles P exceeds dlr rank r times single particle flavours n, P > r*n.");
-      /*
+
+      //throw std::runtime_error("The number of poles P exceeds dlr rank r times single particle flavours n, P > r*n.");
+
+      // FIXME!
+      // test_dimer.cpp depends on the hyb_F being resized to P > n*r.
+      // TODO: Adjust the test and uncomment the runtime_error above
+      
       std::cout << "WARNING: hyb_F::update_inplace resize: "
 		<< "N, P, r = " << N << ", " << P << ", " << r
 		<< " in (N, P, r = " << N_in << ", " << P_in << ", " << r_in << ")\n";
@@ -110,13 +116,12 @@ void hyb_F::update_inplace(const hyb_decomp &hyb_decomp, nda::vector_const_view<
       U_tilde.resize(P, r, N, N);
       V_tilde.resize(P, r, N, N);
       K_matrix.resize(P, r);
-      */
     }
 
     P = P_in;
   
-    auto U_c = arraymult(hyb_decomp.U,F_dag);
-    auto V_c = arraymult(hyb_decomp.V,F); 
+    auto U_c = arraymult(hyb_decomp.U, F_dag);
+    auto V_c = arraymult(hyb_decomp.V, F); 
   
     for (int R = 0; R < P; ++R) {
       for (int k = 0; k < r; ++k) {

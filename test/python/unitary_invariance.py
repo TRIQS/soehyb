@@ -92,7 +92,9 @@ def test_unitary_symmetry_for_ppsc(order=1, verbose=False):
     fundamental_operators = [c(0,0), c(0, 1)]
 
     lamb, eps = 100., 1e-12
-    fd = Fastdiagram(beta, lamb, eps, np.empty((0, 0, 0)), np.empty((0, 0, 0)))
+    dlr_rf = build_dlr_rf(lamb, eps)
+    ito = ImTimeOps(lamb, dlr_rf)
+    fd = Fastdiagram(beta, lamb, ito, np.empty((0, 0, 0)), np.empty((0, 0, 0)))
     
     H1 = get_Hamiltonian()
     H2 = operator_single_particle_transform(H1, U, fundamental_operators)

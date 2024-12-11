@@ -67,7 +67,7 @@ def calc_spinless_dimer(
     F = np.array([mat_c])
     F_dag = np.array([mat_c_dag])
     
-    fd = Fastdiagram(beta, lamb, eps, F, F_dag)
+    fd = Fastdiagram(beta, lamb, ito, F, F_dag)
 
     delta_iaa = t**2 * fd.free_greens(beta, np.array([[ek]]))
     

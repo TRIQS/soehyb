@@ -57,7 +57,7 @@ def test_off_diagonal_NCA_Sigma(verbose=False):
         ed.rep.sparse_operators.c_dag[idx].todense())
                       for idx in range(len(fundamental_operators)) ])
 
-    fd = Fastdiagram(beta, lamb, eps, F, F_dag)
+    fd = Fastdiagram(beta, lamb, ito, F, F_dag)
 
     t = 1.0
     vp = 1.0 + 2.0j

@@ -28,7 +28,7 @@ class fastdiagram{
     * @param[in] F impurity annihilation operator in pseudo-particle space, of size n*N*N
     * @param[in] F_dag impurity creation operator in pseudo-particle space, of size n*N*N
     * */
-    fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag);
+    fastdiagram(double beta, double lambda, imtime_ops itops, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag);
 
 
     void hyb_init(nda::array<dcomplex,3> Deltat0, bool poledlrflag=true);
@@ -83,19 +83,27 @@ class fastdiagram{
     void copy_aaa_result(nda::vector<double> pol0, nda::array<dcomplex,3> weights0);
     
     private:
-    double beta; //inverse temperature
+  
+    double beta;   // inverse temperature
     double lambda; // DLR cutoff parameter
-    nda::vector<double> dlr_rf; // DLR real frequencies
+
     imtime_ops itops; // DLR imaginary time objects from cppdlr
-    nda::vector<double> dlr_it; // DLR imaginary time nodes
-    nda::vector<double> dlr_it_actual; // DLR imaginary time nodes
-    
+
     nda::array<dcomplex,3> F; // impurity annihilation operator in pseudo-particle space, of size n*N*N
     nda::array<dcomplex,3> F_dag; // impurity creation operator in pseudo-particle space, of size n*N*N
 
+    int n; // no operator flavours in expansion
+    int r; // no DLR coefficients (itops.rank())
+    int N; // size of local Hilbert space 
+    int P;
+
+    nda::vector<double> dlr_rf; // DLR real frequencies
+    nda::vector<double> dlr_it; // DLR imaginary time nodes
+    nda::vector<double> dlr_it_actual; // DLR imaginary time nodes
+    
     nda::array<dcomplex,3> Deltat; //hybridization function in imaginary time, nda array of size r*n*n
     nda::array<dcomplex,3> Deltat_reflect; // Delta(beta-t), of size r*n*n
-
+  
     hyb_F Delta_F; // Compression of Delta(t) and F, F_dag matrices
     hyb_F Delta_F_reflect; // Compression of Delta(-t) and F, F_dag matrices
 
@@ -106,14 +114,8 @@ class fastdiagram{
     nda::array<int,2> D_TCA_3; //TCA 3rd diagram information
     nda::array<int,2> D_TCA_4; //TCA 4th diagram information
 
-    int n;
-    int r;
-    int P;
-
     nda::vector<double> pol;
     nda::array<dcomplex,3> weights;
     nda::vector<double> pol_reflect;
-    nda::array<dcomplex,3> weights_reflect; 
-
-   
+    nda::array<dcomplex,3> weights_reflect;  
 };

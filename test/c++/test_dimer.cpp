@@ -182,8 +182,14 @@ TEST(strong_coupling, dimer) {
     // auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf);
     Delta_decomp.check_accuracy(Deltat, dlr_it);
     Delta_decomp_reflect.check_accuracy(Deltat_reflect, dlr_it);
-    auto Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag);
-    auto Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);
+
+    int dim = Deltat.shape(1);
+    hyb_F Delta_F(N, r, dim);
+    hyb_F Delta_F_reflect(N, r, dim);
+    
+    Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, F, F_dag);
+    Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);
+
     double eta;
     double Z_S;
     

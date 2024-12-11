@@ -6,32 +6,39 @@
 #include <nda/declarations.hpp>
 #include <nda/linalg/matmul.hpp>
 
+fastdiagram::fastdiagram(double beta, double lambda, imtime_ops itops,
+			 nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag) :
+  
+  beta(beta), lambda(lambda), itops(itops), F(F), F_dag(F_dag),
+  r(itops.rank()), n(F.shape(0)), N(F.shape(1)),
+  dlr_rf(itops.get_rfnodes()), dlr_it(itops.get_itnodes()), dlr_it_actual(dlr_it),
+  Deltat(r, n, n), Deltat_reflect(r, n, n),  
+  Delta_F(N, r, n), Delta_F_reflect(N, r, n),
+  
+  // -- Diagram topologies (not in use?, remove?)
+  
+  D_NCA{{0,1}},               // NCA 
+  D_OCA{{0,2},{1,3}},         // OCA 
+  D_TCA_1{{0,2},{1,4},{3,5}}, // TCA 1st 
+  D_TCA_2{{0,3},{1,5},{2,4}}, // TCA 2nd
+  D_TCA_3{{0,4},{1,3},{2,5}}, // TCA 3rd
+  D_TCA_4{{0,3},{1,4},{2,5}}  // TCA 4th
+  
+  {
 
-fastdiagram::fastdiagram(double beta, double lambda, double eps, nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag):beta(beta), lambda(lambda), F(F), F_dag(F_dag){
-    dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
-    itops = imtime_ops(lambda, dlr_rf); // construct imagninary time dlr objects 
-
-    dlr_it = itops.get_itnodes(); //obtain imaginary time nodes
-    dlr_it_actual = dlr_it;
-    r = itops.rank();
-    n = F.shape(0); 
-    for (int k =0;k<r;++k) {if (dlr_it_actual(k)<0) {dlr_it_actual(k) = dlr_it_actual(k)+1;}}
-    dlr_it_actual = dlr_it_actual*beta;
+    // Change from tau in the [-0.5, 0.5] interval to [0, 1]
+    for (int k = 0; k < r; ++k) {
+      if (dlr_it_actual(k) < 0) {
+	dlr_it_actual(k) = 1.0 + dlr_it_actual(k);
+      }
+    }
     
-    D_NCA = nda::array<int,2>{{0,1}};// NCA diagram information
-    D_OCA = nda::array<int,2>{{0,2},{1,3}};// OCA diagram information
-    D_TCA_1 = nda::array<int,2>{{0,2},{1,4},{3,5}}; //TCA 1st diagram information
-    D_TCA_2 = nda::array<int,2>{{0,3},{1,5},{2,4}}; //TCA 2nd diagram information
-    D_TCA_3 = nda::array<int,2>{{0,4},{1,3},{2,5}}; //TCA 3rd diagram information
-    D_TCA_4 = nda::array<int,2>{{0,3},{1,4},{2,5}}; //TCA 4th diagram information
-   // std::cout<<"Initialization done"<<std::endl;
+    dlr_it_actual = dlr_it_actual * beta; // Rescale from [0, 1] to [0, beta]
 }
+
 nda::vector<dcomplex> fastdiagram::get_it_actual(){
     return dlr_it_actual;
 }
-// nda::array<dcomplex,3> fastdiagram::get_Deltaiw(){
-//    
-// }
 
 nda::array<dcomplex,3> fastdiagram::free_greens(double beta, nda::array<dcomplex,2> H_S, double mu, bool time_order){
     return free_gf(beta, itops, H_S, mu, time_order);
@@ -67,23 +74,28 @@ void fastdiagram::hyb_decomposition(bool poledlrflag,double eps){
     if (poledlrflag == false) {
         auto Delta_decomp = hyb_decomp(weights,pol,eps); //decomposition of Delta(t) using DLR coefficient
         auto Delta_decomp_reflect = hyb_decomp(weights_reflect,pol_reflect,eps); // decomposition of Delta(-t) using DLR coefficient
-        Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag); // Compression of Delta(t) and F, F_dag matrices
-        Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);  // Compression of Delta(-t) and F, F_dag matrices
+	
+	Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, F, F_dag); // Compression of Delta(t) and F, F_dag matrices
+        Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);  // Compression of Delta(-t) and F, F_dag matrices
     }
     else {
         auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)
         
-        auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf,eps); //decomposition of Delta(t) using DLR coefficient
-        nda::array<dcomplex,3> Deltadlr_reflect = Deltadlr*1.0;
-        for (int i = 0; i < Deltadlr.shape(0); ++i){
+        nda::vector<double> dlr_rf_reflect = -dlr_rf;
+	nda::array<dcomplex,3> Deltadlr_reflect = Deltadlr*1.0;
+
+	for (int i = 0; i < Deltadlr.shape(0); ++i){
             Deltadlr_reflect(i,_,_) = transpose(Deltadlr(i,_,_));
         }
-        nda::vector<double> dlr_rf_reflect = -dlr_rf;
+	
+        auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf,eps); //decomposition of Delta(t) using DLR coefficient
         auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf_reflect,eps); // decomposition of Delta(-t) using DLR coefficient
-        Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag); // Compression of Delta(t) and F, F_dag matrices
-        Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);  // Compression of Delta(-t) and F, F_dag matrices
+
+        Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, F, F_dag); // Compression of Delta(t) and F, F_dag matrices
+        Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);  // Compression of Delta(-t) and F, F_dag matrices
+
     }
-    P = Delta_F.c.shape(0);
+    P = Delta_F.P;
 }
 int fastdiagram::number_of_diagrams(int m){
     return pow(P,m-1) * pow(2,m-1);

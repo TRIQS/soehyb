@@ -64,8 +64,11 @@ TEST(strong_coupling, exponential_functions) {
     auto F_dag = F;
   
     //construct U_tilde, V_tilde, c
-    auto Delta_F = hyb_F(Delta_decomp,dlr_rf, dlr_it, F, F_dag);
-    auto Delta_F_reflect = hyb_F(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);
+    hyb_F Delta_F(N, r, dim);
+    hyb_F Delta_F_reflect(N, r, dim);
+    
+    Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, F, F_dag);
+    Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);
     
     bool backward = false;
     auto fb2 =  nda::vector<int>(2); fb2=0;
@@ -324,8 +327,9 @@ TEST(strong_coupling, G_diagrams) {
     auto fb2 =  nda::vector<int>(2); fb2=0;
     auto fb3 =  nda::vector<int>(3); fb3=0;
 
+    hyb_F Delta_F_simple(N, r, dim);
+    Delta_F_simple.update_inplace(Delta_decomp_simple, dlr_rf, dlr_it, F, F);
 
-    auto Delta_F_simple = hyb_F(Delta_decomp_simple, dlr_rf, dlr_it, F, F);
     //calculating diagrams
     auto G_OCAdiagram_simple = G_Diagram_calc(Delta_F_simple,Delta_F_simple,D2,Deltat,Deltat, Gt,itops,beta, F,  F, fb2);
    // auto G_OCAdiagram_simple = G_OCA_calc(Delta_F_simple,Delta_F_simple,Deltat,Deltat, Gt,itops,beta, F,  F, fb2);

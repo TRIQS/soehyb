@@ -62,8 +62,11 @@ TEST(OCA, G){
     
     Delta_decomp_reflect.check_accuracy(Deltat_reflect, dlr_it);
 
-    auto Delta_F = hyb_F(Delta_decomp, dlr_rf, dlr_it, F, F);
-    auto Delta_F_reflect = hyb_F(Delta_decomp_reflect, dlr_rf, dlr_it, F, F);
+    hyb_F Delta_F(1, r, 1);
+    hyb_F Delta_F_reflect(1, r, 1);
+    
+    Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, F, F);
+    Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf, dlr_it, F, F);
 
     //calculating diagrams
     auto G_OCAdiagram = G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D2,Deltat,Deltat_reflect, Gt,itops,beta, F,  F);
