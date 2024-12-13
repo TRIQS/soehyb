@@ -81,7 +81,7 @@ void hyb_decomp::check_accuracy(nda::array_const_view<dcomplex,3> Deltat,nda::ve
 
 hyb_F::hyb_F(int N, int r, int n) :
   N(N), r(r), n(n),
-  P(r*n), // using P = r*n for allocation
+  P(2*r), // using P = 2*r for allocation, worst case P = r*n
   c(P), w(P), U_tilde(P, r, N, N), V_tilde(P, r, N, N), K_matrix(P, r) {}
 
 void hyb_F::update_inplace(const hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda::vector_const_view<double> dlr_it, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag) {
@@ -97,17 +97,12 @@ void hyb_F::update_inplace(const hyb_decomp &hyb_decomp, nda::vector_const_view<
     int r_in = dlr_it.shape(0);
     int P_in = hyb_decomp.V.shape(0);
 
-    if (N_in != N || r_in != r || n_in != n || P_in > r*n) { // Have preallocated storage with P = r*n
-
-      //throw std::runtime_error("The number of poles P exceeds dlr rank r times single particle flavours n, P > r*n.");
-
-      // FIXME!
-      // test_dimer.cpp depends on the hyb_F being resized to P > n*r.
-      // TODO: Adjust the test and uncomment the runtime_error above
+    if (N_in != N || r_in != r || n_in != n || P_in > c.shape(0)) {
       
-      std::cout << "WARNING: hyb_F::update_inplace resize: "
+      std::cout << "hyb_F::update_inplace resize: "
 		<< "N, P, r = " << N << ", " << P << ", " << r
-		<< " in (N, P, r = " << N_in << ", " << P_in << ", " << r_in << ")\n";
+		<< " in (N, P, r = " << N_in << ", " << P_in << ", " << r_in << ") "
+		<< "c.shape(0) = " << c.shape(0) << "\n";
       N = N_in;
       P = P_in;
       r = r_in;
