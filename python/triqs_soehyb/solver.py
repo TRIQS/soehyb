@@ -283,26 +283,26 @@ class Solver(object):
 
 
     @timer('Eta search (bisection)')
-    def energyshift_bisection(self, Sigma_iaa, verbose=True, tol=1e-10):
+    def energyshift_bisection(self, Sigma_iaa, tol=1e-10, verbose=True):
         
-        def target_function(eta_h):
-            #G_iaa_new = self.dyson.solve(Sigma_iaa, eta)
+        def target_function(eta):
             G_iaa_new = self.solve_dyson(Sigma_iaa, eta, tol, dmu=self.dmu)
-            Z_h = self.fd.partition_function(G_iaa_new)
-            Omega_h = np.log(np.abs(Z_h)) / self.beta            
-            return Omega_h
+            Z = self.fd.partition_function(G_iaa_new)
+            Omega = np.log(np.abs(Z)) / self.beta
+
+            if is_root() and verbose:
+                print(f'PPSC: Eta bisection: Z-1 = {Z-1:+2.2E}, Omega = {Omega:+2.2E}')
+
+            return Omega
         
         Omega = target_function(self.eta)
-
-        if is_root() and verbose:
-            print(f'PPSC: Eta bisection: Z-1 = {Z-1:+2.2E}, Omega = {Omega:+2.2E}')
 
         if np.abs(Omega) > 0:
             
             E_max = self.eta.real if Omega < 0. else 0.5*self.lamb/self.beta
             E_min = self.eta.real if Omega > 0. else 0.
             
-            bracket=[E_min, E_max]
+            bracket = [E_min, E_max]
             
             sol = root_scalar(target_function, method='brenth',
                               fprime=False, bracket=bracket, rtol=tol, options={'disp': True})
@@ -520,6 +520,7 @@ class Solver(object):
 
             if update_eta_exact:
                 #self.eta = self.energyshift_newton(Sigma_iaa, tol=0.1*diff, verbose=verbose)
+                #self.eta = self.energyshift_bisection(Sigma_iaa, tol=tol, verbose=verbose)
                 self.eta = self.energyshift_newton(Sigma_iaa, tol=tol, verbose=verbose)
                 G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta, tol, dmu=self.dmu)
                 
