@@ -519,7 +519,8 @@ class Solver(object):
                 dyson_start_time = time.time()
 
             if update_eta_exact:
-                self.eta = self.energyshift_newton(Sigma_iaa, tol=0.1*diff, verbose=verbose)
+                #self.eta = self.energyshift_newton(Sigma_iaa, tol=0.1*diff, verbose=verbose)
+                self.eta = self.energyshift_newton(Sigma_iaa, tol=tol, verbose=verbose)
                 G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta, tol, dmu=self.dmu)
                 
             else:
