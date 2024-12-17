@@ -253,8 +253,12 @@ class Solver(object):
             # decomposition and reflection of Delta(t) using aaa poles
             delta_xaa = self.ito.vals2coefs(delta_iaa) 
             self.fd.hyb_init(delta_iaa, poledlrflag=False)
+
+            # Requested accuracy of pole fit
             # epstol = min(fittingeps, delta_diff/100)
-            epstol =min(1e-6, max(fittingeps, delta_diff/100))
+            # epstol = min(1e-6, max(fittingeps, delta_diff/100)) # This defaults to 1e-6 most of the time. FIXME?
+            epstol = fittingeps # TEST: Disable delta_diff feature
+
             dlr_if_dense = self.fd.dlr_if_dense
 
             Deltat = self.interp(delta_xaa)
