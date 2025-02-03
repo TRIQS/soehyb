@@ -208,7 +208,7 @@ class Solver(object):
     @timer('Hybridization compression (AAA)')
     def set_hybridization(self, delta_iaa,
                           compress=False, delta_diff=1.0, fittingeps=2e-6,
-                          Hermitian=False, verbose=True):
+                          Hermitian=False, verbose=True, svd_trunc=True):
         
         """Set the hybridization function of the expansion.
 
@@ -244,10 +244,13 @@ class Solver(object):
             Defailt `True`
         
         """
-        
+        if svd_trunc ==False:
+            eps_svd = 0.0
+        else:
+            eps_svd = fittingeps/delta_iaa.shape[1]
         if compress == False:        
             self.fd.hyb_init(delta_iaa, poledlrflag=True)
-            self.fd.hyb_decomposition(poledlrflag=True, eps=fittingeps/delta_iaa.shape[1])
+            self.fd.hyb_decomposition(poledlrflag=True, eps=eps_svd)
             
         else:
             # decomposition and reflection of Delta(t) using aaa poles
@@ -277,13 +280,13 @@ class Solver(object):
                     print(f"PPSC: Hybridization using {len(pol)} AAA poles.")
                 
                 self.fd.copy_aaa_result(pol, weights)
-                self.fd.hyb_decomposition(poledlrflag=False, eps=fittingeps/delta_iaa.shape[1])
+                self.fd.hyb_decomposition(poledlrflag=False, eps=eps_svd)
             else:
                 if is_root() and verbose:
                     print(f"PPSC: Hybridization using all {self.ito.rank()} DLR poles.")
             
                 self.fd.hyb_init(delta_iaa, poledlrflag=True)
-                self.fd.hyb_decomposition(poledlrflag=True, eps=fittingeps/delta_iaa.shape[1])
+                self.fd.hyb_decomposition(poledlrflag=True, eps=eps_svd)
 
 
     @timer('Eta search (bisection)')
