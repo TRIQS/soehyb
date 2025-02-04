@@ -109,7 +109,7 @@ nda::array<dcomplex,3> fastdiagram::Sigma_calc_group(nda::array<dcomplex,3> Gt, 
     for (int id = 0; id<Nd; ++id){
         auto fb = nda::vector<int>(m); //utility for iteration
         int num = diagramindex(id);
-        int num0 = floor(num/num_diagram_per_fb);
+        int num0 = std::floor(num/num_diagram_per_fb);
         int num2 = num % num_diagram_per_fb;
         for (int v = 1;v<m;++v) { fb[v] = num0 % 2; num0 = int(num0/2);}   
         Diagram = Diagram + evaluate_one_diagram(Delta_F, Delta_F_reflect, D, Deltat, Deltat_reflect, Gt, itops, beta, F, F_dag, fb, true, num2, m, n, r, N, P);
@@ -160,7 +160,7 @@ nda::array<dcomplex,3> fastdiagram::G_calc_group(nda::array<dcomplex,3> Gt, nda:
     for (int id = 0; id<Nd; ++id){
         auto fb = nda::vector<int>(m); //utility for iteration
         int num = diagramindex(id);
-        int num0 = floor(num/num_diagram_per_fb);
+        int num0 = std::floor(num/num_diagram_per_fb);
         int num2 = num % num_diagram_per_fb;
         for (int v = 1;v<m;++v) { fb[v] = num0 % 2; num0 = int(num0/2);}   
         Diagram = Diagram + eval_one_diagram_G(Delta_F, Delta_F_reflect, D, Deltat, Deltat_reflect, Gt,Gt_reflect, itops, beta, F, F_dag, fb,num , m, n, r, N, P); 

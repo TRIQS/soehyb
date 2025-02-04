@@ -168,7 +168,7 @@ nda::array<dcomplex,3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_ref
     //#pragma omp for
     for (int num=0;num<total_num_diagram;++num){
         auto fb = nda::vector<int>(m); //utility for iteration
-        int num0 = floor(num/num_diagram_per_fb);
+        int num0 = std::floor(num/num_diagram_per_fb);
         int num2 = num % num_diagram_per_fb;
         for (int v = 1;v<m;++v) { fb[v] = num0 % 2; num0 = int(num0/2);}   
 	// BUG! This accumulation has a race condition between threads! FIXME!
@@ -507,7 +507,7 @@ nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F
     //#pragma omp for
     for (int num=0;num<total_num_diagram;++num){
         auto fb = nda::vector<int>(m); //utility for iteration
-        int num0 = floor(num/num_diagram_per_fb);
+        int num0 = std::floor(num/num_diagram_per_fb);
         int num2 = num % num_diagram_per_fb;
         for (int v = 1;v<m;++v) { fb[v] = num0 % 2; num0 = int(num0/2);}
 	// BUG! This accumulation has a race condition between threads! FIXME!

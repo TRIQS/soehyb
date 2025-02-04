@@ -114,6 +114,6 @@ int main(){
         error_Num = oca_equi_error(Num);
         std::cout<<Num << "   ";
         std::cout<<error_Num << "   ";
-        std::cout<<log(error_Num)/log(2) << " \n";
+        std::cout<<std::log(error_Num)/std::log(2) << " \n";
     }
 }
