@@ -290,15 +290,20 @@ nda::array<dcomplex,3> G_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect,nda
 void final_evaluation(nda::array_view<dcomplex,3> Diagram,  nda::array_const_view<dcomplex,3> T, nda::array_const_view<dcomplex,3> T_left, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,int &n, int &r, int &N, double &constant){ 
 
   for (int k = 0; k < r; ++k) {
+    auto GF_left = nda::array<dcomplex,3>(n,N,N);
+    auto GF_dag = nda::array<dcomplex,3>(n,N,N);
+    for (int a = 0; a < n; ++a) {
+        GF_dag(a,_,_) = matmul(T(k,_,_), F_dag(a,_,_));
+        GF_left(a,_,_) = matmul(T_left(k,_,_), F(a,_,_));
+    }
     for (int a = 0; a < n; ++a) {
       for (int b = 0; b < n; ++b) {
-	auto GF_dag = matmul(T(k, _, _), F_dag(b, _, _));
-	auto GF_left = matmul(T_left(k, _, _), F(a, _, _));
-	// Diagram(k, a, b) += constant * trace(matmul(GF_left,GF_dag));
-        Diagram(k, a, b) += constant * trace_matmul(GF_left,GF_dag);
+            Diagram(k, a, b) += constant * trace_matmul(GF_left(a, _, _), GF_dag(b, _, _));
       }
     }
-  } 
+
+  }
+ 
 }
 
 
