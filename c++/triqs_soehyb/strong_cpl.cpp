@@ -294,7 +294,8 @@ void final_evaluation(nda::array_view<dcomplex,3> Diagram,  nda::array_const_vie
       for (int b = 0; b < n; ++b) {
 	auto GF_dag = matmul(T(k, _, _), F_dag(b, _, _));
 	auto GF_left = matmul(T_left(k, _, _), F(a, _, _));
-	Diagram(k, a, b) += constant * trace(matmul(GF_left,GF_dag));
+	// Diagram(k, a, b) += constant * trace(matmul(GF_left,GF_dag));
+        Diagram(k, a, b) += constant * trace_matmul(GF_left,GF_dag);
       }
     }
   } 
@@ -626,10 +627,10 @@ void special_summation(nda::array_view<dcomplex,3> Gt, nda::array_const_view<dco
     auto Sigmat = nda::array<dcomplex,3>(Gt.shape());
     
     Sigmat() = 0;
-    
+   for (int t = 0; t < r; ++t) { 
     for (int a = 0; a < n; ++a) {
       for (int b = 0; b < n; ++b) {
-	for (int t = 0; t < r; ++t) {
+	
 	  Sigmat(t, _, _) += Deltat(t, a, b) * matmul(F_dag(a, _, _), matmul(Gt(t, _, _), F(b, _, _)));
 	  if ( backward )
 	    Sigmat(t, _, _) += Deltat_reflect(t, a, b) * matmul(F(a, _, _), matmul(Gt(t, _, _), F_dag(b, _, _)));
@@ -646,4 +647,14 @@ void multiplicate_onto(nda::array_const_view<dcomplex,3> Ft, nda::array_view<dco
 void multiplicate_onto_left(nda::array_view<dcomplex,3> Ft, nda::array_const_view<dcomplex,3> Gt){
     int r = Gt.shape(0);
     for (int k = 0;k<r;++k) Ft(k,_,_) = matmul(Ft(k,_,_),Gt(k,_,_));
+}
+
+dcomplex trace_matmul(nda::array_const_view<dcomplex,2> M1, nda::array_const_view<dcomplex,2> M2){
+    int n = M1.shape(0);
+    auto M2_T = transpose(M2);
+    dcomplex res = 0;
+    for (int i = 0; i < n; ++i) {
+        res += dot(M1(i,_), M2_T(i,_));
+    }
+    return res;
 }
