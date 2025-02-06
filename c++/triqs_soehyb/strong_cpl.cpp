@@ -629,23 +629,26 @@ void special_summation(nda::array_view<dcomplex,3> Gt, nda::array_const_view<dco
     Sigmat() = 0;
    for (int t = 0; t < r; ++t) { 
     auto temp = nda::array<dcomplex,3>(n,N,N);
+    auto temp_D = nda::array<dcomplex,3>(n,N,N);
     for (int b = 0; b < n; ++b) {
         temp(b,_,_) = matmul(Gt(t,_,_), F(b,_,_));
     }
+    temp_D = arraymult(Deltat(t,_,_), temp);
     for (int a = 0; a < n; ++a) {
-      for (int b = 0; b < n; ++b) {
-        Sigmat(t,_,_) += Deltat(t, a, b) * matmul(F_dag(a, _, _), temp(b, _, _));
-      }
+        Sigmat(t,_,_) += matmul(F_dag(a, _, _), temp_D(a, _, _));
     }
     if ( backward ){
         auto temp2 = nda::array<dcomplex,3>(n,N,N);
+        auto tempD_2 = nda::array<dcomplex,3>(n,N,N);
         for (int a = 0; a < n; ++a) {
             temp2(a,_,_) = matmul(F(a,_,_), Gt(t,_,_));
         }
+        tempD_2 = arraymult(Deltat_reflect(t,_,_), F_dag);
       for (int a = 0; a < n; ++a) {
-        for (int b = 0; b < n; ++b) {
-          Sigmat(t,_,_) += Deltat_reflect(t, a, b) * matmul(temp2(a, _, _), F_dag(b, _, _));
-        }
+        // for (int b = 0; b < n; ++b) {
+        //   Sigmat(t,_,_) += Deltat_reflect(t, a, b) * matmul(temp2(a, _, _), F_dag(b, _, _));
+        // }
+        Sigmat(t,_,_) += matmul(temp2(a, _, _), tempD_2(a, _, _));
         }
     }
 
