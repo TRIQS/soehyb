@@ -623,19 +623,40 @@ void cut_hybridization(int v,int &Rv,nda::array_const_view<int,2> D, double &con
 }
 
 void special_summation(nda::array_view<dcomplex,3> Gt, nda::array_const_view<dcomplex,3> F, nda::array_const_view<dcomplex,3> F_dag,nda::array_const_view<dcomplex,3> Deltat,nda::array_const_view<dcomplex,3> Deltat_reflect, int &n, int &r, int &N, bool backward){
-
+    //This implementation reduces cost from O(2rn^2N^3) to O(rn^2N^3 + 2rnN^3)
     auto Sigmat = nda::array<dcomplex,3>(Gt.shape());
     
     Sigmat() = 0;
    for (int t = 0; t < r; ++t) { 
+    auto temp = nda::array<dcomplex,3>(n,N,N);
+    for (int b = 0; b < n; ++b) {
+        temp(b,_,_) = matmul(Gt(t,_,_), F(b,_,_));
+    }
     for (int a = 0; a < n; ++a) {
       for (int b = 0; b < n; ++b) {
-	
-	  Sigmat(t, _, _) += Deltat(t, a, b) * matmul(F_dag(a, _, _), matmul(Gt(t, _, _), F(b, _, _)));
-	  if ( backward )
-	    Sigmat(t, _, _) += Deltat_reflect(t, a, b) * matmul(F(a, _, _), matmul(Gt(t, _, _), F_dag(b, _, _)));
-	}
+        Sigmat(t,_,_) += Deltat(t, a, b) * matmul(F_dag(a, _, _), temp(b, _, _));
       }
+    }
+    if ( backward ){
+        auto temp2 = nda::array<dcomplex,3>(n,N,N);
+        for (int a = 0; a < n; ++a) {
+            temp2(a,_,_) = matmul(F(a,_,_), Gt(t,_,_));
+        }
+      for (int a = 0; a < n; ++a) {
+        for (int b = 0; b < n; ++b) {
+          Sigmat(t,_,_) += Deltat_reflect(t, a, b) * matmul(temp2(a, _, _), F_dag(b, _, _));
+        }
+        }
+    }
+
+    // for (int a = 0; a < n; ++a) {
+    //   for (int b = 0; b < n; ++b) {
+	
+	//   Sigmat(t, _, _) += Deltat(t, a, b) * matmul(F_dag(a, _, _), matmul(Gt(t, _, _), F(b, _, _)));
+	//   if ( backward )
+	//     Sigmat(t, _, _) += Deltat_reflect(t, a, b) * matmul(F(a, _, _), matmul(Gt(t, _, _), F_dag(b, _, _)));
+	// }
+    //   }
     }
     Gt() = Sigmat;
 }
