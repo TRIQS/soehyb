@@ -444,8 +444,7 @@ class Solver(object):
             sol = root(
                 target_function, x0=x0, method='hybr', jac=True, tol=tol,
                 options=dict(
-                    #factor=1.0,
-                    #xtol=tol
+                    xtol=tol,
                     ))
 
             #F, J = target_function(sol.x, verbose=True)
