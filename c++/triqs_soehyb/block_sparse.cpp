@@ -94,13 +94,16 @@ DiagonalOperator NCA_bs(
     // initialize blocks of self-energy, with same shape as Gt
     std::vector<nda::array<dcomplex,3>> diag_blocks(Gt.blocks);
     int num_blocks = Gt.num_blocks;
+    for (int i = 0; i < num_blocks; ++i) {
+        diag_blocks[i] = 0; 
+    }
     int r = Gt.blocks[0].shape(0); // number of time indices
     for (int t = 0; t < r; ++t) {
         // forward diagram contribution to self-energy
         for (FOperator &F_dag : F_dags) {
             for (FOperator &F : Fs) {
                 for (int i = 0; i < num_blocks; ++i) {
-                    int j = F_dag.block_indices[i];
+                    int j = F_dag.block_indices[i]; // = col ind of block i
                     if (j > -1) { // if F_dag has block in row i
                         auto temp = nda::matmul(
                             F_dag.blocks[i], Gt.blocks[j](t,_,_));
@@ -115,7 +118,7 @@ DiagonalOperator NCA_bs(
         for (FOperator &F : Fs) {
             for (FOperator &F_dag : F_dags) {
                 for (int i = 0; i < num_blocks; ++i) {
-                    int j = F.block_indices[i];
+                    int j = F.block_indices[i]; // = col ind of block i
                     if (j > -1) { // if F has block in row i
                         auto temp = nda::matmul(
                             F.blocks[i], Gt.blocks[j](t,_,_));
