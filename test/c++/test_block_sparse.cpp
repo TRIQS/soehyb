@@ -86,31 +86,31 @@ TEST(BlockSparseTest, NCA) {
     for (int t = 0; t < r; ++t) {
         // forward diagram
         temp_dense = nda::matmul(F_up_dag_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) += nda::make_regular(
-            hyb(0,0,0)*nda::matmul(temp_dense, F_up_dense));
+        NCA_result_dense(t,_,_) += 
+            hyb(0,0,0)*nda::matmul(temp_dense, F_up_dense);
         temp_dense = nda::matmul(F_up_dag_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) += nda::make_regular(
-            hyb(0,0,1)*nda::matmul(temp_dense, F_down_dense));
+        NCA_result_dense(t,_,_) += 
+            hyb(0,0,1)*nda::matmul(temp_dense, F_down_dense);
         temp_dense = nda::matmul(F_down_dag_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) += nda::make_regular(
-            hyb(0,1,0)*nda::matmul(temp_dense, F_up_dense));
+        NCA_result_dense(t,_,_) += 
+            hyb(0,1,0)*nda::matmul(temp_dense, F_up_dense);
         temp_dense = nda::matmul(F_down_dag_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) += nda::make_regular(
-            hyb(0,1,1)*nda::matmul(temp_dense, F_down_dense));
+        NCA_result_dense(t,_,_) += 
+            hyb(0,1,1)*nda::matmul(temp_dense, F_down_dense);
 
         // backward diagram
         temp_dense = nda::matmul(F_up_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) -= nda::make_regular(
-            hyb(0,0,0)*nda::matmul(temp_dense, F_up_dag_dense));
+        NCA_result_dense(t,_,_) -=
+            hyb(0,0,0)*nda::matmul(temp_dense, F_up_dag_dense);
         temp_dense = nda::matmul(F_up_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) -= nda::make_regular(
-            hyb(0,0,1)*nda::matmul(temp_dense, F_down_dag_dense));
+        NCA_result_dense(t,_,_) -= 
+            hyb(0,0,1)*nda::matmul(temp_dense, F_down_dag_dense);
         temp_dense = nda::matmul(F_down_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) -= nda::make_regular(
-            hyb(0,1,0)*nda::matmul(temp_dense, F_up_dag_dense));
+        NCA_result_dense(t,_,_) -= 
+            hyb(0,1,0)*nda::matmul(temp_dense, F_up_dag_dense);
         temp_dense = nda::matmul(F_down_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) -= nda::make_regular(
-            hyb(0,1,1)*nda::matmul(temp_dense, F_down_dag_dense));
+        NCA_result_dense(t,_,_) -= 
+            hyb(0,1,1)*nda::matmul(temp_dense, F_down_dag_dense);
     }
 
     EXPECT_EQ(NCA_result.get_blocks()[0](_,0,0), NCA_result_dense(_,0,0));

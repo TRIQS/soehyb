@@ -170,11 +170,6 @@ FOperator dagger_bs(FOperator const &F) {
     return F_dag;
 }
 
-// notes
-// =====
-// initializer lists --> &vectors
-// const &
-
 DiagonalOperator NCA_bs(
     nda::array_const_view<dcomplex,3> hyb, 
     DiagonalOperator const &Gt, 
@@ -185,11 +180,8 @@ DiagonalOperator NCA_bs(
     // @param[in] F_list F operators
     // @return NCA self-energy
     
-    // std::vector<FOperator> F_dags(Fs);
     // get F^dagger operators
     int num_Fs = Fs.size();
-    
-    // std::vector<FOperator> F_dags(F_list);
     auto F_dags = Fs;
     for (int i = 0; i < num_Fs; ++i) {
         F_dags[i] = dagger_bs(Fs[i]);
@@ -217,8 +209,7 @@ DiagonalOperator NCA_bs(
                             F_dag.get_blocks()[i], Gt.get_blocks()[j](t,_,_));
                         auto prod_block = nda::matmul(
                             temp, F.get_blocks()[j]);
-                        diag_blocks[i](t,_,_) += nda::make_regular(
-                            hyb(t,l,k)*prod_block);
+                        diag_blocks[i](t,_,_) += hyb(t,l,k)*prod_block;
                     }
                 }
             }
@@ -235,8 +226,7 @@ DiagonalOperator NCA_bs(
                             F.get_blocks()[i], Gt.get_blocks()[j](t,_,_));
                         auto prod_block = nda::matmul(
                             temp, F_dag.get_blocks()[j]);
-                        diag_blocks[i](t,_,_) -= nda::make_regular(
-                            hyb(t,l,k)*prod_block);
+                        diag_blocks[i](t,_,_) -= hyb(t,l,k)*prod_block;
                     }
                 }
             }
