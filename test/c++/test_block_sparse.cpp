@@ -1,10 +1,11 @@
 #include <nda/declarations.hpp>
 #include <nda/nda.hpp>
 #include <block_sparse.hpp>
+#include <gtest/gtest.h>
 
 using namespace nda;
 
-int main() {
+TEST(BlockSparseTest, NCA) {
     // set up arguments to block_sparse/NCA_bs()
     int N = 4;
     int r = 1;
@@ -15,8 +16,8 @@ int main() {
     for (int t = 0; t < r; ++t) {
         hyb(t,0,0) = 1;
         hyb(t,1,1) = 1;
-        hyb(t,0,1) = 1;
-        hyb(t,1,0) = 1;
+        hyb(t,0,1) = 2;
+        hyb(t,1,0) = 3;
     }
 
     // set up Green's function
@@ -58,8 +59,6 @@ int main() {
     std::vector<FOperator> Fs = {F_up, F_down};
     DiagonalOperator NCA_result = NCA_bs(hyb, Gt, Fs);
 
-    std::cout << "NCA_result = " << NCA_result << std::endl;
-
     // compute NCA_result using dense storage
 
     nda::array<dcomplex,3> Gt_dense({r, N, N});
@@ -87,30 +86,34 @@ int main() {
     for (int t = 0; t < r; ++t) {
         // forward diagram
         temp_dense = nda::matmul(F_up_dag_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) += nda::matmul(temp_dense, F_up_dense);
+        NCA_result_dense(t,_,_) += nda::make_regular(
+            hyb(0,0,0)*nda::matmul(temp_dense, F_up_dense));
         temp_dense = nda::matmul(F_up_dag_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) += nda::matmul(temp_dense, F_down_dense);
+        NCA_result_dense(t,_,_) += nda::make_regular(
+            hyb(0,0,1)*nda::matmul(temp_dense, F_down_dense));
         temp_dense = nda::matmul(F_down_dag_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) += nda::matmul(temp_dense, F_up_dense);
+        NCA_result_dense(t,_,_) += nda::make_regular(
+            hyb(0,1,0)*nda::matmul(temp_dense, F_up_dense));
         temp_dense = nda::matmul(F_down_dag_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) += nda::matmul(temp_dense, F_down_dense);
+        NCA_result_dense(t,_,_) += nda::make_regular(
+            hyb(0,1,1)*nda::matmul(temp_dense, F_down_dense));
 
         // backward diagram
         temp_dense = nda::matmul(F_up_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) -= nda::matmul(temp_dense, F_up_dag_dense);
+        NCA_result_dense(t,_,_) -= nda::make_regular(
+            hyb(0,0,0)*nda::matmul(temp_dense, F_up_dag_dense));
         temp_dense = nda::matmul(F_up_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) -= nda::matmul(temp_dense, F_down_dag_dense);
+        NCA_result_dense(t,_,_) -= nda::make_regular(
+            hyb(0,0,1)*nda::matmul(temp_dense, F_down_dag_dense));
         temp_dense = nda::matmul(F_down_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) -= nda::matmul(temp_dense, F_up_dag_dense);
+        NCA_result_dense(t,_,_) -= nda::make_regular(
+            hyb(0,1,0)*nda::matmul(temp_dense, F_up_dag_dense));
         temp_dense = nda::matmul(F_down_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) -= nda::matmul(temp_dense, F_down_dag_dense);
+        NCA_result_dense(t,_,_) -= nda::make_regular(
+            hyb(0,1,1)*nda::matmul(temp_dense, F_down_dag_dense));
     }
 
-    // std::cout << "Gt_dense = " << Gt_dense(0,_,_) << std::endl;
-    // std::cout << "F_up_dense = " << F_up_dense << std::endl;
-    // std::cout << "F_down_dense = " << F_down_dense << std::endl;
-    // std::cout << "F_up_dag_dense = " << F_up_dag_dense << std::endl;
-    // std::cout << "F_down_dag_dense = " << F_down_dag_dense << std::endl;
-    std::cout << "NCA_result_dense = " << NCA_result_dense(0,_,_) << std::endl;
-    return 0;
-};
+    EXPECT_EQ(NCA_result.get_blocks()[0](_,0,0), NCA_result_dense(_,0,0));
+    EXPECT_EQ(NCA_result.get_blocks()[1], NCA_result_dense(_,range(1,3),range(1,3)));
+    EXPECT_EQ(NCA_result.get_blocks()[2](_,0,0), NCA_result_dense(_,3,3));
+}
