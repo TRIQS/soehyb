@@ -5,7 +5,7 @@
 
 using namespace nda;
 
-TEST(BlockSparseTest, NCA) {
+TEST(BlockSparseXCATest, NCA) {
     // set up arguments to block_sparse/NCA_bs()
     int N = 4;
     int r = 1;
@@ -37,7 +37,7 @@ TEST(BlockSparseTest, NCA) {
     }
     std::vector<nda::array<dcomplex,3>> Gt_blocks = 
         {block0, block1, block2};
-    DiagonalOperator Gt(Gt_blocks);
+    BlockDiagonalOperator Gt(Gt_blocks);
 
     // set up annihilation operators
     nda::vector<int> block_indices_F = {1, 2, -1};
@@ -57,7 +57,7 @@ TEST(BlockSparseTest, NCA) {
     FOperator F_down(block_indices_F, F_down_blocks);
 
     std::vector<FOperator> Fs = {F_up, F_down};
-    DiagonalOperator NCA_result = NCA_bs(hyb, Gt, Fs);
+    BlockDiagonalOperator NCA_result = NCA_bs(hyb, Gt, Fs);
 
     // compute NCA_result using dense storage
 
