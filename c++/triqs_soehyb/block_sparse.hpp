@@ -24,24 +24,25 @@ using namespace nda;
 class BlockDiagOpFun {
     private: 
         std::vector<nda::array<dcomplex,3>> blocks;
-        int num_block_rows;
+        int num_block_cols;
         nda::vector<int> zero_block_indices;
         std::vector<nda::array<dcomplex,3>> blocks_dlr_coeffs;
 
     public:
         BlockDiagOpFun& operator+=(const BlockDiagOpFun &G);
         void set_blocks(std::vector<nda::array<dcomplex,3>> &blocks);
-        void set_block(int i, nda::array_const_view<dcomplex,3>);
+        void set_block(int i, nda::array_const_view<dcomplex,3> block);
         const std::vector<nda::array<dcomplex,3>>& get_blocks() const;
         nda::array_const_view<dcomplex,3> get_block(int i) const;
         nda::vector_const_view<int> get_block_sizes() const;
         const int get_block_size(int i) const;
-        const int get_num_block_rows() const;
+        const int get_num_block_cols() const;
         const int get_zero_block_index(int i) const;
         void set_blocks_dlr_coeffs(imtime_ops &itops);
         const std::vector<nda::array<dcomplex,3>>& get_blocks_dlr_coeffs() const;
         nda::array_const_view<dcomplex,3> get_block_dlr_coeffs(int i) const;
         const int get_num_time_nodes() const;
+        void add_block(int i, nda::array_const_view<dcomplex,3> block);
 
     /**
      * @brief Constructor for BlockDiagOpFun
@@ -67,36 +68,36 @@ class BlockOp {
     private: 
         nda::vector<int> block_indices;
         std::vector<nda::array<dcomplex,2>> blocks;
-        int num_block_rows;
+        int num_block_cols;
 
     public:
         BlockOp& operator+=(const BlockOp &F);
         void set_block_indices(nda::vector<int> &block_indices);
         void set_block_index(int i, int block_index);
         void set_blocks(std::vector<nda::array<dcomplex,2>> &blocks);
-        void set_block(int i, nda::array_const_view<dcomplex,2>);
+        void set_block(int i, nda::array_const_view<dcomplex,2> block);
         nda::vector_const_view<int> get_block_indices() const;
         int get_block_index(int i) const;
         const std::vector<nda::array<dcomplex,2>>& get_blocks() const;
         nda::array_const_view<dcomplex,2> get_block(int i) const;
-        const int get_num_block_rows() const;
+        const int get_num_block_cols() const;
         nda::array_const_view<int,2> get_block_sizes() const;
         nda::vector_const_view<int> get_block_size(int i) const;
 
     /**
      * @brief Constructor for BlockOp
-     * @param[in] block_indices vector of block-column indices in each block-row
+     * @param[in] block_indices vector of block-column indices in each block-col
      * @param[in] blocks vector of blocks
-     * @note block_indices[i] = -1 if F does not have a block in row i
+     * @note block_indices[i] = -1 if F does not have a block in col i
      */
     BlockOp(nda::vector<int> &block_indices, 
         std::vector<nda::array<dcomplex,2>> &blocks);
 
     /**
      * @brief Constructor for BlockOp with blocks of zeros
-     * @param[in] block_indices vector of block-column indices in each block-row
+     * @param[in] block_indices vector of block-column indices in each block-col
      * @param[in] block_sizes array of block sizes
-     * @note block_indices[i] = -1 if F does not have a block in row i
+     * @note block_indices[i] = -1 if F does not have a block in col i
      */
      BlockOp(nda::vector_const_view<int> block_indices, 
         nda::array_const_view<int,2> block_sizes);
@@ -110,7 +111,7 @@ class BlockOpFun {
     private: 
         nda::vector<int> block_indices;
         std::vector<nda::array<dcomplex,3>> blocks;
-        int num_block_rows;
+        int num_block_cols;
         std::vector<nda::array<dcomplex,3>> blocks_dlr_coeffs;
 
     public:
@@ -118,12 +119,12 @@ class BlockOpFun {
         void set_block_indices(nda::vector<int> &block_indices);
         void set_block_index(int i, int block_index);
         void set_blocks(std::vector<nda::array<dcomplex,3>> &blocks);
-        void set_block(int i, nda::array_const_view<dcomplex,3>);
+        void set_block(int i, nda::array_const_view<dcomplex,3> block);
         nda::vector_const_view<int> get_block_indices() const;
         int get_block_index(int i) const;
         const std::vector<nda::array<dcomplex,3>>& get_blocks() const;
         nda::array_const_view<dcomplex,3> get_block(int i) const;
-        const int get_num_block_rows() const;
+        const int get_num_block_cols() const;
         nda::array_const_view<int,2> get_block_sizes() const;
         nda::vector_const_view<int> get_block_size(int i) const;
         void set_blocks_dlr_coeffs(imtime_ops& itops);
@@ -133,9 +134,9 @@ class BlockOpFun {
 
     /**
      * @brief Constructor for BlockOpFun 
-     * @param[in] block_indices vector of block-row-indices
+     * @param[in] block_indices vector of block-col-indices
      * @param[in] blocks vector of blocks
-     * @note block_indices[i] = -1 if F does not have a block in row i
+     * @note block_indices[i] = -1 if F does not have a block in col i
      */
     BlockOpFun(nda::vector_const_view<int> block_indices, 
         std::vector<nda::array<dcomplex,3>> &blocks);
@@ -143,7 +144,7 @@ class BlockOpFun {
     /**
      * @brief Constructor for BlockOpFun with blocks of zeros
      * @param[in] r number of imaginary time nodes
-     * @param[in] block_indices vector of block-row-indices
+     * @param[in] block_indices vector of block-col-indices
      * @param[in] block_sizes vector of sizes of diagonal blocks
      */
      BlockOpFun(int r, nda::vector_const_view<int> block_indices, 
@@ -177,90 +178,6 @@ BlockOp dagger_bs(BlockOp const &F);
  * @return BlockDiagOpFun
  */
 BlockDiagOpFun BOFtoBDOF(BlockOpFun const &A);
-
-/**
- * @brief Compute a product between a BlockDiagOpFun and a BlockOpFun
- * @param[in] A BlockDiagOpFun
- * @param[in] B BlockOpFun
- */
-BlockOpFun operator*(const BlockDiagOpFun& A, const BlockOpFun& B);
-
-/**
- * @brief Compute a product between a BlockOpFun and a BlockDiagOpFun
- * @param[in] A BlockOpFun
- * @param[in] B BlockDiagOpFun
- */
-BlockOpFun operator*(const BlockOpFun& A, const BlockDiagOpFun& B);
-
-/**
- * @brief Compute a product between a BlockDiagOpFun and an BlockOp
- * @param[in] A BlockDiagOpFun
- * @param[in] F BlockOp
- */
-BlockOpFun operator*(const BlockDiagOpFun& A, const BlockOp& F);
-
- /**
-  * @brief Compute a product between an BlockOp and a BlockDiagOpFun
-  * @param[in] F BlockOp
-  * @param[in] B BlockDiagOpFun
-  */
-BlockOpFun operator*(const BlockOp& F, const BlockDiagOpFun& B);
-
-/**
- * @brief Compute a product between a BlockOpFun and an BlockOp
- * @param[in] A BlockOpFun
- * @param[in] F BlockOp
- */
-BlockOpFun operator*(const BlockOpFun& A, const BlockOp& F);
-
- /**
-  * @brief Compute a product between an BlockOp and a BlockOpFun
-  * @param[in] F BlockOp
-  * @param[in] B BlockOpFun
-  */
-BlockOpFun operator*(const BlockOp& F, const BlockOpFun& B);
-
-/**
- * @brief Compute a product between a scalar and an BlockOp
- * @param[in] c dcomplex
- * @param[in] F BlockOp
- */
-BlockOp operator*(const dcomplex c, const BlockOp &F);
-
-/**
- * @brief Compute a product between a scalar f'n of time and a BlockOpFun
- * @param[in] f nda::vector_const_view<double,1>
- * @param[in] A BlockOpFun
- */
-BlockOpFun operator*(nda::vector_const_view<double> f, const BlockOpFun& A);
-
-/**
- * @brief Compute a product between a BlockOpFun and a scalar f'n of time
- * @param[in] A BlockOpFun
- * @param[in] f nda::array_const_view<double,1>
- */
-BlockOpFun operator*(const BlockOpFun& A, nda::vector_const_view<double> f);
-
-/**
- * @brief Compute a product between a scalar f'n of time and a BlockOpFun
- * @param[in] f nda::vector_const_view<dcomplex,1>
- * @param[in] A BlockOpFun
- */
-BlockOpFun operator*(nda::vector_const_view<dcomplex> f, const BlockOpFun& A);
-
-/**
- * @brief Compute a product between a BlockOpFun and a scalar f'n of time
- * @param[in] A BlockOpFun
- * @param[in] f nda::array_const_view<dcomplex,1>
- */
-BlockOpFun operator*(const BlockOpFun& A, nda::vector_const_view<dcomplex> f);
-
-/**
- * @brief Compute a quotient between a BlockDiagOpFun and a scalar
- * @param[in] A BlockDiagOpFun
- * @param[in] c dcomplex
- */
-BlockDiagOpFun operator/(const BlockDiagOpFun& A, dcomplex c);
 
 /**
  * @brief Convolve a BlockDiagOpFun and a BlockOpFun

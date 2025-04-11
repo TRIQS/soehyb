@@ -15,9 +15,9 @@ TEST(BlockSparseXCATest, NCA) {
     nda::array<dcomplex,3> hyb({r, n, n});
     for (int t = 0; t < r; ++t) {
         hyb(t,0,0) = 1;
-        hyb(t,1,1) = 1;
-        hyb(t,0,1) = 2;
-        hyb(t,1,0) = 3;
+        hyb(t,1,1) = -1;
+        hyb(t,0,1) = -1;
+        hyb(t,1,0) = 4;
     }
 
     // set up Green's function
@@ -37,21 +37,22 @@ TEST(BlockSparseXCATest, NCA) {
     }
     std::vector<nda::array<dcomplex,3>> Gt_blocks = 
         {block0, block1, block2};
-    BlockDiagOpFun Gt(Gt_blocks);
+    nda::vector<int> zero_block_indices = {-1, 0, 0};
+    BlockDiagOpFun Gt(Gt_blocks, zero_block_indices);
 
     // set up annihilation operators
-    nda::vector<int> block_indices_F = {1, 2, -1};
+    nda::vector<int> block_indices_F = {-1, 0, 1};
 
-    nda::array<dcomplex,2> F_up_block0 = {{1, 0}};
-    nda::array<dcomplex,2> F_up_block1 = {{0}, {1}};
-    nda::array<dcomplex,2> F_up_block2 = {{0}};
+    nda::array<dcomplex,2> F_up_block0 = {{0}};
+    nda::array<dcomplex,2> F_up_block1 = {{1, 0}};
+    nda::array<dcomplex,2> F_up_block2 = {{0}, {1}};
     std::vector<nda::array<dcomplex,2>> F_up_blocks = 
         {F_up_block0, F_up_block1, F_up_block2};
     BlockOp F_up(block_indices_F, F_up_blocks);
 
-    nda::array<dcomplex,2> F_down_block0 = {{0, 1}};
-    nda::array<dcomplex,2> F_down_block1 = {{-1}, {0}};
-    nda::array<dcomplex,2> F_down_block2 = {{0}};
+    nda::array<dcomplex,2> F_down_block0 = {{0}};
+    nda::array<dcomplex,2> F_down_block1 = {{0, 1}};
+    nda::array<dcomplex,2> F_down_block2 = {{-1}, {0}};
     std::vector<nda::array<dcomplex,2>> F_down_blocks = 
         {F_down_block0, F_down_block1, F_down_block2};
     BlockOp F_down(block_indices_F, F_down_blocks);
@@ -80,24 +81,9 @@ TEST(BlockSparseXCATest, NCA) {
     nda::array<dcomplex,2> F_up_dag_dense = nda::transpose(F_up_dense);
     nda::array<dcomplex,2> F_down_dag_dense = nda::transpose(F_down_dense);
 
-    nda::array<dcomplex,3> NCA_result_dense({r, N, N});
+    auto NCA_result_dense = nda::zeros<dcomplex>(r, N, N);
     nda::array<dcomplex,2> temp_dense({N, N});
-    NCA_result_dense = 0;
     for (int t = 0; t < r; ++t) {
-        // forward diagram
-        temp_dense = nda::matmul(F_up_dag_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) += 
-            hyb(0,0,0)*nda::matmul(temp_dense, F_up_dense);
-        temp_dense = nda::matmul(F_up_dag_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) += 
-            hyb(0,0,1)*nda::matmul(temp_dense, F_down_dense);
-        temp_dense = nda::matmul(F_down_dag_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) += 
-            hyb(0,1,0)*nda::matmul(temp_dense, F_up_dense);
-        temp_dense = nda::matmul(F_down_dag_dense, Gt_dense(t,_,_));
-        NCA_result_dense(t,_,_) += 
-            hyb(0,1,1)*nda::matmul(temp_dense, F_down_dense);
-
         // backward diagram
         temp_dense = nda::matmul(F_up_dense, Gt_dense(t,_,_));
         NCA_result_dense(t,_,_) -=
@@ -111,6 +97,20 @@ TEST(BlockSparseXCATest, NCA) {
         temp_dense = nda::matmul(F_down_dense, Gt_dense(t,_,_));
         NCA_result_dense(t,_,_) -= 
             hyb(0,1,1)*nda::matmul(temp_dense, F_down_dag_dense);
+
+        // forward diagram
+        temp_dense = nda::matmul(F_up_dag_dense, Gt_dense(t,_,_));
+        NCA_result_dense(t,_,_) += 
+            hyb(0,0,0)*nda::matmul(temp_dense, F_up_dense);
+        temp_dense = nda::matmul(F_up_dag_dense, Gt_dense(t,_,_));
+        NCA_result_dense(t,_,_) += 
+            hyb(0,0,1)*nda::matmul(temp_dense, F_down_dense);
+        temp_dense = nda::matmul(F_down_dag_dense, Gt_dense(t,_,_));
+        NCA_result_dense(t,_,_) += 
+            hyb(0,1,0)*nda::matmul(temp_dense, F_up_dense);
+        temp_dense = nda::matmul(F_down_dag_dense, Gt_dense(t,_,_));
+        NCA_result_dense(t,_,_) += 
+            hyb(0,1,1)*nda::matmul(temp_dense, F_down_dense);
     }
 
     EXPECT_EQ(NCA_result.get_blocks()[0](_,0,0), NCA_result_dense(_,0,0));

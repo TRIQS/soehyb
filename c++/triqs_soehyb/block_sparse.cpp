@@ -16,25 +16,27 @@ BlockDiagOpFun::BlockDiagOpFun(
     nda::vector_const_view<int> zero_block_indices) : 
     blocks(blocks), zero_block_indices(zero_block_indices) {
         
-    num_block_rows = blocks.size();
+    num_block_cols = blocks.size();
 }
 
 BlockDiagOpFun::BlockDiagOpFun(int r, 
     nda::vector_const_view<int> block_sizes) {
 
-    num_block_rows = block_sizes.size();
-    for (int i = 0; i < num_block_rows; i++) {
+    num_block_cols = block_sizes.size();
+    std::vector<nda::array<dcomplex,3>> blocks(num_block_cols);
+    zero_block_indices = nda::make_regular(-1*nda::ones<int>(num_block_cols));
+    for (int i = 0; i < num_block_cols; i++) {
         blocks[i] = nda::zeros<dcomplex>(r, block_sizes[i], block_sizes[i]);
-        zero_block_indices(i) = -1; 
     }
+    this->blocks = blocks;
 }
 
 void BlockDiagOpFun::set_blocks(
     std::vector<nda::array<dcomplex,3>> &blocks) {
         
     this->blocks = blocks;
-    num_block_rows = blocks.size();
-    zero_block_indices = nda::zeros<int>(num_block_rows);
+    num_block_cols = blocks.size();
+    zero_block_indices = nda::zeros<int>(num_block_cols);
 }
 
 void BlockDiagOpFun::set_block(int i, nda::array_const_view<dcomplex,3> block) {
@@ -51,8 +53,8 @@ nda::array_const_view<dcomplex,3> BlockDiagOpFun::get_block(int i) const {
 }
 
 nda::vector_const_view<int> BlockDiagOpFun::get_block_sizes() const {
-    static nda::vector<int> block_sizes(num_block_rows);
-    for (int i = 0; i < num_block_rows; i++) {
+    static nda::vector<int> block_sizes(num_block_cols);
+    for (int i = 0; i < num_block_cols; i++) {
         block_sizes(i) = blocks[i].shape(1);
     }
     return block_sizes;
@@ -62,8 +64,8 @@ const int BlockDiagOpFun::get_block_size(int i) const {
     return blocks[i].shape(1);
 }
 
-const int BlockDiagOpFun::get_num_block_rows() const {
-    return num_block_rows;
+const int BlockDiagOpFun::get_num_block_cols() const {
+    return num_block_cols;
 }
 
 const int BlockDiagOpFun::get_zero_block_index(int i) const {
@@ -71,7 +73,7 @@ const int BlockDiagOpFun::get_zero_block_index(int i) const {
 }
 
 void BlockDiagOpFun::set_blocks_dlr_coeffs(imtime_ops &itops) {    
-    for (int i = 0; i < num_block_rows; i++) {
+    for (int i = 0; i < num_block_cols; i++) {
         blocks_dlr_coeffs[i] = itops.vals2coefs(blocks[i]);
     }
 }
@@ -89,12 +91,16 @@ nda::array_const_view<dcomplex,3>
 }
 
 const int BlockDiagOpFun::get_num_time_nodes() const {
-    for (int i; i < num_block_rows; i++) {
+    for (int i; i < num_block_cols; i++) {
         if (zero_block_indices(i) != -1) {
             return blocks[i].shape(0);
         }
     }
     return 0; // BlockDiagOpFun is all zeros anyways
+}
+
+void BlockDiagOpFun::add_block(int i, nda::array_const_view<dcomplex,3> block) {
+    blocks[i] = nda::make_regular(blocks[i] + block);
 }
 
 
@@ -103,15 +109,15 @@ BlockOp::BlockOp(
     std::vector<nda::array<dcomplex,2>> &blocks) : 
     block_indices(block_indices), blocks(blocks) {
 
-    num_block_rows = block_indices.size();
+    num_block_cols = block_indices.size();
 }
 
 BlockOp::BlockOp(
     nda::vector_const_view<int> block_indices, nda::array_const_view<int,2> block_sizes) :
     block_indices(block_indices) {
 
-    num_block_rows = block_indices.size();
-    for (int i = 0; i < num_block_rows; i++) {
+    num_block_cols = block_indices.size();
+    for (int i = 0; i < num_block_cols; i++) {
         if (block_indices(i) != -1) {
             blocks[i] = nda::zeros<dcomplex>(block_sizes(i,0), block_sizes(i,1));
         }
@@ -125,14 +131,18 @@ void BlockOp::set_block_indices(
     nda::vector<int> &block_indices) {
 
     this->block_indices = block_indices;
-    num_block_rows = block_indices.size();
+    num_block_cols = block_indices.size();
+}
+
+void BlockOp::set_block_index(int i, int block_index) {
+    block_indices(i) = block_index;
 }
 
 void BlockOp::set_blocks(
     std::vector<nda::array<dcomplex,2>> &blocks) {
 
     this->blocks = blocks;
-    num_block_rows = blocks.size();
+    num_block_cols = blocks.size();
 }
 
 void BlockOp::set_block(int i, nda::array_const_view<dcomplex,2> block) {
@@ -159,11 +169,11 @@ nda::array_const_view<dcomplex,2> BlockOp::get_block(int i) const {
     }
 }
 
-const int BlockOp::get_num_block_rows() const { return num_block_rows; }
+const int BlockOp::get_num_block_cols() const { return num_block_cols; }
 
 nda::array_const_view<int,2> BlockOp::get_block_sizes() const {
-    static nda::array<int,2> block_sizes(num_block_rows,2);
-    for (int i = 0; i < num_block_rows; i++) {
+    static nda::array<int,2> block_sizes(num_block_cols,2);
+    for (int i = 0; i < num_block_cols; i++) {
         if (block_indices(i) != -1) {
             block_sizes(i,0) = blocks[i].shape(0);
             block_sizes(i,1) = blocks[i].shape(1);
@@ -194,7 +204,7 @@ BlockOpFun::BlockOpFun(
     std::vector<nda::array<dcomplex,3>> &blocks) : 
     block_indices(block_indices), blocks(blocks) {
         
-    num_block_rows = block_indices.size();
+    num_block_cols = block_indices.size();
 }
 
 BlockOpFun::BlockOpFun(
@@ -203,8 +213,8 @@ BlockOpFun::BlockOpFun(
     nda::array_const_view<int,2> block_sizes) :
     block_indices(block_indices) {
 
-    num_block_rows = block_indices.size();
-    for (int i = 0; i < num_block_rows; i++) {
+    num_block_cols = block_indices.size();
+    for (int i = 0; i < num_block_cols; i++) {
         if (block_indices(i) != -1) {
             blocks[i] = nda::zeros<dcomplex>(r, block_sizes(i,0), block_sizes(i,1));
         }
@@ -218,14 +228,18 @@ void BlockOpFun::set_block_indices(
     nda::vector<int> &block_indices) {
 
     this->block_indices = block_indices;
-    num_block_rows = block_indices.size();
+    num_block_cols = block_indices.size();
+}
+
+void BlockOpFun::set_block_index(int i, int block_index) {
+    block_indices(i) = block_index;
 }
 
 void BlockOpFun::set_blocks(
     std::vector<nda::array<dcomplex,3>> &blocks) {
 
     this->blocks = blocks;
-    num_block_rows = blocks.size();
+    num_block_cols = blocks.size();
 }
 
 void BlockOpFun::set_block(int i, nda::array_const_view<dcomplex,3> block) {
@@ -254,13 +268,13 @@ nda::array_const_view<dcomplex,3> BlockOpFun::get_block(int i) const {
     }
 }
 
-const int BlockOpFun::get_num_block_rows() const {
-    return num_block_rows;
+const int BlockOpFun::get_num_block_cols() const {
+    return num_block_cols;
 }
 
 nda::array_const_view<int,2> BlockOpFun::get_block_sizes() const {
-    static nda::array<int,2> block_sizes(num_block_rows,2);
-    for (int i = 0; i < num_block_rows; i++) {
+    static nda::array<int,2> block_sizes(num_block_cols,2);
+    for (int i = 0; i < num_block_cols; i++) {
         if (block_indices(i) != -1) {
             block_sizes(i,0) = blocks[i].shape(1);
             block_sizes(i,1) = blocks[i].shape(2);
@@ -286,7 +300,7 @@ nda::vector_const_view<int> BlockOpFun::get_block_size(int i) const {
 }
 
 void BlockOpFun::set_blocks_dlr_coeffs(imtime_ops &itops) {
-    for (int i = 0; i < num_block_rows; i++) {
+    for (int i = 0; i < num_block_cols; i++) {
         if (block_indices(i) != -1) {
             blocks_dlr_coeffs[i] = itops.vals2coefs(blocks[i]);
         }
@@ -302,7 +316,7 @@ nda::array_const_view<dcomplex,3> BlockOpFun::get_block_dlr_coeffs(int i) const 
 }
 
 const int BlockOpFun::get_num_time_nodes() const {
-    for (int i; i < num_block_rows; i++) {
+    for (int i; i < num_block_cols; i++) {
         if (block_indices(i) != -1) {
             return blocks[i].shape(0);
         }
@@ -317,7 +331,7 @@ std::ostream& operator<<(std::ostream& os, BlockDiagOpFun &D) {
     // @param[in] D BlockDiagOpFun
     // @return output stream
 
-    for (int i = 0; i < D.get_num_block_rows(); i++) {
+    for (int i = 0; i < D.get_num_block_cols(); i++) {
         os << "Block " << i << ":\n" << D.get_block(i) << "\n";
     }
     return os;
@@ -330,7 +344,7 @@ std::ostream& operator<<(std::ostream& os, BlockOp &F) {
     // @return output stream
 
     os << "Block indices: " << F.get_block_indices() << "\n";
-    for (int i = 0; i < F.get_num_block_rows(); i++) {
+    for (int i = 0; i < F.get_num_block_cols(); i++) {
         if (F.get_block_indices()[i] == -1) {
             os << "Block " << i << ": 0\n";
         }
@@ -346,15 +360,15 @@ BlockOp dagger_bs(BlockOp const &F) {
     // @param[in] F F operator
     // @return F^dagger operator
 
-    int num_block_rows = F.get_num_block_rows();
+    int num_block_cols = F.get_num_block_cols();
     int i, j;
 
     // find block indices for F^dagger
-    nda::vector<int> block_indices_dag(num_block_rows);
+    nda::vector<int> block_indices_dag(num_block_cols);
     // initialize indices with -1
     block_indices_dag = -1;
-    std::vector<nda::array<dcomplex,2>> blocks_dag(num_block_rows);
-    for (i = 0; i < num_block_rows; ++i) {
+    std::vector<nda::array<dcomplex,2>> blocks_dag(num_block_cols);
+    for (i = 0; i < num_block_cols; ++i) {
         j = F.get_block_indices()[i];
         if (j != -1) {
             block_indices_dag[j] = i;
@@ -370,11 +384,11 @@ BlockDiagOpFun BOFtoBDOF(BlockOpFun const &A) {
     // @param[in] A BlockOpFun
     // @return BlockDiagOpFun
 
-    int num_block_rows = A.get_num_block_rows();
+    int num_block_cols = A.get_num_block_cols();
     auto diag_blocks = A.get_blocks();
     auto block_indices = A.get_block_indices();
-    auto zero_block_indices = nda::zeros<int>(num_block_rows);
-    for (int i = 0; i < num_block_rows; i++) {
+    auto zero_block_indices = nda::zeros<int>(num_block_cols);
+    for (int i = 0; i < num_block_cols; i++) {
         int block_index = A.get_block_index(i);
         if (block_index == -1) {
             diag_blocks[i] = nda::zeros<dcomplex>(1, 1, 1);
@@ -388,239 +402,6 @@ BlockDiagOpFun BOFtoBDOF(BlockOpFun const &A) {
     return BlockDiagOpFun(diag_blocks, zero_block_indices);
 }
 
-BlockDiagOpFun& BlockDiagOpFun::operator+=(const BlockDiagOpFun &G) {
-    // BlockDiagOpFun addition-assignment operator
-    // @param[in] G BlockDiagOpFun
-    
-    // TODO: exception handling
-    for (int i = 0; i < num_block_rows; i++) {
-        if (this->zero_block_indices(i) == -1 && G.get_zero_block_index(i) != -1) {
-            this->blocks[i] = G.blocks[i];
-            this->zero_block_indices(i) = 0;
-        }
-        else if (zero_block_indices(i) != -1 && G.get_zero_block_index(i) != -1) {
-            this->blocks[i] += G.blocks[i];
-        }
-    }
-    return *this;
-}
-
-BlockOp& BlockOp::operator+=(const BlockOp &F) {
-    // BlockOp addition-assignment operator
-    // @param[in] F BlockOp
-    
-    // TODO: exception handling
-    for (int i = 0; i < num_block_rows; i++) {
-        this->blocks[i] += F.blocks[i];
-    }
-    return *this;
-}
-
-BlockOpFun& BlockOpFun::operator+=(const BlockOpFun &A) {
-    // BlockOpFun addition-assignment operator
-    // @param[in] A BlockOpFun
-    
-    // TODO: exception handling
-    for (int i = 0; i < num_block_rows; i++) {
-        this->blocks[i] += A.blocks[i];
-    }
-    return *this;
-}
-
-BlockOpFun operator*(
-    const BlockDiagOpFun& A, 
-    const BlockOpFun& B) {
-    // Compute a product between a BlockDiagOpFun and a BlockOpFun
-    // @param[in] A BlockDiagOpFun
-    // @param[in] B BlockOpFun
-
-    BlockOpFun product = B;
-    int r = B.get_num_time_nodes();
-    if (r != A.get_num_time_nodes()) {
-        throw std::invalid_argument("number of time indices do not match");
-    }
-    for (int i = 0; i < A.get_num_block_rows(); i++) {
-        if (A.get_zero_block_index(i) == -1 || B.get_block_index(i) == -1) {
-            // block i of A is zero, or block-row i of B has no nonzero block
-            product.set_block(i, nda::zeros<dcomplex>(1, 1, 1));
-        }
-        else {
-            auto prod_block = B.get_block(i);
-            for (int t = 0; t < r; t++) {
-                prod_block(t,_,_) = nda::matmul(
-                    A.get_block(i)(t,_,_), prod_block(t,_,_));
-            }
-            product.set_block(i, prod_block);
-        }
-    }
-
-    return product;
-}
-
-BlockOpFun operator*(
-    const BlockOpFun& A, 
-    const BlockDiagOpFun& B) {
-    // Compute a product between a BlockOpFun and a BlockDiagOpFun
-    // @param[in] A BlockOpFun
-    // @param[in] B BlockDiagOpFun
-
-    // initialize blocks of product, which has same shape as B
-    BlockOpFun product = A;
-    int r = A.get_num_time_nodes();
-    if (r != B.get_num_time_nodes()) {
-        throw std::invalid_argument("number of time indices does not match");
-    }
-    for (int i = 0; i < B.get_num_block_rows(); i++) {
-        int j = A.get_block_index(i);
-        if (j == -1 || B.get_zero_block_index(i) == -1) {
-            // block-row i of A has no nonzero block, or block j of B is zero
-            product.set_block(i, nda::zeros<dcomplex>(1, 1, 1));
-        }
-        else {
-            auto prod_block = A.get_block(i);
-            for (int t = 0; t < r; t++) {
-                prod_block(t,_,_) = nda::matmul(
-                    A.get_block(i)(t,_,_), B.get_block(j)(t,_,_));
-            }
-            product.set_block(i, prod_block);
-        }
-    }
-
-    return product;
-}
-
-BlockOpFun operator*(const BlockDiagOpFun& A, const BlockOp& F) {
-    // Compute a product between a BlockDiagOpFun and an BlockOp
-    // @param[in] A BlockDiagOpFun
-    // @param[in] F BlockOp
-
-    int r = A.get_num_time_nodes();
-    BlockOpFun product(r, F.get_block_indices(), F.get_block_sizes());
-
-    // compute blocks of product
-    for (int i = 0; i < A.get_num_block_rows(); ++i) {
-        if (A.get_zero_block_index(i) == -1 || F.get_block_index(i) == -1) {
-            // if block i of A is zero, or block-row i of F has no nonzero block
-            product.set_block(i, nda::zeros<dcomplex>(1, 1, 1));
-        }
-        else {
-            auto prod_block = product.get_block(i);
-            for (int t = 0; t < r; t++) {
-                prod_block(t,_,_) = nda::matmul(
-                    A.get_block(i)(t,_,_), F.get_block(i));
-            }
-            product.set_block(i, prod_block);
-        }
-    }
-
-    return product;
-}
-
-BlockOpFun operator*(const BlockOp& F, const BlockDiagOpFun& B) {
-    // Compute a product between an BlockOp and a BlockDiagOpFun
-    // @param[in] F BlockOp
-    // @param[in] B BlockDiagOpFun
-
-    int r = B.get_num_time_nodes();
-    BlockOpFun product(r, F.get_block_indices(), F.get_block_sizes());
-
-    // compute blocks of product
-    for (int i = 0; i < B.get_num_block_rows(); ++i) {
-        if (F.get_block_index(i) == -1 || B.get_zero_block_index(i) == -1) {
-            // if block-row i of F has no nonzero block, or block i of B is zero
-            product.set_block(i, nda::zeros<dcomplex>(1, 1, 1));
-        }
-        else {
-            auto prod_block = product.get_block(i);
-            for (int t = 0; t < r; t++) {
-                prod_block(t,_,_) = nda::matmul(
-                    F.get_block(i), B.get_block(F.get_block_index(i))(t,_,_));
-            }
-        }
-    }
-
-    return product;
-}
-
-// TODO: define BlockOpFun times BlockOp
-
-BlockOp operator*(const dcomplex c, const BlockOp &F) {    
-    // Compute a product between a scalar and an BlockOp
-    // @param[in] c dcomplex
-    // @param[in] F BlockOp
- 
-    auto product = F;
-    for (int i = 0; i < F.get_num_block_rows(); i++) {
-        if (F.get_block_index(i) != -1) {
-            auto prod_block = nda::make_regular(c*F.get_block(i));
-            product.set_block(i, prod_block);
-        }
-    }
-    
-    return product;
-}
-
-// TODO: define real function times BlockOp
-
-BlockOpFun operator*(
-    nda::vector_const_view<dcomplex>& f, 
-    const BlockOpFun& A) {
-    // Compute a product between a scalar f'n of time and a BlockOpFun
-    // @param[in] f nda::array_const_view<dcomplex,1>
-    // @param[in] A BlockOpFun
-    // @return product
-
-    BlockOpFun product = A;
-    int r = A.get_num_time_nodes();
-    for (int i = 0; i < A.get_num_block_rows(); i++) {
-        if (A.get_block_index(i) != -1) {
-            auto prod_block = product.get_block(i);
-            for (int t = 0; t < r; t++) {
-                prod_block(t,_,_) = nda::make_regular(f(t)*A.get_block(i)(t,_,_)); \
-            }
-            product.set_block(i, prod_block);
-        }
-    }
-    return product;
-}
-
-BlockOpFun operator*(
-    const BlockOpFun& A,
-    nda::vector_const_view<dcomplex>& f) {
-    // Compute a product between a scalar f'n of time and a BlockOpFun
-    // @param[in] A BlockOpFun
-    // @param[in] f nda::array_const_view<dcomplex,1>
-    // @return product
-
-    BlockOpFun product = A;
-    int r = A.get_num_time_nodes();
-    for (int i = 0; i < A.get_num_block_rows(); i++) {
-        if (A.get_block_index(i) != -1) {
-            auto prod_block = product.get_block(i);
-            for (int t = 0; t < r; t++) {
-                prod_block(t,_,_) = nda::make_regular(f(t)*A.get_block(i)(t,_,_)); \
-            }
-            product.set_block(i, prod_block);
-        }
-    }
-    return product;
-}
-
-BlockDiagOpFun operator/(const BlockDiagOpFun& A, dcomplex c) {
-    // Compute a quotient between a BlockDiagOpFun and a scalar
-    // @param[in] A BlockDiagOpFun
-    // @param[in] c dcomplex
-
-    BlockDiagOpFun quotient = A;
-    for (int i = 0; i < A.get_num_block_rows(); i++) {
-        auto block = A.get_block(i);
-        block = block/c;
-        quotient.set_block(i, block);
-    }
-
-    return quotient;
-}
-
 // TODO: implement this with values directly?
 BlockOpFun convolve(
     imtime_ops itops, 
@@ -632,7 +413,7 @@ BlockOpFun convolve(
 
     BlockOpFun h = g;
 
-    for (int i = 0; i < f.get_num_block_rows(); i++) {
+    for (int i = 0; i < f.get_num_block_cols(); i++) {
         if (f.get_zero_block_index(i) == -1 || g.get_block_index(i) == -1) {
             h.set_block(i, nda::zeros<dcomplex>(1, 1, 1));
             h.set_block_index(i, -1);
@@ -661,7 +442,7 @@ BlockOpFun convolve(
 
     BlockOpFun h = f;
 
-    for (int i = 0; i < f.get_num_block_rows(); i++) {
+    for (int i = 0; i < f.get_num_block_cols(); i++) {
         int j = f.get_block_index(i);
         if (j == -1 || g.get_zero_block_index(j)) {
             h.set_block(i, nda::zeros<dcomplex>(1, 1, 1));
@@ -681,7 +462,6 @@ BlockOpFun convolve(
     return h;
 }
 
-// TODO: rewrite this
 BlockDiagOpFun NCA_bs(
     nda::array_const_view<dcomplex,3> hyb, 
     BlockDiagOpFun const &Gt, 
@@ -698,54 +478,57 @@ BlockDiagOpFun NCA_bs(
     for (int i = 0; i < num_Fs; ++i) {
         F_dags[i] = dagger_bs(Fs[i]);
     }
-    // initialize blocks of self-energy, with same shape as Gt
-    std::vector<nda::array<dcomplex,3>> diag_blocks(Gt.get_blocks());
-    int num_block_rows = Gt.get_num_block_rows();
-    for (int i = 0; i < num_block_rows; ++i) {
-        diag_blocks[i] = 0; 
-    }
-    
+    // initialize self-energy, with same shape as Gt
     int r = Gt.get_num_time_nodes();
+    auto block_sizes = Gt.get_block_sizes();
     BlockDiagOpFun Sigma(r, Gt.get_block_sizes());
-    for (int t = 0; t < r; ++t) {
-        // forward diagram contribution to self-energy
-        // make loop over forward/backward for higher order diagrams 
-        for (int l = 0; l < num_Fs; ++l) {
-            BlockOp const &F_dag = F_dags[l]; 
-            for (int k = 0; k < num_Fs; ++k) {
-                BlockOp const &F = Fs[k];
-                for (int i = 0; i < num_block_rows; ++i) {
-                    int j = F_dag.get_block_index(i); // = col ind of block i
-                    if (j != -1) { // if F_dag has block in row i
-                        auto temp = nda::matmul(
-                            F_dag.get_blocks()[i], Gt.get_blocks()[j](t,_,_));
-                        auto prod_block = nda::matmul(
-                            temp, F.get_blocks()[j]);
-                        diag_blocks[i](t,_,_) += hyb(t,l,k)*prod_block;
+
+    for (int fb = 0; fb <= 1; fb++) {
+        // fb = 1 for forward line, 0 for backward line
+        auto const &F1list = (fb) ? Fs : F_dags;
+        auto const &F2list = (fb) ? F_dags : Fs;
+        int sfM = (fb) ? 1 : -1; 
+        
+        for (int lam = 0; lam < num_Fs; lam++) {
+            for (int kap = 0; kap < num_Fs; kap++) {
+                auto &F1 = F1list[kap];
+                auto &F2 = F2list[lam];
+                auto ind_path = nda::zeros<int>(2);
+                bool path_all_nonzero;
+
+                // "backwards pass"
+                // for each self-energy block, find contributing blocks of factors
+                for (int i = 0; i < Gt.get_num_block_cols(); i++) {
+                    path_all_nonzero = true;
+                    ind_path(0) = F1.get_block_index(i);
+                    if (ind_path(0) != -1 && Gt.get_zero_block_index(ind_path(0)) != -1) {
+                        ind_path(1) = F2.get_block_index(ind_path(0));
+                        if (ind_path(1) == -1) {path_all_nonzero = false;}
                     }
-                }
-            }
-        }
-        // backward diagram contribution to self-energy
-        for (int l = 0; l < num_Fs; ++l) {
-            BlockOp const &F = Fs[l];
-            for (int k = 0; k < num_Fs; ++k) {
-                BlockOp const &F_dag = F_dags[k];
-                for (int i = 0; i < num_block_rows; ++i) {
-                    int j = F.get_block_indices()[i]; // = col ind of block i
-                    if (j != -1) { // if F has block in row i
-                        auto temp = nda::matmul(
-                            F.get_block(i), Gt.get_block(j)(t,_,_));
-                        auto prod_block = nda::matmul(
-                            temp, F_dag.get_blocks()[j]);
-                        diag_blocks[i](t,_,_) -= hyb(t,l,k)*prod_block;
+                    else {
+                        path_all_nonzero = false;
+                    }
+
+                    // "forward pass"
+                    // if path involves all nonzero blocks, compute product
+                    if (path_all_nonzero) {
+                        auto block = nda::zeros<dcomplex>(r, Gt.get_block_size(i), Gt.get_block_size(i));
+                        BlockOp F2_copy = F2;
+                        for (int t = 0; t < r; t++) {
+                            block(t,_,_) = hyb(t, lam, kap) * nda::matmul(
+                                F2.get_block(ind_path(0)), 
+                                nda::matmul(
+                                    Gt.get_block(ind_path(0))(t,_,_), 
+                                    F1.get_block(ind_path(1))));
+                        }
+                        block = sfM * block;
+                        Sigma.add_block(i, block);
                     }
                 }
             }
         }
     }
     
-    Sigma.set_blocks(diag_blocks);
     return Sigma;
 }
 
@@ -768,7 +551,7 @@ BlockDiagOpFun NCA_bs(
     return K;
     }
 
-BlockDiagOpFun OCA_bs(
+/* BlockDiagOpFun OCA_bs(
     nda::array_const_view<dcomplex,3> hyb, 
     nda::array_const_view<dcomplex,3> hyb_coeffs, 
     imtime_ops &itops, 
@@ -893,4 +676,4 @@ BlockDiagOpFun OCA_bs(
     }
 
     return Sigma;
-}
+} */
