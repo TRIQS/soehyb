@@ -117,3 +117,68 @@ TEST(BlockSparseXCATest, NCA) {
     EXPECT_EQ(NCA_result.get_blocks()[1], NCA_result_dense(_,range(1,3),range(1,3)));
     EXPECT_EQ(NCA_result.get_blocks()[2](_,0,0), NCA_result_dense(_,3,3));
 }
+
+TEST(BlockSparseXCATest, OCA) {
+    // set up arguments to block_sparse/OCA_bs()
+    double beta = 100;
+    double eps = 1e-10;
+    double Lambda = 100;
+    auto dlr_rf = build_dlr_rf(Lambda, eps);
+    auto itops = imtime_ops(Lambda, dlr_rf);
+
+    int N = 4;
+    int r = dlr_rf.size();
+    int n = 2;
+
+    // set up hybridization
+    nda::array<dcomplex,3> hyb({r, n, n});
+    for (int t = 0; t < r; ++t) {
+        hyb(t,0,0) = 1;
+        hyb(t,1,1) = -1;
+        hyb(t,0,1) = -1;
+        hyb(t,1,0) = 4;
+    }
+
+    // set up Green's function
+    dcomplex mu = 0.2789;
+    dcomplex U = 1.01;
+    dcomplex V = 0.123;
+    nda::array<dcomplex,3> block0({r, 1, 1});
+    nda::array<dcomplex,3> block1({r, 2, 2});
+    nda::array<dcomplex,3> block2({r, 1, 1});
+    for (int t = 0; t < r; ++t) {
+        block0(t,0,0) = 0;
+        block1(t,0,0) = mu;
+        block1(t,1,1) = mu;
+        block1(t,0,1) = V;
+        block1(t,1,0) = V;
+        block2(t,0,0) = 2*mu+U;
+    }
+    std::vector<nda::array<dcomplex,3>> Gt_blocks = 
+        {block0, block1, block2};
+    nda::vector<int> zero_block_indices = {-1, 0, 0};
+    BlockDiagOpFun Gt(Gt_blocks, zero_block_indices);
+
+    // set up annihilation operators
+    nda::vector<int> block_indices_F = {-1, 0, 1};
+
+    nda::array<dcomplex,2> F_up_block0 = {{0}};
+    nda::array<dcomplex,2> F_up_block1 = {{1, 0}};
+    nda::array<dcomplex,2> F_up_block2 = {{0}, {1}};
+    std::vector<nda::array<dcomplex,2>> F_up_blocks = 
+        {F_up_block0, F_up_block1, F_up_block2};
+    BlockOp F_up(block_indices_F, F_up_blocks);
+
+    nda::array<dcomplex,2> F_down_block0 = {{0}};
+    nda::array<dcomplex,2> F_down_block1 = {{0, 1}};
+    nda::array<dcomplex,2> F_down_block2 = {{-1}, {0}};
+    std::vector<nda::array<dcomplex,2>> F_down_blocks = 
+        {F_down_block0, F_down_block1, F_down_block2};
+    BlockOp F_down(block_indices_F, F_down_blocks);
+
+    std::vector<BlockOp> Fs = {F_up, F_down};
+
+    BlockDiagOpFun OCA_result = OCA_bs(hyb, hyb, itops, beta, Gt, Fs);
+
+    std::cout << "done!" << OCA_result << std::endl;
+}

@@ -81,8 +81,9 @@ class BlockOp {
         const std::vector<nda::array<dcomplex,2>>& get_blocks() const;
         nda::array_const_view<dcomplex,2> get_block(int i) const;
         const int get_num_block_cols() const;
-        nda::array_const_view<int,2> get_block_sizes() const;
-        nda::vector_const_view<int> get_block_size(int i) const;
+        nda::array<int,2> get_block_sizes() const;
+        nda::vector<int> get_block_size(int i) const;
+        int get_block_size(int block_ind, int dim) const;
 
     /**
      * @brief Constructor for BlockOp
@@ -125,8 +126,8 @@ class BlockOpFun {
         const std::vector<nda::array<dcomplex,3>>& get_blocks() const;
         nda::array_const_view<dcomplex,3> get_block(int i) const;
         const int get_num_block_cols() const;
-        nda::array_const_view<int,2> get_block_sizes() const;
-        nda::vector_const_view<int> get_block_size(int i) const;
+        nda::array<int,2> get_block_sizes() const;
+        nda::vector<int> get_block_size(int i) const;
         void set_blocks_dlr_coeffs(imtime_ops& itops);
         const std::vector<nda::array<dcomplex,3>>& get_blocks_dlr_coeffs();
         nda::array_const_view<dcomplex,3> get_block_dlr_coeffs(int i) const;
@@ -166,11 +167,18 @@ std::ostream& operator<<(std::ostream& os, BlockDiagOpFun &D);
 std::ostream& operator<<(std::ostream& os, BlockOp &F);
 
 /**
- * @brief Compute the adjoint of an BlockOp
+ * @brief Compute the adjoint of a BlockOp
  * @param[in] F BlockOp
  * @return F^dagger operator
  */
 BlockOp dagger_bs(BlockOp const &F);
+
+/**
+ * @brief Compute a product between a scalar and a BlockOp
+ * @param[in] c dcomplex
+ * @param[in] F BlockOp
+ */
+BlockOp operator*(const dcomplex c, const BlockOp &F);
 
 /**
  * @brief Convert a BlockOpFun with diagonal structure to a BlockDiagOpFun
@@ -178,29 +186,6 @@ BlockOp dagger_bs(BlockOp const &F);
  * @return BlockDiagOpFun
  */
 BlockDiagOpFun BOFtoBDOF(BlockOpFun const &A);
-
-/**
- * @brief Convolve a BlockDiagOpFun and a BlockOpFun
- */
-BlockOpFun convolve(
-    imtime_ops itops,
-    double beta,
-    statistic_t statistic,
-    const BlockDiagOpFun& f, 
-    const BlockOpFun& g,
-    bool time_order = false);
-
-/**
- * @brief Convolve a BlockDiagOpFun and a BlockOpFun
- */
- BlockOpFun convolve(
-    imtime_ops itops,
-    double beta,
-    statistic_t statistic,
-    const BlockOpFun& f,
-    const BlockDiagOpFun& g, 
-    bool time_order = false);
-
 
 /**
  * @brief Evaluate NCA using block-sparse storage
