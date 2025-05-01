@@ -118,7 +118,9 @@ TEST(BlockSparseXCATest, NCA) {
     EXPECT_EQ(NCA_result.get_blocks()[2](_,0,0), NCA_result_dense(_,3,3));
 }
 
-TEST(BlockSparseXCATest, OCA) {
+// TODO: another NCA test
+
+TEST(BlockSparseXCATest, OCA_matmuls) {
     // set up arguments to block_sparse/OCA_bs()
     double beta = 100;
     double eps = 1e-10;
@@ -178,7 +180,69 @@ TEST(BlockSparseXCATest, OCA) {
 
     std::vector<BlockOp> Fs = {F_up, F_down};
 
-    BlockDiagOpFun OCA_result = OCA_bs(hyb, hyb, itops, beta, Gt, Fs);
+    BlockDiagOpFun OCA_result = OCA_bs(hyb, itops, beta, Gt, Fs);
+}
 
-    std::cout << "done!" << OCA_result << std::endl;
+TEST(BlockSparseXCATest, OCA_single_exponential) {
+    double beta = 1.0;
+    double Lambda = 100.0;
+    double eps = 1.0e-13;
+    auto dlr_rf = build_dlr_rf(Lambda, eps);
+    auto itops = imtime_ops(Lambda, dlr_rf);
+    auto const & dlr_it = itops.get_itnodes();
+    int r = itops.rank();
+
+    auto dlr_it_abs = cppdlr::rel2abs(dlr_it);
+
+    // create hybridization
+    double D = 1.0;
+    auto Deltat = nda::array<dcomplex,3>(r,1,1);
+    Deltat(_,0,0) = exp(-D*dlr_it_abs*beta);
+    // std::cout << "hyb reflection manual = " << nda::make_regular(exp(D*dlr_it_abs*beta)) << std::endl;
+
+    // create Green's function
+    double g = -1.0;
+    auto Gt_block = nda::array<dcomplex,3>(r,1,1);
+    auto Gt_zero_block_index = nda::ones<int>(1);
+    Gt_block(_,0,0) = exp(-g*dlr_it_abs*beta);
+    std::vector<nda::array<dcomplex,3>> Gt_blocks = {Gt_block};
+    auto Gt = BlockDiagOpFun(Gt_blocks, Gt_zero_block_index);
+
+    // create annihilation operator
+    auto F_block = nda::ones<dcomplex>(1,1);
+    auto F_block_indices = nda::vector<int>(1);
+    F_block_indices = 0;
+    std::vector<nda::array<dcomplex,2>> F_blocks = {F_block};
+    auto F = BlockOp(F_block_indices, F_blocks);
+    std::vector<BlockOp> Fs = {F};
+
+    auto OCA_result = OCA_bs(Deltat, itops, beta, Gt, Fs);
+    std::cout << "OCA, b-s = " << OCA_result << std::endl;
+    std::cout << " " << std::endl;
+
+    auto OCA_ana_ff = nda::zeros<dcomplex>(r);
+    auto OCA_ana_bb = nda::zeros<dcomplex>(r);
+    auto OCA_ana = nda::zeros<dcomplex>(r);
+    for (int i = 0; i < r; i++) {
+        auto tau = dlr_it_abs(i);
+        OCA_ana_ff(i) = -tau - exp(-tau) + 1;
+        OCA_ana_bb(i) = -exp(2*tau) * (-1 + exp(tau) - tau); 
+        // OCA_ana(i) = -tau + exp(-tau) - 1 - exp(2*tau)*(tau-exp(tau)+1);
+        // OCA_ana(i) = 1 + pow((-1 + exp(tau)),2) - exp(2*tau)*(-1 + exp(tau) - tau) - tau - cosh(tau) + sinh(tau);
+        OCA_ana(i) = (1 - exp(-tau) - tau) - exp(2*tau)*(-1 + exp(tau) - tau) + (-1 + exp(tau))*(-1 + exp(tau));
+    }
+
+    // std::cout << "OCA, analytical forward-forward = " << OCA_ana_ff << std::endl;
+    // std::cout << " " << std::endl;
+    // std::cout << "OCA, analytical backward-backward = " << OCA_ana_bb << std::endl;
+    // std::cout << " " << std::endl;
+    std::cout << "OCA, analytical = " << OCA_ana << std::endl;
+}
+
+TEST(BlockSparseXCATest, load_BlockOp) {
+    std::string fname = "/home/paco/feynman/ppsc-soe/benchmarks/atom_diag_eval/atom_diag_to_text.txt";
+
+    std::cout << " " << std::endl;
+    std::cout << "print from text" << std::endl;
+    text2BlockOp(fname);
 }

@@ -34,7 +34,7 @@ class BlockDiagOpFun {
         void set_block(int i, nda::array_const_view<dcomplex,3> block);
         const std::vector<nda::array<dcomplex,3>>& get_blocks() const;
         nda::array_const_view<dcomplex,3> get_block(int i) const;
-        nda::vector_const_view<int> get_block_sizes() const;
+        nda::vector<int> get_block_sizes() const;
         const int get_block_size(int i) const;
         const int get_num_block_cols() const;
         const int get_zero_block_index(int i) const;
@@ -181,6 +181,11 @@ BlockOp dagger_bs(BlockOp const &F);
 BlockOp operator*(const dcomplex c, const BlockOp &F);
 
 /**
+ * @brief Create a BlockOp from text output from triqs::atomdiag
+ */
+void text2BlockOp(std::string fname);
+
+/**
  * @brief Convert a BlockOpFun with diagonal structure to a BlockDiagOpFun
  * @param[in] A BlockOpFun
  * @return BlockDiagOpFun
@@ -211,16 +216,13 @@ nda::array<double,2> K_mat(nda::vector_const_view<double> dlr_it,
 /**
  * @brief Evaluate OCA using block-sparse storage
  * @param[in] hyb hybridization function at imaginary time nodes
- * @param[in] hyb_coeffs DLR coefficients of hybridization
  * @param[in] itops cppdlr imaginary time object
  * @param[in] beta inverse temperature
  * @param[in] Gt Greens function
- * @param[in] F F operator
- * @param[in] F_dag F^dagger operator
+ * @param[in] Fs F operator
  * @return OCA term of self-energy
  */
 BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex,3> hyb,
-    nda::array_const_view<dcomplex,3> hyb_coeffs,
     imtime_ops &itops, 
     double beta, 
     const BlockDiagOpFun &Gt, 

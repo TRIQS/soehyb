@@ -1,11 +1,15 @@
 #include "block_sparse.hpp"
 #include <cppdlr/dlr_imtime.hpp>
 #include <iostream>
+#include <fstream>
 #include <cppdlr/dlr_kernels.hpp>
+#include <nda/algorithms.hpp>
 #include <nda/declarations.hpp>
 #include <nda/basic_functions.hpp>
 #include <nda/layout_transforms.hpp>
 #include <nda/print.hpp>
+#include <ostream>
+#include <sstream>
 #include <vector>
 #include <stdexcept>
 
@@ -52,8 +56,8 @@ nda::array_const_view<dcomplex,3> BlockDiagOpFun::get_block(int i) const {
     return blocks[i];
 }
 
-nda::vector_const_view<int> BlockDiagOpFun::get_block_sizes() const {
-    static nda::vector<int> block_sizes(num_block_cols);
+nda::vector<int> BlockDiagOpFun::get_block_sizes() const {
+    nda::vector<int> block_sizes(num_block_cols);
     for (int i = 0; i < num_block_cols; i++) {
         block_sizes(i) = blocks[i].shape(1);
     }
@@ -100,7 +104,7 @@ const int BlockDiagOpFun::get_num_time_nodes() const {
 }
 
 void BlockDiagOpFun::add_block(int i, nda::array_const_view<dcomplex,3> block) {
-    blocks[i] = nda::make_regular(blocks[i] + block);
+    blocks[i] = nda::make_regular(blocks[i] + block); // TODO: does this work?
 }
 
 
@@ -120,19 +124,25 @@ BlockOp::BlockOp(
     std::vector<nda::array<dcomplex,2>> blocks(num_block_cols);
     for (int i = 0; i < num_block_cols; i++) {
         if (block_indices(i) != -1) {
-            // std::cout << "block_indices(i) = -1" << std::endl;
             blocks[i] = nda::zeros<dcomplex>(block_sizes(i,0), block_sizes(i,1));
-            // std::cout << "-1 done" << std::endl;
         }
         else {
-            // std::cout << "block_indices(i) = else" << std::endl;
-            // std::cout << "blocks[i] = " << blocks[i] << std::endl;
             blocks[i] = nda::zeros<dcomplex>(1, 1);
-            // std::cout << "else done" << std::endl;
-            // std::cout << "blocks[i] = " << blocks[i] << std::endl;
         }
     }
     this->blocks = blocks;
+}
+
+BlockOp& BlockOp::operator+=(const BlockOp &F) {
+    // BlockOp addition-assignment operator
+    // @param[in] F BlockOp
+    // TODO: exception handling
+    for (int i = 0; i < this->num_block_cols; i++) {
+        if (F.get_block_index(i) != -1) {
+            this->blocks[i] += F.blocks[i];
+        }
+    }
+    return *this;
 }
 
 void BlockOp::set_block_indices(
@@ -169,7 +179,7 @@ const std::vector<nda::array<dcomplex,2>>& BlockOp::get_blocks() const {
 
 nda::array_const_view<dcomplex,2> BlockOp::get_block(int i) const {
     if (block_indices(i) == -1) {
-        static auto arr = nda::zeros<dcomplex>(1,1);
+        auto arr = nda::zeros<dcomplex>(1,1);
         return arr;
     }
     else {
@@ -277,7 +287,7 @@ const std::vector<nda::array<dcomplex,3>>& BlockOpFun::get_blocks() const {
 
 nda::array_const_view<dcomplex,3> BlockOpFun::get_block(int i) const {
     if (block_indices(i) == -1) {
-        static auto arr = nda::zeros<dcomplex>(1, 1, 1);
+        auto arr = nda::zeros<dcomplex>(1, 1, 1);
         return arr;
     }
     else {
@@ -411,6 +421,27 @@ BlockOp operator*(const dcomplex c, const BlockOp &F) {
     return product;
 }
 
+void text2BlockOp(std::string fname) {
+    // TODO docs
+
+    std::ifstream BlockOpFile(fname);
+
+    std::string line;
+    std::vector<nda::array<dcomplex,2>> blocks;
+    nda::vector<int> block_indices;
+    int i = 0;
+    int n_subspaces;
+
+    while (getline(BlockOpFile, line)) {
+        if (i == 0) {n_subspaces = std::stoi(line);}
+        else if (i == 1) {
+            // std::vector<std::string> record = 
+            std::cout << line << std::endl;
+        }
+        i++;
+    }
+}
+
 BlockDiagOpFun BOFtoBDOF(BlockOpFun const &A) {
     // Convert a BlockOpFun with diagonal structure to a BlockDiagOpFun
     // @param[in] A BlockOpFun
@@ -531,18 +562,16 @@ nda::array<double,2> K_mat(
 
 BlockDiagOpFun OCA_bs(
     nda::array_const_view<dcomplex,3> hyb, 
-    nda::array_const_view<dcomplex,3> hyb_coeffs, 
     imtime_ops &itops, 
     double beta, 
     const BlockDiagOpFun &Gt, 
     const std::vector<BlockOp> &Fs) {
     // Evaluate OCA using block-sparse storage
-    // @param[in] hyb_coeffs DLR coefficients of hybridization
+    // @param[in] hyb hybridization on imaginary-time grid
     // @param[in] itops cppdlr imaginary time object
     // @param[in] beta inverse temperature
     // @param[in] Gt Greens function at times dlr_it with DLR coefficients
-    // @param[in] F F operator
-    // @param[in] F_dag F^dagger operator
+    // @param[in] Fs F operators
     // @return OCA term of self-energy
 
     // TODO: exceptions for bad argument sizes
@@ -551,6 +580,13 @@ BlockDiagOpFun OCA_bs(
     nda::vector_const_view<double> dlr_it = itops.get_itnodes();
     // number of imaginary time nodes
     int r = dlr_it.shape(0);
+
+    auto hyb_coeffs = itops.vals2coefs(hyb); // hybridization DLR coeffs
+    auto hyb_refl = itops.reflect(hyb); // hyb(beta - tau)
+    // std::cout << "hyb = " << hyb << std::endl;
+    // std::cout << "hyb_refl = " << nda::make_regular(exp(1.0)*hyb_refl) << std::endl;
+    hyb_refl = nda::make_regular(hyb_refl*exp(1.0));
+    auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl); 
 
     // get F^dagger operators
     int num_Fs = Fs.size();
@@ -578,11 +614,23 @@ BlockDiagOpFun OCA_bs(
         std::vector<BlockOp>(
             r, 
             BlockOp(Fdagbar_indices, Fdagbar_sizes)));
+    std::vector<std::vector<BlockOp>> Fbarsrefl(
+        num_Fs, 
+        std::vector<BlockOp>(
+            r, 
+            BlockOp(Fbar_indices, Fbar_sizes)));
+    std::vector<std::vector<BlockOp>> Fdagbarsrefl(
+        num_Fs, 
+        std::vector<BlockOp>(
+            r, 
+            BlockOp(Fdagbar_indices, Fdagbar_sizes)));        
     for (int lam = 0; lam < num_Fs; lam++) {
         for (int l = 0; l < r; l++) {
             for (int nu = 0; nu < num_Fs; nu++) {
-                Fbars[lam][l] = hyb_coeffs(l,nu,lam)*Fs[nu];
-                Fdagbars[lam][l] = hyb_coeffs(l,nu,lam)*F_dags[nu];
+                Fbars[lam][l] += hyb_coeffs(l,nu,lam)*Fs[nu];
+                Fdagbars[lam][l] += hyb_coeffs(l,nu,lam)*F_dags[nu];
+                Fbarsrefl[lam][l] += hyb_refl_coeffs(l,nu,lam)*Fs[nu];
+                Fdagbarsrefl[lam][l] += hyb_refl_coeffs(l,nu,lam)*F_dags[nu];
             }
         }
     }
@@ -599,7 +647,7 @@ BlockDiagOpFun OCA_bs(
             auto const &F1list = (fb1) ? Fs : F_dags;
             auto const &F2list = (fb2) ? Fs : F_dags;
             auto const &F3list = (fb1) ? F_dags : Fs;
-            auto const Fbar_array = (fb2) ? Fdagbars : Fbars;
+            auto const Fbar_array = (fb2) ? Fdagbars : Fbarsrefl;
             int sfM = (fb1^fb2) ? 1 : -1; // sign
 
             for (int i = 0; i < num_block_cols; i++) {
@@ -619,9 +667,10 @@ BlockDiagOpFun OCA_bs(
                 // i.e, index path is independent of kappa, mu
                 bool path_all_nonzero = true;
                 auto ind_path = nda::zeros<int>(4);
+                auto Sigma_block_i = nda::make_regular(0*Sigma.get_block(i));
 
-                for (int i = 0; i < num_block_cols; i++) {
-                    int ip0 = F1list[0].get_block_index(i);
+                for (int j = 0; j < num_block_cols; j++) {
+                    int ip0 = F1list[0].get_block_index(j);
                     ind_path(0) = ip0;
                     if (ip0 == -1 || Gt.get_zero_block_index(ip0) == -1) {
                         path_all_nonzero = false;
@@ -648,11 +697,12 @@ BlockDiagOpFun OCA_bs(
                 }
 
                 // matmuls and convolutions
+                auto Sigma_temp = BlockDiagOpFun(r, Gt.get_block_sizes());
                 if (path_all_nonzero) {
                     for (int l = 0; l < r; l++) {
                         bool omega_l_is_pos = (dlr_rf(l) > 0);
-                        // initialize summand assoc's with index l
-                        auto Sigma_l = nda::make_regular(0*Sigma.get_block(i));
+                        // initialize summand assoc'd with index l
+                        auto Sigma_l = nda::make_regular(0*Sigma.get_block(i)); // TODO: preallocate?
                         for (int lam = 0; lam < num_Fs; lam++) {
                             auto F2_block = F2list[lam].get_block(ind_path(2));
                             auto T = nda::zeros<dcomplex>(
@@ -690,6 +740,23 @@ BlockDiagOpFun OCA_bs(
                                     TIME_ORDERED);
                             }
 
+                            // vv this is all working for fb2 = 1 and any fb1 vv
+                            /*
+                            if (~fb1 && fb2 && l == 16) {
+                                std::cout << "dlr_rf(" << l << ") = " << dlr_rf(l) << std::endl;
+                                std::cout << " " << std::endl;
+                                std::cout << "before step 1, Kplus = " << Kplus(_,l) << std::endl;
+                                std::cout << " " << std::endl;
+                                std::cout << "by hand = " << nda::make_regular(-exp(-dlr_rf(l)*cppdlr::rel2abs(dlr_it))/(1 + exp(-dlr_rf(l)))) << std::endl;
+                                std::cout << " " << std::endl;
+                                std::cout << "after step 2, T = " << T << std::endl;
+                                std::cout << " " << std::endl;
+                                // std::cout << "actual T = " << nda::make_regular((1 - exp(dlr_rf(l)*cppdlr::rel2abs(dlr_it)))/((1 + exp(dlr_rf(l)))*dlr_rf(l))) << std::endl;
+                                std::cout << "actual T = " << nda::make_regular((exp(dlr_it) - exp((1+dlr_rf(l))*dlr_it))/(1 + exp(dlr_rf(l)))/dlr_rf(l)) << std::endl;
+                                std::cout << " " << std::endl;
+                            }
+                            */
+
                             // 3. for each kappa, multiply by F_kappa from right
                             auto Tkap = nda::zeros<dcomplex>(
                                 num_Fs,
@@ -709,7 +776,11 @@ BlockDiagOpFun OCA_bs(
                             for (int mu = 0; mu < num_Fs; mu++) {
                                 for (int kap = 0; kap < num_Fs; kap++) {
                                     for (int t = 0; t < r; t++) {
-                                        Tmu(mu,t,_,_) += hyb(t,mu,kap)*Tkap(kap,t,_,_);
+                                        if (fb1) {
+                                            Tmu(mu,t,_,_) += hyb(t,mu,kap)*Tkap(kap,t,_,_);
+                                        } else {
+                                            Tmu(mu,t,_,_) += hyb_refl(t,mu,kap)*Tkap(kap,t,_,_);
+                                        }
                                     }
                                 }
                             }
@@ -722,6 +793,19 @@ BlockDiagOpFun OCA_bs(
                                     U(t,_,_) += nda::matmul(F3_block, Tmu(mu,t,_,_));
                                 }
                             }
+                            /*
+                            if (fb1 == 0 && fb2 == 1 && l == 16) {
+                                std::cout << "after step 5, U = " << U << std::endl;
+                                std::cout << " " << std::endl;
+                                std::cout << "actual U = " << nda::make_regular(-(exp((2.0 + dlr_rf(l))*cppdlr::rel2abs(dlr_it)) - exp(2.0*cppdlr::rel2abs(dlr_it)))/(1.0 + exp(dlr_rf(l)))/dlr_rf(l)) << std::endl;
+                                std::cout << " " << std::endl;
+                            }
+                            if (fb1 && fb2 && l == 16) {
+                                std::cout << "after step 5, U = " << U << std::endl;
+                                std::cout << " " << std::endl;
+                                std::cout << "actual U = " << nda::make_regular(-(exp((dlr_rf(l))*cppdlr::rel2abs(dlr_it)) - 1)/(1 + exp(dlr_rf(l)))/dlr_rf(l)) << std::endl;
+                                std::cout << " " << std::endl;
+                            }*/
 
                             auto Fbar_block = Fbar_array[lam][l].get_block(ind_path(0));
                             if (omega_l_is_pos) {
@@ -736,7 +820,7 @@ BlockDiagOpFun OCA_bs(
                                     itops.vals2coefs(GKplus),
                                     itops.vals2coefs(U),
                                     TIME_ORDERED);
-                                // 7. multiply by Fbar
+                                // 7. multiply by Fbar                                
                                 for (int t = 0; t < r; t++) {
                                     Sigma_l(t,_,_) += nda::matmul(Fbar_block, U(t,_,_));
                                 }
@@ -754,15 +838,38 @@ BlockDiagOpFun OCA_bs(
                                     Sigma_l(t,_,_) += Kplus(t,l)*nda::matmul(Fbar_block, U(t,_,_));
                                 }
                             }
+
+                            /*
+                            if (fb1 && fb2 && l == 16) {
+                                std::cout << "after step 6, U = " << U(_,0,0) << std::endl;
+                                std::cout << " " << std::endl;
+                                // auto temp = nda::make_regular( (cppdlr::rel2abs(dlr_it) + (1 - exp(dlr_rf(l)*cppdlr::rel2abs(dlr_it)))/dlr_rf(l)) / ((1 + exp(dlr_rf(l)))*dlr_rf(l)));
+                                auto temp = nda::make_regular((1 - exp(dlr_it*dlr_rf(l)) - dlr_rf(l) + exp(dlr_it)*dlr_rf(l)) / ((1 + exp(dlr_rf(l))) * (-1 + dlr_rf(l)) * dlr_rf(l)));
+                                std::cout << "actual U = " << temp << std::endl;
+                                std::cout << " " << std::endl;
+                            }
+                            */
                         }
                         if (omega_l_is_pos) {
-                            Sigma.add_block(i, nda::make_regular(Sigma_l/Kplus(0,l)));
+                            // Sigma.add_block(i, nda::make_regular(sfM*Sigma_l/k_it(0, dlr_rf(l))));
+                            Sigma_block_i += nda::make_regular(sfM*Sigma_l/k_it(0, dlr_rf(l)));
+                            if (fb1==1 && fb2==1) {Sigma_temp.add_block(i, nda::make_regular(sfM*Sigma_l/k_it(0, dlr_rf(l)))); }
                         }
                         else {
-                            Sigma.add_block(i, nda::make_regular(Sigma_l/Kminus(0,l)));
+                            // Sigma.add_block(i, nda::make_regular(sfM*Sigma_l/k_it(0, -dlr_it(l))));
+                            Sigma_block_i += nda::make_regular(sfM*Sigma_l/k_it(0, -dlr_rf(l)));
+                            if (fb1==1 && fb2==1) {Sigma_temp.add_block(i, nda::make_regular(sfM*Sigma_l/k_it(0, -dlr_rf(l)))); }
                         }
                     }
                 }
+                Sigma.add_block(i, Sigma_block_i);
+                std::cout << "Sigma_block_i = " << Sigma_block_i << std::endl;
+                std::cout << " " << std::endl;
+                // std::cout << "Sigma_temp = " << Sigma_temp << std::endl;
+                // std::cout << " " << std::endl;
+                // for forward and backward,
+                // std::cout << "Sigma_temp analytically = " << nda::make_regular(pow((exp(cppdlr::rel2abs(dlr_it)) - 1), 2)/2) << std::endl;
+                // std::cout << " " << std::endl;
             }
         }
     }
