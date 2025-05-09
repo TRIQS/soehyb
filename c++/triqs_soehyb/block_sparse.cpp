@@ -9,7 +9,6 @@
 #include <nda/layout_transforms.hpp>
 #include <nda/print.hpp>
 #include <ostream>
-#include <sstream>
 #include <vector>
 #include <stdexcept>
 
@@ -424,21 +423,70 @@ BlockOp operator*(const dcomplex c, const BlockOp &F) {
 void text2BlockOp(std::string fname) {
     // TODO docs
 
-    std::ifstream BlockOpFile(fname);
+    std::ifstream bof1(fname);
 
     std::string line;
-    std::vector<nda::array<dcomplex,2>> blocks;
-    nda::vector<int> block_indices;
     int i = 0;
-    int n_subspaces;
+    int num_blocks;
 
-    while (getline(BlockOpFile, line)) {
-        if (i == 0) {n_subspaces = std::stoi(line);}
-        else if (i == 1) {
-            // std::vector<std::string> record = 
-            std::cout << line << std::endl;
+    while (getline(bof1, line)) {
+        // line 0 = number of blocks
+        if (i == 0) {
+            num_blocks = std::stoi(line);
+        } 
+        i += 1;
+    }
+    
+    i = 0;
+    std::ifstream bof2(fname);
+    nda::array<int,2> block_sizes(num_blocks,2);
+    nda::vector<int> block_indices(num_blocks);
+    
+    while (getline(bof2, line)) {
+        // line 1 = block sizes
+        if (i == 1) {
+            int pos_start = 0;
+            int pos_end;
+            for (int j = 0; j < num_blocks; j++) {
+                pos_end = line.find(',', pos_start);
+                block_sizes(j,0) = std::stoi(line.substr(pos_start, pos_end - pos_start));
+                pos_start = pos_end + 1;
+                pos_end = line.find(',', pos_start);
+                block_sizes(j,1) = std::stoi(line.substr(pos_start, pos_end - pos_start));
+                pos_start = pos_end + 1;
+            }
         }
-        i++;
+        // line 2 = block indices
+        else if (i == 2) {
+            int pos_start = 0;
+            int pos_end;
+            for (int j = 0; j < num_blocks; j++) {
+                pos_end = line.find(',', pos_start);
+                block_indices(j) = std::stoi(line.substr(pos_start, pos_end - pos_start));
+                pos_start = pos_end + 1;
+            }
+        }
+        i += 1;
+    }
+
+    i = 0;
+    std::ifstream bof3(fname);
+    std::vector<nda::array<dcomplex,2>> blocks(num_blocks);
+
+    while(getline(bof3, line)) {
+        int curr_block_num = 0;
+        if (i >= 3) {
+            int pos_start = 0;
+            int pos_end;
+            if (line.substr(0,1) == "[") {
+                nda::array<dcomplex,2> curr_block(
+                    block_sizes(curr_block_num, 0), 
+                    block_sizes(curr_block_num, 1));
+                pos_end = line.find(' ', pos_start);
+                std::cout << pos_end << std::endl;
+            }
+        }
+        i += 1;
     }
 }
 
@@ -467,10 +515,12 @@ BlockDiagOpFun BOFtoBDOF(BlockOpFun const &A) {
 
 BlockDiagOpFun NCA_bs(
     nda::array_const_view<dcomplex,3> hyb, 
+    nda::array_const_view<dcomplex,3> hyb_refl, 
     BlockDiagOpFun const &Gt, 
     const std::vector<BlockOp> &Fs) {
     // Evaluate NCA using block-sparse storage
-    // @param[in] hyb_self hybridization function
+    // @param[in] hyb hybridization function
+    // @param[in] hyb_refl hybridization function eval'd at negative imag. times
     // @param[in] Gt Greens function
     // @param[in] F_list F operators
     // @return NCA term of self-energy
@@ -489,7 +539,7 @@ BlockDiagOpFun NCA_bs(
         // fb = 1 for forward line, 0 for backward line
         auto const &F1list = (fb) ? Fs : F_dags;
         auto const &F2list = (fb) ? F_dags : Fs;
-        int sfM = (fb) ? 1 : -1; 
+        int sfM = (fb) ? -1 : 1; 
         
         for (int lam = 0; lam < num_Fs; lam++) {
             for (int kap = 0; kap < num_Fs; kap++) {
@@ -525,11 +575,19 @@ BlockDiagOpFun NCA_bs(
                     if (path_all_nonzero) {
                         auto block = nda::zeros<dcomplex>(r, Gt.get_block_size(i), Gt.get_block_size(i));
                         for (int t = 0; t < r; t++) {
-                            block(t,_,_) = hyb(t, lam, kap) * nda::matmul(
-                                F2.get_block(ind_path(0)), 
-                                nda::matmul(
-                                    Gt.get_block(ind_path(0))(t,_,_), 
-                                    F1.get_block(ind_path(1))));
+                            if (fb == 1) {
+                                block(t,_,_) = hyb(t, lam, kap) * nda::matmul(
+                                    F2.get_block(ind_path(0)), 
+                                    nda::matmul(
+                                        Gt.get_block(ind_path(0))(t,_,_), 
+                                        F1.get_block(ind_path(1))));
+                            } else {
+                                block(t,_,_) = hyb_refl(t, lam, kap) * nda::matmul(
+                                    F2.get_block(ind_path(0)), 
+                                    nda::matmul(
+                                        Gt.get_block(ind_path(0))(t,_,_), 
+                                        F1.get_block(ind_path(1))));
+                            }
                         }
                         block = sfM * block;
                         Sigma.add_block(i, block);
@@ -560,8 +618,32 @@ nda::array<double,2> K_mat(
     return K;
 }
 
+nda::array<dcomplex,3> convolve_rectangular(
+    imtime_ops &itops, 
+    double beta, 
+    nda::array<dcomplex,3> f, 
+    nda::array<dcomplex,3> g) {
+
+    nda::array<dcomplex,3> h(f.extent(0), f.extent(1), g.extent(2));
+
+    for (int i = 0; i < f.extent(1); i++) {
+        for (int j = 0; j < g.extent(2); j++) {
+            for (int k = 0; k < f.extent(2); k++) {
+                h(_,i,j) += itops.convolve(beta, 
+                    Fermion, 
+                    itops.vals2coefs(f(_,i,k)), 
+                    itops.vals2coefs(g(_,k,j)), 
+                    TIME_ORDERED);
+            }
+        }
+    }
+
+    return h;
+}
+
 BlockDiagOpFun OCA_bs(
-    nda::array_const_view<dcomplex,3> hyb, 
+    nda::array_const_view<dcomplex,3> hyb,
+    nda::array_const_view<dcomplex,3> hyb_refl,
     imtime_ops &itops, 
     double beta, 
     const BlockDiagOpFun &Gt, 
@@ -582,10 +664,6 @@ BlockDiagOpFun OCA_bs(
     int r = dlr_it.shape(0);
 
     auto hyb_coeffs = itops.vals2coefs(hyb); // hybridization DLR coeffs
-    auto hyb_refl = itops.reflect(hyb); // hyb(beta - tau)
-    // std::cout << "hyb = " << hyb << std::endl;
-    // std::cout << "hyb_refl = " << nda::make_regular(exp(1.0)*hyb_refl) << std::endl;
-    hyb_refl = nda::make_regular(hyb_refl*exp(1.0));
     auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl); 
 
     // get F^dagger operators
@@ -666,45 +744,39 @@ BlockDiagOpFun OCA_bs(
                 // ATTN: assumes all BlockOps in F(1,2,3)list have the same structure
                 // i.e, index path is independent of kappa, mu
                 bool path_all_nonzero = true;
-                auto ind_path = nda::zeros<int>(4);
+                auto ind_path = nda::zeros<int>(3);
                 auto Sigma_block_i = nda::make_regular(0*Sigma.get_block(i));
 
-                for (int j = 0; j < num_block_cols; j++) {
-                    int ip0 = F1list[0].get_block_index(j);
-                    ind_path(0) = ip0;
-                    if (ip0 == -1 || Gt.get_zero_block_index(ip0) == -1) {
+                int ip1 = F1list[0].get_block_index(i);
+                ind_path(0) = ip1;
+                if (ip1 == -1 || Gt.get_zero_block_index(ip1) == -1) {
+                    path_all_nonzero = false;
+                }
+                else {
+                    int ip2 = F2list[0].get_block_index(ip1);
+                    ind_path(1) = ip2;
+                    if (ip2 == -1 || Gt.get_zero_block_index(ip2) == -1) {
                         path_all_nonzero = false;
                     }
                     else {
-                        int ip1 = F2list[0].get_block_index(ip0);
-                        ind_path(1) = ip1;
-                        if (ip1 == -1 || Gt.get_zero_block_index(ip1) == -1) {
+                        int ip3 = F3list[0].get_block_index(ip2);
+                        ind_path(2) = ip3;
+                        if (ip3 == -1 
+                            || Gt.get_zero_block_index(ip3) == -1 
+                            || Fbar_array[0][0].get_block_index(ip3) == -1) {
                             path_all_nonzero = false;
-                        }
-                        else {
-                            int ip2 = F3list[0].get_block_index(ip1);
-                            ind_path(2) = ip2;
-                            if (ip2 == -1 || Gt.get_zero_block_index(ip2) == -1) {
-                                path_all_nonzero = false;
-                            }
-                            else {
-                                int ip3 = Fbar_array[0][0].get_block_index(ip2);
-                                ind_path(3) = ip3;
-                                if (ip3 == -1) {path_all_nonzero = false;}
-                            }
                         }
                     }
                 }
 
                 // matmuls and convolutions
-                auto Sigma_temp = BlockDiagOpFun(r, Gt.get_block_sizes());
                 if (path_all_nonzero) {
                     for (int l = 0; l < r; l++) {
                         bool omega_l_is_pos = (dlr_rf(l) > 0);
                         // initialize summand assoc'd with index l
                         auto Sigma_l = nda::make_regular(0*Sigma.get_block(i)); // TODO: preallocate?
                         for (int lam = 0; lam < num_Fs; lam++) {
-                            auto F2_block = F2list[lam].get_block(ind_path(2));
+                            auto F2_block = F2list[lam].get_block(ind_path(0));
                             auto T = nda::zeros<dcomplex>(
                                 r,
                                 F2_block.shape(0),
@@ -717,54 +789,44 @@ BlockDiagOpFun OCA_bs(
                                         F2_block);
                                 }
                                 // 2. convolve by G
+                                /*
                                 T = itops.convolve(
                                     beta, 
                                     Fermion, 
                                     itops.vals2coefs(T), 
-                                    itops.vals2coefs(Gt.get_block(ind_path(2))),
-                                    TIME_ORDERED);
+                                    itops.vals2coefs(Gt.get_block(ind_path(0))),
+                                    TIME_ORDERED);*/
+                                T = convolve_rectangular(itops, beta, T, Gt.get_block(ind_path(0)));
                             }
                             else {
                                 // 1. multiply F_lambda G(tau_1) K^-(tau_1)
                                 for (int t = 0; t < r; t++) {
                                     T(t,_,_) = Kminus(t,l) * nda::matmul(
                                         F2_block,
-                                        Gt.get_block(ind_path(2))(t,_,_));
+                                        Gt.get_block(ind_path(0))(t,_,_));
                                 }
                                 // 2. convolve by G
+                                /*
                                 T = itops.convolve(
                                     beta,
                                     Fermion,
                                     itops.vals2coefs(Gt.get_block(ind_path(1))),
                                     itops.vals2coefs(T),
-                                    TIME_ORDERED);
+                                    TIME_ORDERED);*/
+                                T = convolve_rectangular(itops, 
+                                    beta, 
+                                    Gt.get_block(ind_path(1)),
+                                    T);
                             }
-
-                            // vv this is all working for fb2 = 1 and any fb1 vv
-                            /*
-                            if (~fb1 && fb2 && l == 16) {
-                                std::cout << "dlr_rf(" << l << ") = " << dlr_rf(l) << std::endl;
-                                std::cout << " " << std::endl;
-                                std::cout << "before step 1, Kplus = " << Kplus(_,l) << std::endl;
-                                std::cout << " " << std::endl;
-                                std::cout << "by hand = " << nda::make_regular(-exp(-dlr_rf(l)*cppdlr::rel2abs(dlr_it))/(1 + exp(-dlr_rf(l)))) << std::endl;
-                                std::cout << " " << std::endl;
-                                std::cout << "after step 2, T = " << T << std::endl;
-                                std::cout << " " << std::endl;
-                                // std::cout << "actual T = " << nda::make_regular((1 - exp(dlr_rf(l)*cppdlr::rel2abs(dlr_it)))/((1 + exp(dlr_rf(l)))*dlr_rf(l))) << std::endl;
-                                std::cout << "actual T = " << nda::make_regular((exp(dlr_it) - exp((1+dlr_rf(l))*dlr_it))/(1 + exp(dlr_rf(l)))/dlr_rf(l)) << std::endl;
-                                std::cout << " " << std::endl;
-                            }
-                            */
 
                             // 3. for each kappa, multiply by F_kappa from right
                             auto Tkap = nda::zeros<dcomplex>(
                                 num_Fs,
                                 r,
                                 F2_block.shape(0),
-                                F1list[0].get_block_size(ind_path(3), 1));
+                                F1list[0].get_block_size(i, 1));
                             for (int kap = 0; kap < num_Fs; kap++) {
-                                auto F1_block = F1list[kap].get_block(ind_path(3));
+                                auto F1_block = F1list[kap].get_block(i);
                                 for (int t = 0; t < r; t++) {
                                     Tkap(kap,t,_,_) = nda::matmul(T(t,_,_),F1_block);
                                 }
@@ -793,33 +855,22 @@ BlockDiagOpFun OCA_bs(
                                     U(t,_,_) += nda::matmul(F3_block, Tmu(mu,t,_,_));
                                 }
                             }
-                            /*
-                            if (fb1 == 0 && fb2 == 1 && l == 16) {
-                                std::cout << "after step 5, U = " << U << std::endl;
-                                std::cout << " " << std::endl;
-                                std::cout << "actual U = " << nda::make_regular(-(exp((2.0 + dlr_rf(l))*cppdlr::rel2abs(dlr_it)) - exp(2.0*cppdlr::rel2abs(dlr_it)))/(1.0 + exp(dlr_rf(l)))/dlr_rf(l)) << std::endl;
-                                std::cout << " " << std::endl;
-                            }
-                            if (fb1 && fb2 && l == 16) {
-                                std::cout << "after step 5, U = " << U << std::endl;
-                                std::cout << " " << std::endl;
-                                std::cout << "actual U = " << nda::make_regular(-(exp((dlr_rf(l))*cppdlr::rel2abs(dlr_it)) - 1)/(1 + exp(dlr_rf(l)))/dlr_rf(l)) << std::endl;
-                                std::cout << " " << std::endl;
-                            }*/
 
-                            auto Fbar_block = Fbar_array[lam][l].get_block(ind_path(0));
+                            auto Fbar_block = Fbar_array[lam][l].get_block(ind_path(2));
                             if (omega_l_is_pos) {
                                 // 6. convolve by G K^+
-                                auto GKplus = nda::make_regular(Gt.get_block(ind_path(0)));
+                                auto GKplus = nda::make_regular(Gt.get_block(ind_path(2)));
                                 for (int t = 0; t < r; t++) {
-                                    GKplus(t,_,_) = Kplus(t,l)*Gt.get_block(ind_path(0))(t,_,_);
+                                    GKplus(t,_,_) = Kplus(t,l)*Gt.get_block(ind_path(2))(t,_,_);
                                 }
+                                /*
                                 U = itops.convolve(
                                     beta,
                                     Fermion,
                                     itops.vals2coefs(GKplus),
                                     itops.vals2coefs(U),
-                                    TIME_ORDERED);
+                                    TIME_ORDERED);*/
+                                U = convolve_rectangular(itops, beta, GKplus, U);
                                 // 7. multiply by Fbar                                
                                 for (int t = 0; t < r; t++) {
                                     Sigma_l(t,_,_) += nda::matmul(Fbar_block, U(t,_,_));
@@ -827,52 +878,149 @@ BlockDiagOpFun OCA_bs(
                             }
                             else {
                                 // 6. convolve by G
+                                /*
                                 U = itops.convolve(
                                     beta,
                                     Fermion,
-                                    itops.vals2coefs(Gt.get_block(ind_path(0))),
+                                    itops.vals2coefs(Gt.get_block(ind_path(2))),
                                     itops.vals2coefs(U),
-                                    TIME_ORDERED);
+                                    TIME_ORDERED);*/
+                                U = convolve_rectangular(itops, beta, Gt.get_block(ind_path(2)), U);
                                 // 7. multiply by K^+(tau) Fbar
                                 for (int t = 0; t < r; t++) {
                                     Sigma_l(t,_,_) += Kplus(t,l)*nda::matmul(Fbar_block, U(t,_,_));
                                 }
                             }
-
-                            /*
-                            if (fb1 && fb2 && l == 16) {
-                                std::cout << "after step 6, U = " << U(_,0,0) << std::endl;
-                                std::cout << " " << std::endl;
-                                // auto temp = nda::make_regular( (cppdlr::rel2abs(dlr_it) + (1 - exp(dlr_rf(l)*cppdlr::rel2abs(dlr_it)))/dlr_rf(l)) / ((1 + exp(dlr_rf(l)))*dlr_rf(l)));
-                                auto temp = nda::make_regular((1 - exp(dlr_it*dlr_rf(l)) - dlr_rf(l) + exp(dlr_it)*dlr_rf(l)) / ((1 + exp(dlr_rf(l))) * (-1 + dlr_rf(l)) * dlr_rf(l)));
-                                std::cout << "actual U = " << temp << std::endl;
-                                std::cout << " " << std::endl;
-                            }
-                            */
                         }
                         if (omega_l_is_pos) {
                             // Sigma.add_block(i, nda::make_regular(sfM*Sigma_l/k_it(0, dlr_rf(l))));
                             Sigma_block_i += nda::make_regular(sfM*Sigma_l/k_it(0, dlr_rf(l)));
-                            if (fb1==1 && fb2==1) {Sigma_temp.add_block(i, nda::make_regular(sfM*Sigma_l/k_it(0, dlr_rf(l)))); }
                         }
                         else {
                             // Sigma.add_block(i, nda::make_regular(sfM*Sigma_l/k_it(0, -dlr_it(l))));
                             Sigma_block_i += nda::make_regular(sfM*Sigma_l/k_it(0, -dlr_rf(l)));
-                            if (fb1==1 && fb2==1) {Sigma_temp.add_block(i, nda::make_regular(sfM*Sigma_l/k_it(0, -dlr_rf(l)))); }
                         }
                     }
                 }
                 Sigma.add_block(i, Sigma_block_i);
-                std::cout << "Sigma_block_i = " << Sigma_block_i << std::endl;
-                std::cout << " " << std::endl;
-                // std::cout << "Sigma_temp = " << Sigma_temp << std::endl;
-                // std::cout << " " << std::endl;
-                // for forward and backward,
-                // std::cout << "Sigma_temp analytically = " << nda::make_regular(pow((exp(cppdlr::rel2abs(dlr_it)) - 1), 2)/2) << std::endl;
-                // std::cout << " " << std::endl;
             }
         }
     }
 
     return Sigma;
+}
+
+BlockDiagOpFun eval_backbone(double beta, 
+    imtime_ops &itops, 
+    const BlockOp &vertex_0, 
+    const BlockOpFun &vertex_1, 
+    const std::vector<BlockOp> &right_vertices, 
+    const BlockOpFun &special_vertex, 
+    const std::vector<BlockOp> &left_vertices, 
+    const std::vector<BlockDiagOpFun> &edges, 
+    nda::array_const_view<dcomplex,1> prefactor) {
+
+    // vertex and edge numbering example:
+    //
+    // vertices: 5         4         3         2         1         0
+    //                                                vertex_1  vertex_0
+    //  right_v:                               0
+    //                           special_v
+    //   left_v: 1         0
+    //           |         |         |         |         |         |
+    //           ---------------------------------------------------
+    //    (time: tau     tau_4     tau_3     tau_2     tau_1       0)
+    //    edges:      3         2         1         0 
+    // ind_path: 5    4    4    3    3    2    2    1    1         0 TODO: double check this!
+
+    // TODO: exception if #vertices - #edges != 1
+    int num_right_vertices = right_vertices.size();
+    int num_left_vertices = left_vertices.size();
+    int num_vertices = num_right_vertices + num_left_vertices + 1;
+    int num_edges = edges.size();
+
+    nda::vector_const_view<double> dlr_rf = itops.get_rfnodes();
+    nda::vector_const_view<double> dlr_it = itops.get_itnodes();
+    // number of imaginary time nodes
+    int r = dlr_it.shape(0);
+    
+    // initialize final result, this backbone's contribution to the self-energy
+    int num_block_cols = edges[0].get_num_block_cols();
+    auto Sigma_backbone = BlockDiagOpFun(r, edges[0].get_block_sizes());
+
+    for (int i = 0; i < num_block_cols; i++) {
+
+        // "backwards pass"
+        // 
+        // for each self-energy block, find contributing blocks of factors
+        // 
+        // paths_all_nonzero: false if for i-th block of 
+        // Sigma, a block of one of the factors is zero
+        // 
+        // ind_path: a vector of column indices of the 
+        // blocks of the factors that contribute. if paths_all_nonzero is 
+        // false at this index, values in ind_path are garbage.
+        //
+        // ATTN: assumes all BlockOps in F(1,2,3)list have the same structure
+        // i.e, index path is independent of kappa, mu
+        bool path_all_nonzero = true;
+        auto ind_path = nda::zeros<int>(num_vertices);
+        auto Sigma_block_i = nda::make_regular(0*Sigma_backbone.get_block(i));
+
+        int ip = vertex_0.get_block_index(i); 
+        if (ip == -1) {path_all_nonzero = false;}
+        else {
+            ind_path(0) = ip; // block ip of vertex 0 contributes to block i of Sigma
+            ip = vertex_1.get_block_index(ip);
+        }
+        // TODO: double-check, probably wrong
+        int v = 2;
+        while (v < num_vertices && path_all_nonzero) { // loop through vertices
+            if (ip == -1 || edges[v-2].get_zero_block_index(ip) == -1) {
+                path_all_nonzero = false; // next edge or vertex has zero block
+            }
+            else {
+                if (v < num_right_vertices-2) {
+                    ip = right_vertices[v].get_block_index(ip);
+                } else if (v == num_right_vertices - 2) {
+                    ip = special_vertex.get_block_index(ip);
+                } else {
+                    ip = left_vertices[v].get_block_index(ip);
+                }
+                ind_path(v) = ip;
+            }
+            v += 1;
+        }
+
+        if (path_all_nonzero) {
+            // allocate intermediate matrices
+            std::vector<nda::array<dcomplex,3>> int_mat(num_vertices-1);
+
+            // 1. starting from tau_1, proceed right-to-left, performing 
+            //    multiplications at vertices and convolutions at edges, until 
+            //    reaching the vertex containing the undecomposed hybridization 
+            //    line (special_vertex)
+            // 
+            //    convolve multiply convolve ... convolve
+            
+            auto vertex_1_block = vertex_1.get_block(ind_path(0));
+            int_mat[0] = convolve_rectangular(
+                itops, 
+                beta, 
+                edges[0].get_block(ind_path(0)), 
+                vertex_1_block);
+
+            /* 
+            for (int v = 2; v < num_right_vertices+2; v++) {
+                auto block_size_v = right_vertices[v].get_block_size(i);
+                int_mat[1] = nda::zeros<dcomplex>(r, block_size_v(0), block_size_v(1));
+                for (int t = 0; t < r; t++) {
+                    T(t,_,_) = nda::matmul(right_vertices[v].get_block(ind_path(v)), 
+                        edges[v-1].get_block(ind_path(v))(t,_,_));
+                }
+            }*/
+        }
+    }
+    
+    return Sigma_backbone;
 }

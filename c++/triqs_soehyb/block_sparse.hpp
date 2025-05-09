@@ -201,6 +201,7 @@ BlockDiagOpFun BOFtoBDOF(BlockOpFun const &A);
  * @return NCA term of self-energy
  */
 BlockDiagOpFun NCA_bs(nda::array_const_view<dcomplex,3> hyb, 
+    nda::array_const_view<dcomplex,3> hyb_refl, 
     const BlockDiagOpFun &Gt, 
     const std::vector<BlockOp> &Fs);
 
@@ -214,8 +215,20 @@ nda::array<double,2> K_mat(nda::vector_const_view<double> dlr_it,
     nda::vector_const_view<double> dlr_rf);
 
 /**
+ * @brief DLR convolution routine for rectangular matrices
+
+ */
+nda::array<dcomplex,3> convolve_rectangular(
+    imtime_ops &itops, 
+    double beta, 
+    nda::array<dcomplex,3> fc, 
+    nda::array<dcomplex,3> gc
+);
+
+/**
  * @brief Evaluate OCA using block-sparse storage
  * @param[in] hyb hybridization function at imaginary time nodes
+ * @param[in] hyb_refl hybridization at negatives of imaginary time nodes
  * @param[in] itops cppdlr imaginary time object
  * @param[in] beta inverse temperature
  * @param[in] Gt Greens function
@@ -223,7 +236,30 @@ nda::array<double,2> K_mat(nda::vector_const_view<double> dlr_it,
  * @return OCA term of self-energy
  */
 BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex,3> hyb,
+    nda::array_const_view<dcomplex,3> hyb_refl,
     imtime_ops &itops, 
     double beta, 
     const BlockDiagOpFun &Gt, 
     const std::vector<BlockOp> &Fs);
+
+/**
+ * @brief Evaluate a single backbone diagram
+ * @param[in] beta inverse temperature
+ * @param[in] itops DLR imaginary time object
+ * @param[in] vertex_0 BlockOp
+ * @param[in] vertex_1 BlockOpFun
+ * @param[in] right_vertices vector of BlockOps
+ * @param[in] special_vertex BlockOpFun
+ * @param[in] left_vertices vector of BlockOps
+ * @param[in] edges vector of BlockDiagOpFuns
+ * @param[in] prefactor 1-dimensional nda::array
+ */
+BlockDiagOpFun eval_backbone(double beta, 
+    imtime_ops &itops, 
+    const BlockOp &vertex_0, 
+    const BlockOpFun &vertex_1, 
+    const std::vector<BlockOp> &right_vertices, 
+    const BlockOpFun &special_vertex, 
+    const std::vector<BlockOp> &left_vertices, 
+    const std::vector<BlockDiagOpFun> &edges, 
+    nda::array_const_view<dcomplex,1> prefactor);
