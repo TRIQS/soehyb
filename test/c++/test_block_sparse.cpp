@@ -285,14 +285,30 @@ TEST(BlockSparseXCATest, load_BlockOp) {
 */
 
 TEST(BlockSparseXCATest, load_hdf5) {
-    h5::file hfile("/home/paco/feynman/ppsc-soe/test/c++/two_band_ad.h5", 'r');
+    h5::file hfile("/home/paco/feynman/ppsc-soe/benchmarks/atom_diag_eval/two_band_ad.h5", 'r');
     
     h5::group hgroup(hfile);
     h5::group ad = hgroup.open_group("ad");
 
-    nda::array<long, 2> ann_conn(4,14);
+    long num_blocks;
+    h5::read(hgroup, "num_blocks", num_blocks);
+
+    nda::array<long, 2> ann_conn(4,num_blocks);
+    nda::array<long, 2> cre_conn(4,num_blocks);
     h5::read(ad, "annihilation_connection", ann_conn);
-    std::cout << ann_conn << std::endl;
+    h5::read(ad, "creation_connection", cre_conn);
+
+    std::vector<nda::array<double,2>> H_blocks;
+    h5::read(hgroup, "H_mat_blocks", H_blocks);
+
+    std::vector<nda::array<double,2>> dummy(14);
+    std::vector<std::vector<nda::array<double,2>>> F_blocks(4, dummy);
+    std::vector<std::vector<nda::array<double,2>>> Fdag_blocks(4, dummy);
+    
+    for (int i = 0; i < 4; i++) {
+        h5::read(hgroup, "c_blocks/" + std::to_string(i), F_blocks[i]);
+        h5::read(hgroup, "cdag_blocks/" + std::to_string(i), Fdag_blocks[i]);
+    }
 }
 
 TEST(BlockSparseOCATest, twoband) {
@@ -331,15 +347,41 @@ TEST(BlockSparseOCATest, twoband) {
     Deltat_refl = t*t*Deltat_refl;
 
     // use src/dlr_dyson_ppsc.hpp/free_gf_ppsc to get nonint. Green's function
-    // from Hamiltonian
-    // 
-    // TODO: read from hdf5 file
-    //
-    // parameters
-    double U = 2.0;
-    double J_H = 0.2;
+    // from Hamiltonian?
 
-    auto H_loc = nda::zeros<dcomplex>(16,16);
+    // get Hamiltonian, creation/annihilation operators for hdf5 file
+    h5::file hfile("/home/paco/feynman/ppsc-soe/benchmarks/atom_diag_eval/two_band_ad.h5", 'r');
+    
+    h5::group hgroup(hfile);
+    h5::group ad = hgroup.open_group("ad");
+
+    long num_blocks;
+    h5::read(hgroup, "num_blocks", num_blocks);
+
+    nda::array<long,2> ann_conn(4,num_blocks);
+    nda::array<long,2> cre_conn(4,num_blocks);
+    h5::read(ad, "annihilation_connection", ann_conn);
+    h5::read(ad, "creation_connection", cre_conn);
+
+    std::vector<nda::array<double,2>> H_blocks;
+    h5::read(hgroup, "H_mat_blocks", H_blocks);
+    nda::array<long,1> H_block_inds(num_blocks);
+    h5::read(hgroup, "H_mat_block_inds", H_block_inds);
+
+    std::vector<nda::array<double,2>> dummy(14);
+    std::vector<std::vector<nda::array<double,2>>> F_blocks(4, dummy);
+    std::vector<std::vector<nda::array<double,2>>> Fdag_blocks(4, dummy);
+    
+    for (int i = 0; i < 4; i++) {
+        h5::read(hgroup, "c_blocks/" + std::to_string(i), F_blocks[i]);
+        h5::read(hgroup, "cdag_blocks/" + std::to_string(i), Fdag_blocks[i]);
+    }
+    
+    auto H_dense = nda::zeros<dcomplex>(16,16);
+    h5::read(hgroup, "H_mat_dense", H_dense);
+    /*
+    values without chemical potential?
+
     H_loc(5,5) = 1.4;
     H_loc(6,6) = 1.4;
     H_loc(7,7) = 1.6;
@@ -353,36 +395,48 @@ TEST(BlockSparseOCATest, twoband) {
     H_loc(13,13) = 5.0;
     H_loc(14,14) = 5.0;
     H_loc(15,15) = 10.0;
+    */
 
-    auto H_loc_eig = nda::linalg::eigenelements(H_loc);
+    auto H_loc_eig = nda::linalg::eigenelements(H_dense);
     dcomplex tr_exp_minusbetaH = 0;
     for (int i = 0; i < 16; i++) {
         tr_exp_minusbetaH += exp(-beta*std::get<0>(H_loc_eig)(i));
     }
 
-    auto eta_0 = nda::log(-1 / tr_exp_minusbetaH) / beta;
+    auto eta_0 = nda::log(tr_exp_minusbetaH) / beta;
     
     auto Gt_evals_t = nda::zeros<dcomplex>(16, 16); 
     auto Gt_mat = nda::zeros<dcomplex>(r, 16, 16);
     auto Gbeta = nda::zeros<dcomplex>(16, 16);
     for (int t = 0; t < r; t++) {
         for (int i = 0; i < 16; i++) {
-            Gt_evals_t(i,i) = exp(-dlr_it(t)*(std::get<0>(H_loc_eig)(i) - eta_0));
+            Gt_evals_t(i,i) = -exp(-dlr_it(t)*(std::get<0>(H_loc_eig)(i) + eta_0));
         }
         Gt_mat(t,_,_) = nda::matmul(
             std::get<1>(H_loc_eig), 
             nda::matmul(Gt_evals_t, nda::transpose(std::get<1>(H_loc_eig))));
     }
     for (int i = 0; i < 16; i++) {
-        Gbeta(i,i) = exp(-beta*(std::get<0>(H_loc_eig)(i) - eta_0));
+        Gbeta(i,i) = -exp(-beta*(std::get<0>(H_loc_eig)(i) + eta_0));
     }
     Gbeta = nda::matmul(Gbeta, nda::transpose(std::get<1>(H_loc_eig)));
     Gbeta = nda::matmul(std::get<1>(H_loc_eig), Gbeta);
     ASSERT_LE(nda::abs(nda::trace(Gbeta) + 1), 1e-10);
 
-    // TODO
-    // create Gt BlockDiagOpFun
-    // get Fops
+    auto Gt = nonint_gf_BDOF(H_blocks, H_block_inds, beta, dlr_it);
+    for (int i = 0; i < 16; i++) {
+        if (i < 6) {
+            ASSERT_LE(nda::norm(Gt_mat(_,i,i) - Gt.get_block(i)(_,0,0)), 1e-16);
+        } else if (i == 6) {
+            ASSERT_LE(nda::norm(Gt_mat(_,i,i) - Gt.get_block(i-1)(_,1,1)), 1e-16);
+        } else if (i < 9) {
+            ASSERT_LE(nda::norm(Gt_mat(_,i,i) - Gt.get_block(i-1)(_,0,0)), 1e-16);
+        } else if (i == 9) {
+            ASSERT_LE(nda::norm(Gt_mat(_,i,i) - Gt.get_block(i-2)(_,1,1)), 1e-16);
+        } else {
+            ASSERT_LE(nda::norm(Gt_mat(_,i,i) - Gt.get_block(i-2)(_,0,0)), 1e-16);
+        } 
+    }
 }
 
 TEST(BlockSparseBackboneTest, OCA) {

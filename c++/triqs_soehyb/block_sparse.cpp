@@ -7,6 +7,7 @@
 #include <nda/declarations.hpp>
 #include <nda/basic_functions.hpp>
 #include <nda/layout_transforms.hpp>
+#include <nda/linalg/eigenelements.hpp>
 #include <nda/print.hpp>
 #include <ostream>
 #include <vector>
@@ -639,6 +640,68 @@ nda::array<dcomplex,3> convolve_rectangular(
     }
 
     return h;
+}
+
+BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double,2>> H_blocks, 
+    nda::vector<int> H_block_inds, 
+    double beta, 
+    nda::vector_const_view<double> dlr_it) {
+
+    int num_block_cols = H_block_inds.size();
+    nda::vector<int> H_block_sizes(num_block_cols);
+    for (int i = 0; i < num_block_cols; i++) {
+        H_block_sizes(i) = H_blocks[i].extent(0);
+    }
+    
+    int r = dlr_it.size();
+    
+    double tr_exp_minusbetaH = 0;
+    std::vector<nda::array<double,1>> H_evals(num_block_cols);
+    std::vector<nda::array<double,2>> H_evecs(num_block_cols);
+    for (int i = 0; i < num_block_cols; i++) {
+        if (H_block_inds(i) != -1) {
+            if (H_block_sizes(i) == 1) {
+                H_evals[i] = nda::array<double,1>{H_blocks[i](0,0)};
+                H_evecs[i] = nda::array<double,2>{{1}};
+            } else {
+                auto H_block_eig = nda::linalg::eigenelements(H_blocks[i]);
+                H_evals[i] = std::get<0>(H_block_eig);
+                H_evecs[i] = std::get<1>(H_block_eig);
+            }
+            for (int j = 0; j < H_block_sizes(i); j++) {
+                tr_exp_minusbetaH += exp(-beta*H_evals[i](j));
+            }
+        }
+        else {
+            H_evals[i] = nda::zeros<double>(H_block_sizes(i));
+            H_evecs[i] = nda::eye<double>(H_block_sizes(i));
+            tr_exp_minusbetaH += 1.0*H_block_sizes(i); // 0 entry in the diagonal
+        }
+    }
+
+    auto eta_0 = nda::log(tr_exp_minusbetaH) / beta;
+
+    // TODO finish writing this function
+    // create test combining call to this with beginning of twoband
+    // start dedicated two_band test
+    // check that Gt and H have the same zero block indices
+
+    auto Gt = BlockDiagOpFun(r, H_block_sizes);
+    for (int i = 0; i < num_block_cols; i++) {
+        auto Gt_block = nda::array<dcomplex,3>(r, H_block_sizes(i), H_block_sizes(i));
+        auto Gt_temp = nda::make_regular(0*H_blocks[i]);
+        for (int t = 0; t < r; t++) {
+            for (int j = 0; j < H_block_sizes(i); j++) {
+                Gt_temp(j,j) = -exp(-dlr_it(t)*(H_evals[i](j) + eta_0));
+            }
+            Gt_block(t,_,_) = nda::matmul(
+                H_evecs[i], 
+                nda::matmul(Gt_temp, nda::transpose(H_evecs[i])));
+        }
+        Gt.set_block(i, Gt_block);
+    }
+
+    return Gt;
 }
 
 BlockDiagOpFun OCA_bs(

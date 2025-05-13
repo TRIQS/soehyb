@@ -226,6 +226,14 @@ nda::array<dcomplex,3> convolve_rectangular(
 );
 
 /**
+ * @brief Compute noninteracting Green's function from Hamiltonian, both as BDOF
+ */
+BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double,2>> H_blocks, 
+    nda::vector<int> H_block_inds, 
+    double beta, 
+    nda::vector_const_view<double> dlr_it);
+
+/**
  * @brief Evaluate OCA using block-sparse storage
  * @param[in] hyb hybridization function at imaginary time nodes
  * @param[in] hyb_refl hybridization at negatives of imaginary time nodes
