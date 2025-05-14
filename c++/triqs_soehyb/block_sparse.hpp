@@ -181,11 +181,6 @@ BlockOp dagger_bs(BlockOp const &F);
 BlockOp operator*(const dcomplex c, const BlockOp &F);
 
 /**
- * @brief Create a BlockOp from text output from triqs::atomdiag
- */
-void text2BlockOp(std::string fname);
-
-/**
  * @brief Convert a BlockOpFun with diagonal structure to a BlockDiagOpFun
  * @param[in] A BlockOpFun
  * @return BlockDiagOpFun
@@ -212,7 +207,7 @@ BlockDiagOpFun NCA_bs(nda::array_const_view<dcomplex,3> hyb,
  * @return matrix of K evalutions
  */
 nda::array<double,2> K_mat(nda::vector_const_view<double> dlr_it,
-    nda::vector_const_view<double> dlr_rf);
+    nda::vector_const_view<double> dlr_rf, double beta);
 
 /**
  * @brief DLR convolution routine for rectangular matrices

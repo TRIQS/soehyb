@@ -274,17 +274,7 @@ TEST(BlockSparseOCATest, OCA_single_exponential) {
     EXPECT_LT(nda::norm(OCA_result.get_block(0)(_,0,0)-OCA_ana), 1.0e-10);
 }
 
-/*
-TEST(BlockSparseXCATest, load_BlockOp) {
-    std::string fname = "/home/paco/feynman/ppsc-soe/benchmarks/atom_diag_eval/atom_diag_to_text.txt";
-
-    std::cout << " " << std::endl;
-    std::cout << "print from text" << std::endl;
-    text2BlockOp(fname);
-}
-*/
-
-TEST(BlockSparseXCATest, load_hdf5) {
+TEST(BlockSparseMisc, load_hdf5) {
     h5::file hfile("/home/paco/feynman/ppsc-soe/benchmarks/atom_diag_eval/two_band_ad.h5", 'r');
     
     h5::group hgroup(hfile);
@@ -311,7 +301,7 @@ TEST(BlockSparseXCATest, load_hdf5) {
     }
 }
 
-TEST(BlockSparseOCATest, twoband) {
+TEST(BlockSparseMisc, compute_nonint_gf) {
     // DLR parameters
     double beta = 2.0;
     double Lambda = 10*beta;
@@ -322,89 +312,26 @@ TEST(BlockSparseOCATest, twoband) {
     auto const & dlr_it = itops.get_itnodes();
     int r = itops.rank();
 
-    // hybridization parameters
-    double s = 0.5;
-    double t = 1.0;
-    nda::array<double,1> e{-2.3*t, 2.3*t};
-    // hybridization generation
-    auto Jt = nda::array<dcomplex,3>(r,1,1);
-    auto Jt_refl = nda::array<dcomplex,3>(r,1,1);
-    for (int i = 0; i <= 1; i++) {
-        Jt(_,0,0) += exp(-e(i)*dlr_it)/(1 + exp(-e(i)*beta));
-        Jt_refl(_,0,0) += exp(e(i)*dlr_it)/(1 + exp(-e(i)*beta));
-    }
-    auto Deltat = nda::array<dcomplex,3>(r,2,2);
-    auto Deltat_refl = nda::array<dcomplex,3>(r,2,2);
-    Deltat(_,0,0) = Jt(_,0,0);
-    Deltat(_,1,1) = Jt(_,0,0);
-    Deltat(_,0,1) = -s*Jt(_,0,0);
-    Deltat(_,1,0) = -s*Jt(_,0,0);
-    Deltat = t*t*Deltat;
-    Deltat_refl(_,0,0) = Jt_refl(_,0,0);
-    Deltat_refl(_,1,1) = Jt_refl(_,0,0);
-    Deltat_refl(_,0,1) = -s*Jt_refl(_,0,0);
-    Deltat_refl(_,1,0) = -s*Jt_refl(_,0,0);
-    Deltat_refl = t*t*Deltat_refl;
-
-    // use src/dlr_dyson_ppsc.hpp/free_gf_ppsc to get nonint. Green's function
-    // from Hamiltonian?
-
-    // get Hamiltonian, creation/annihilation operators for hdf5 file
+    // get Hamiltonian from hdf5 file
     h5::file hfile("/home/paco/feynman/ppsc-soe/benchmarks/atom_diag_eval/two_band_ad.h5", 'r');
-    
     h5::group hgroup(hfile);
     h5::group ad = hgroup.open_group("ad");
-
     long num_blocks;
     h5::read(hgroup, "num_blocks", num_blocks);
-
-    nda::array<long,2> ann_conn(4,num_blocks);
-    nda::array<long,2> cre_conn(4,num_blocks);
-    h5::read(ad, "annihilation_connection", ann_conn);
-    h5::read(ad, "creation_connection", cre_conn);
-
-    std::vector<nda::array<double,2>> H_blocks;
+    std::vector<nda::array<double,2>> H_blocks; // blocks of Hamiltonian
     h5::read(hgroup, "H_mat_blocks", H_blocks);
-    nda::array<long,1> H_block_inds(num_blocks);
+    nda::array<long,1> H_block_inds(num_blocks); // block col indices of Hamiltonian
     h5::read(hgroup, "H_mat_block_inds", H_block_inds);
-
-    std::vector<nda::array<double,2>> dummy(14);
-    std::vector<std::vector<nda::array<double,2>>> F_blocks(4, dummy);
-    std::vector<std::vector<nda::array<double,2>>> Fdag_blocks(4, dummy);
-    
-    for (int i = 0; i < 4; i++) {
-        h5::read(hgroup, "c_blocks/" + std::to_string(i), F_blocks[i]);
-        h5::read(hgroup, "cdag_blocks/" + std::to_string(i), Fdag_blocks[i]);
-    }
-    
     auto H_dense = nda::zeros<dcomplex>(16,16);
-    h5::read(hgroup, "H_mat_dense", H_dense);
-    /*
-    values without chemical potential?
+    h5::read(hgroup, "H_mat_dense", H_dense); // Hamiltonian in dense storage
 
-    H_loc(5,5) = 1.4;
-    H_loc(6,6) = 1.4;
-    H_loc(7,7) = 1.6;
-    H_loc(8,8) = 1.6;
-    H_loc(9,9) = 2.0;
-    H_loc(9,10) = 0.2;
-    H_loc(10,9) = 0.2;
-    H_loc(10,10) = 2.0;
-    H_loc(11,11) = 5.0;
-    H_loc(12,12) = 5.0;
-    H_loc(13,13) = 5.0;
-    H_loc(14,14) = 5.0;
-    H_loc(15,15) = 10.0;
-    */
-
+    // compute noninteracting Green's function from dense Hamiltonian
     auto H_loc_eig = nda::linalg::eigenelements(H_dense);
     dcomplex tr_exp_minusbetaH = 0;
     for (int i = 0; i < 16; i++) {
         tr_exp_minusbetaH += exp(-beta*std::get<0>(H_loc_eig)(i));
     }
-
     auto eta_0 = nda::log(tr_exp_minusbetaH) / beta;
-    
     auto Gt_evals_t = nda::zeros<dcomplex>(16, 16); 
     auto Gt_mat = nda::zeros<dcomplex>(r, 16, 16);
     auto Gbeta = nda::zeros<dcomplex>(16, 16);
@@ -421,25 +348,104 @@ TEST(BlockSparseOCATest, twoband) {
     }
     Gbeta = nda::matmul(Gbeta, nda::transpose(std::get<1>(H_loc_eig)));
     Gbeta = nda::matmul(std::get<1>(H_loc_eig), Gbeta);
+    // check that trace of noninteracting Green's function from dense 
+    // Hamiltonian at tau = beta has trace 1
     ASSERT_LE(nda::abs(nda::trace(Gbeta) + 1), 1e-10);
 
     auto Gt = nonint_gf_BDOF(H_blocks, H_block_inds, beta, dlr_it);
-    for (int i = 0; i < 16; i++) {
-        if (i < 6) {
-            ASSERT_LE(nda::norm(Gt_mat(_,i,i) - Gt.get_block(i)(_,0,0)), 1e-16);
-        } else if (i == 6) {
-            ASSERT_LE(nda::norm(Gt_mat(_,i,i) - Gt.get_block(i-1)(_,1,1)), 1e-16);
-        } else if (i < 9) {
-            ASSERT_LE(nda::norm(Gt_mat(_,i,i) - Gt.get_block(i-1)(_,0,0)), 1e-16);
-        } else if (i == 9) {
-            ASSERT_LE(nda::norm(Gt_mat(_,i,i) - Gt.get_block(i-2)(_,1,1)), 1e-16);
-        } else {
-            ASSERT_LE(nda::norm(Gt_mat(_,i,i) - Gt.get_block(i-2)(_,0,0)), 1e-16);
-        } 
-    }
+    // check that the noninteracting Green's function, computing from the 
+    // sparse- and dense-storage Hamiltonians are the same
+    ASSERT_LE(nda::norm(Gt_mat(_,0,0) - Gt.get_block(0)(_,0,0)), 1e-16);
+    ASSERT_LE(nda::norm(Gt_mat(_,1,1) - Gt.get_block(0)(_,1,1)), 1e-16);
+    ASSERT_LE(nda::norm(Gt_mat(_,2,2) - Gt.get_block(0)(_,2,2)), 1e-16);
+    ASSERT_LE(nda::norm(Gt_mat(_,3,3) - Gt.get_block(0)(_,3,3)), 1e-16);
+    ASSERT_LE(nda::norm(Gt_mat(_,4,9) - Gt.get_block(1)(_,0,5)), 1e-16);
+    // TODO: rest of the entries
 }
 
-TEST(BlockSparseBackboneTest, OCA) {
+TEST(BlockSparseOCATest, two_band) {
+    // DLR parameters
+    double beta = 2.0;
+    double Lambda = 10*beta;
+    double eps = 1.0e-10;
+    // DLR generation
+    auto dlr_rf = build_dlr_rf(Lambda, eps);
+    auto itops = imtime_ops(Lambda, dlr_rf);
+    auto const & dlr_it = itops.get_itnodes();
+    int r = itops.rank();
+
+    // hybridization parameters
+    double s = 0.5;
+    double t = 1.0;
+    nda::array<double,1> e{-2.3*t, 2.3*t};
+    
+    // hybridization generation
+    auto Jt = nda::array<dcomplex,3>(r,1,1);
+    auto Jt_refl = nda::array<dcomplex,3>(r,1,1);
+    for (int i = 0; i <= 1; i++) {
+        for (int t = 0; t < r; t++) {
+            Jt(t,0,0) += k_it(dlr_it(t), e(i), beta);
+            Jt_refl(t,0,0) += k_it(-dlr_it(t), e(i), beta);
+        }
+    }
+    // orbital index order: do 0, do 1, up 0, up 1. same level <-> same parity index
+    // TODO: read this info from hdf5 file, ad/h_atomic/fundamental_operator_set
+    auto Deltat = nda::array<dcomplex,3>(r,4,4);
+    auto Deltat_refl = nda::array<dcomplex,3>(r,4,4);
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            if ((i + j) % 2 == 0) {
+                Deltat(_,i,j) = Jt(_,0,0);
+                Deltat_refl(_,i,j) = Jt_refl(_,0,0);
+            }
+            else {
+                Deltat(_,i,j) = s*Jt(_,0,0);
+                Deltat_refl(_,i,j) = s*Jt_refl(_,0,0);
+            }
+        }
+    }
+    Deltat = t*t*Deltat;
+    Deltat_refl = t*t*Deltat_refl;
+
+    // get Hamiltonian, creation/annihilation operators from hdf5 file
+    h5::file hfile("/home/paco/feynman/ppsc-soe/benchmarks/atom_diag_eval/two_band_ad.h5", 'r');
+    h5::group hgroup(hfile);
+    h5::group ad = hgroup.open_group("ad");
+    long num_blocks;
+    h5::read(hgroup, "num_blocks", num_blocks);
+    nda::array<long,2> ann_conn(4,num_blocks);
+    nda::array<long,2> cre_conn(4,num_blocks);
+    h5::read(ad, "annihilation_connection", ann_conn); // block column indices of F operators
+    h5::read(ad, "creation_connection", cre_conn); // block column indices of Fdag operators
+    std::vector<nda::array<double,2>> H_blocks;
+    h5::read(hgroup, "H_mat_blocks", H_blocks);
+    nda::array<long,1> H_block_inds(num_blocks);
+    h5::read(hgroup, "H_mat_block_inds", H_block_inds);
+    auto Gt = nonint_gf_BDOF(H_blocks, H_block_inds, beta, dlr_it);
+
+    std::vector<nda::array<dcomplex,2>> dummy(num_blocks);
+    std::vector<std::vector<nda::array<dcomplex,2>>> F_blocks(4, dummy);
+    std::vector<std::vector<nda::array<dcomplex,2>>> Fdag_blocks(4, dummy);
+    
+    for (int i = 0; i < 4; i++) {
+        h5::read(hgroup, "c_blocks/" + std::to_string(i), F_blocks[i]);
+        h5::read(hgroup, "cdag_blocks/" + std::to_string(i), Fdag_blocks[i]);
+    }
+
+    std::vector<BlockOp> Fs;
+    std::vector<BlockOp> Fdags;
+    for (int i = 0; i < 4; i++) {
+        nda::vector<int> F_block_indices = ann_conn(i,_);
+        Fs.emplace_back(BlockOp(F_block_indices, F_blocks[i]));
+        nda::vector<int> Fdag_block_indices = cre_conn(i,_);
+        Fdags.emplace_back(BlockOp(Fdag_block_indices, Fdag_blocks[i]));
+    }
+
+    auto OCA_result = OCA_bs(Deltat, Deltat_refl, itops, beta, Gt, Fs);
+    // std::cout << "OCA = " << OCA_result << std::endl;
+}
+
+TEST(BlockSparseXCATest, OCA) {
     double beta = 100;
     double eps = 1e-10;
     double Lambda = 100;

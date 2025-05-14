@@ -1,7 +1,6 @@
 #include "block_sparse.hpp"
 #include <cppdlr/dlr_imtime.hpp>
 #include <iostream>
-#include <fstream>
 #include <cppdlr/dlr_kernels.hpp>
 #include <nda/algorithms.hpp>
 #include <nda/declarations.hpp>
@@ -421,76 +420,6 @@ BlockOp operator*(const dcomplex c, const BlockOp &F) {
     return product;
 }
 
-void text2BlockOp(std::string fname) {
-    // TODO docs
-
-    std::ifstream bof1(fname);
-
-    std::string line;
-    int i = 0;
-    int num_blocks;
-
-    while (getline(bof1, line)) {
-        // line 0 = number of blocks
-        if (i == 0) {
-            num_blocks = std::stoi(line);
-        } 
-        i += 1;
-    }
-    
-    i = 0;
-    std::ifstream bof2(fname);
-    nda::array<int,2> block_sizes(num_blocks,2);
-    nda::vector<int> block_indices(num_blocks);
-    
-    while (getline(bof2, line)) {
-        // line 1 = block sizes
-        if (i == 1) {
-            int pos_start = 0;
-            int pos_end;
-            for (int j = 0; j < num_blocks; j++) {
-                pos_end = line.find(',', pos_start);
-                block_sizes(j,0) = std::stoi(line.substr(pos_start, pos_end - pos_start));
-                pos_start = pos_end + 1;
-                pos_end = line.find(',', pos_start);
-                block_sizes(j,1) = std::stoi(line.substr(pos_start, pos_end - pos_start));
-                pos_start = pos_end + 1;
-            }
-        }
-        // line 2 = block indices
-        else if (i == 2) {
-            int pos_start = 0;
-            int pos_end;
-            for (int j = 0; j < num_blocks; j++) {
-                pos_end = line.find(',', pos_start);
-                block_indices(j) = std::stoi(line.substr(pos_start, pos_end - pos_start));
-                pos_start = pos_end + 1;
-            }
-        }
-        i += 1;
-    }
-
-    i = 0;
-    std::ifstream bof3(fname);
-    std::vector<nda::array<dcomplex,2>> blocks(num_blocks);
-
-    while(getline(bof3, line)) {
-        int curr_block_num = 0;
-        if (i >= 3) {
-            int pos_start = 0;
-            int pos_end;
-            if (line.substr(0,1) == "[") {
-                nda::array<dcomplex,2> curr_block(
-                    block_sizes(curr_block_num, 0), 
-                    block_sizes(curr_block_num, 1));
-                pos_end = line.find(' ', pos_start);
-                std::cout << pos_end << std::endl;
-            }
-        }
-        i += 1;
-    }
-}
-
 BlockDiagOpFun BOFtoBDOF(BlockOpFun const &A) {
     // Convert a BlockOpFun with diagonal structure to a BlockDiagOpFun
     // @param[in] A BlockOpFun
@@ -603,7 +532,8 @@ BlockDiagOpFun NCA_bs(
 
 nda::array<double,2> K_mat(
     nda::vector_const_view<double> dlr_it,
-    nda::vector_const_view<double> dlr_rf) {
+    nda::vector_const_view<double> dlr_rf,
+    double beta) {
     // @brief Build matrix of evaluations of K at imag times and real freqs
     // @param[in] dlr_it DLR imaginary time nodes
     // @param[in] dlr_rf DLR real frequencies
@@ -613,7 +543,7 @@ nda::array<double,2> K_mat(
     nda::array<double,2> K(r, r);
     for (int k = 0; k < r; k++) {
         for (int l = 0; l < r; l++) {
-            K(k,l) = k_it(dlr_it(k), dlr_rf(l));
+            K(k,l) = k_it(dlr_it(k), dlr_rf(l), beta);
         }
     }
     return K;
@@ -737,8 +667,8 @@ BlockDiagOpFun OCA_bs(
     }
 
     // evaluate matrices with (k,l)-entry K(tau_k,+-omega_l)
-    nda::array<double,2> Kplus = K_mat(dlr_it, dlr_rf);
-    nda::array<double,2> Kminus = K_mat(dlr_it, nda::make_regular(-dlr_rf));
+    nda::array<double,2> Kplus = K_mat(dlr_it, dlr_rf, beta);
+    nda::array<double,2> Kminus = K_mat(dlr_it, nda::make_regular(-dlr_rf), beta);
 
     // compute Fbars and Fdagbars
     auto Fbar_indices = Fs[0].get_block_indices();
@@ -764,7 +694,9 @@ BlockDiagOpFun OCA_bs(
         num_Fs, 
         std::vector<BlockOp>(
             r, 
-            BlockOp(Fdagbar_indices, Fdagbar_sizes)));        
+            BlockOp(Fdagbar_indices, Fdagbar_sizes)));
+    auto Ftemp = Fs[0];
+    auto Ftemp2 = Fs[1];
     for (int lam = 0; lam < num_Fs; lam++) {
         for (int l = 0; l < r; l++) {
             for (int nu = 0; nu < num_Fs; nu++) {
@@ -881,6 +813,7 @@ BlockDiagOpFun OCA_bs(
                                     Gt.get_block(ind_path(1)),
                                     T);
                             }
+                            // if (i == 0 || l == 9) {std::cout << "T = " << T(_,F2_block.shape(0)-1,F2_block.shape(1)-1)<< std::endl;}
 
                             // 3. for each kappa, multiply by F_kappa from right
                             auto Tkap = nda::zeros<dcomplex>(
@@ -918,6 +851,11 @@ BlockDiagOpFun OCA_bs(
                                     U(t,_,_) += nda::matmul(F3_block, Tmu(mu,t,_,_));
                                 }
                             }
+                            if (i == 0 && l == 17) {
+                                std::cout << "fb = " << fb1 << fb2 << std::endl;
+                                std::cout << "lam = " << lam << std::endl;
+                                std::cout << "U = " << U(_,F2_block.shape(0)-1,F1list[0].get_block_size(i, 1)-1) << std::endl;
+                            }
 
                             auto Fbar_block = Fbar_array[lam][l].get_block(ind_path(2));
                             if (omega_l_is_pos) {
@@ -934,6 +872,7 @@ BlockDiagOpFun OCA_bs(
                                     itops.vals2coefs(U),
                                     TIME_ORDERED);*/
                                 U = convolve_rectangular(itops, beta, GKplus, U);
+                                // if (i == 0) {std::cout << "U = " << U << std::endl;}
                                 // 7. multiply by Fbar                                
                                 for (int t = 0; t < r; t++) {
                                     Sigma_l(t,_,_) += nda::matmul(Fbar_block, U(t,_,_));
@@ -949,6 +888,7 @@ BlockDiagOpFun OCA_bs(
                                     itops.vals2coefs(U),
                                     TIME_ORDERED);*/
                                 U = convolve_rectangular(itops, beta, Gt.get_block(ind_path(2)), U);
+                                // if (i == 0) {std::cout << "U = " << U << std::endl;}
                                 // 7. multiply by K^+(tau) Fbar
                                 for (int t = 0; t < r; t++) {
                                     Sigma_l(t,_,_) += Kplus(t,l)*nda::matmul(Fbar_block, U(t,_,_));
@@ -956,12 +896,12 @@ BlockDiagOpFun OCA_bs(
                             }
                         }
                         if (omega_l_is_pos) {
-                            // Sigma.add_block(i, nda::make_regular(sfM*Sigma_l/k_it(0, dlr_rf(l))));
-                            Sigma_block_i += nda::make_regular(sfM*Sigma_l/k_it(0, dlr_rf(l)));
+                            Sigma_block_i += nda::make_regular(sfM*Sigma_l/k_it(0, dlr_rf(l), beta));
+                            // if (i == 0 || l == 9) {std::cout << nda::make_regular(sfM*Sigma_l/k_it(0, dlr_rf(l), beta)) << std::endl;}
                         }
                         else {
-                            // Sigma.add_block(i, nda::make_regular(sfM*Sigma_l/k_it(0, -dlr_it(l))));
-                            Sigma_block_i += nda::make_regular(sfM*Sigma_l/k_it(0, -dlr_rf(l)));
+                            Sigma_block_i += nda::make_regular(sfM*Sigma_l/k_it(0, -dlr_rf(l), beta));
+                            // if (i == 0 || l == 9) {std::cout << nda::make_regular(sfM*Sigma_l/k_it(0, -dlr_rf(l), beta)) << std::endl;}
                         }
                     }
                 }
