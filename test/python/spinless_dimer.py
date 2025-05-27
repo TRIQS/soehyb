@@ -2,6 +2,8 @@
 
 import numpy as np
 
+from mpi4py import MPI
+
 from triqs.gf import Gf, MeshImTime
 from triqs.operators import c, c_dag
 from pyed.TriqsExactDiagonalization import TriqsExactDiagonalization
