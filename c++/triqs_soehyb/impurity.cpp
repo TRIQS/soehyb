@@ -2,9 +2,12 @@
 #include "impurity.hpp"
 #include "dlr_dyson_ppsc.hpp"
 #include <cppdlr/dlr_kernels.hpp>
+#include <cppdlr/utils.hpp>
+#include <nda/basic_functions.hpp>
 #include <nda/blas/tools.hpp>
 #include <nda/declarations.hpp>
 #include <nda/linalg/matmul.hpp>
+#include <iomanip>
 
 fastdiagram::fastdiagram(double beta, double lambda, imtime_ops itops,
 			 nda::array<dcomplex,3> F, nda::array<dcomplex,3> F_dag) :
@@ -25,6 +28,8 @@ fastdiagram::fastdiagram(double beta, double lambda, imtime_ops itops,
   D_TCA_4{{0,3},{1,4},{2,5}}  // TCA 4th
   
   {
+    auto Freal = nda::make_regular(nda::real(F(3,_,_)));
+    std::cout << "F = " << Freal(_,_) << std::endl;
 
     // Change from tau in the [-0.5, 0.5] interval to [0, 1]
     for (int k = 0; k < r; ++k) {
@@ -32,6 +37,8 @@ fastdiagram::fastdiagram(double beta, double lambda, imtime_ops itops,
 	dlr_it_actual(k) = 1.0 + dlr_it_actual(k);
       }
     }
+
+    dlr_it_actual = cppdlr::rel2abs(dlr_it);
     
     dlr_it_actual = dlr_it_actual * beta; // Rescale from [0, 1] to [0, beta]
 }
@@ -106,6 +113,7 @@ nda::array<dcomplex,3> fastdiagram::Sigma_calc_group(nda::array<dcomplex,3> Gt, 
     int m = D.shape(0);
     int num_diagram_per_fb = pow(P,m-1); 
     auto Diagram = nda::array<dcomplex,3>::zeros({r,N,N});
+    auto Diagram_temp = nda::array<dcomplex,3>::zeros({r,N,N});
     for (int id = 0; id<Nd; ++id){
         auto fb = nda::vector<int>(m); //utility for iteration
         int num = diagramindex(id);
@@ -113,7 +121,16 @@ nda::array<dcomplex,3> fastdiagram::Sigma_calc_group(nda::array<dcomplex,3> Gt, 
         int num2 = num % num_diagram_per_fb;
         for (int v = 1;v<m;++v) { fb[v] = num0 % 2; num0 = int(num0/2);}   
         Diagram = Diagram + evaluate_one_diagram(Delta_F, Delta_F_reflect, D, Deltat, Deltat_reflect, Gt, itops, beta, F, F_dag, fb, true, num2, m, n, r, N, P);
+        // fb(1) is 0, then 1. forward, then backward. 
+        if (id < 60 && id%2 == 0) { // 30 values
+        // if (id == 0 || id == 2) { // first dlr node
+            Diagram_temp += evaluate_one_diagram(Delta_F, Delta_F_reflect, D, Deltat, Deltat_reflect, Gt, itops, beta, F, F_dag, fb, true, num2, m, n, r, N, P);
+        }
     }
+    std::cout << "Diagram temp = " << std::fixed 
+        << std::setprecision(std::numeric_limits<double>::max_digits10) << Diagram_temp(_,1,1) << std::endl;
+    std::cout << std::endl;
+    std::cout << "Diagram = " << Diagram(_,1,1) << std::endl;
     return Diagram;
 }
 nda::array<dcomplex,3> fastdiagram::Sigma_calc(nda::array<dcomplex,3> Gt, std::string order){

@@ -43,6 +43,9 @@ class BlockDiagOpFun {
         nda::array_const_view<dcomplex,3> get_block_dlr_coeffs(int i) const;
         const int get_num_time_nodes() const;
         void add_block(int i, nda::array_const_view<dcomplex,3> block);
+        static std::string hdf5_format();
+        friend void h5_write(h5::group g, const std::string& subgroup_name, const BlockDiagOpFun& BDOF);
+        friend void h5_read(h5::group g, const std::string& subgroup_name, BlockDiagOpFun& BDOF);
 
     /**
      * @brief Constructor for BlockDiagOpFun
@@ -200,6 +203,13 @@ BlockDiagOpFun NCA_bs(nda::array_const_view<dcomplex,3> hyb,
     const BlockDiagOpFun &Gt, 
     const std::vector<BlockOp> &Fs);
 
+nda::array<dcomplex,3> NCA_dense(
+    nda::array_const_view<dcomplex,3> hyb, 
+    nda::array_const_view<dcomplex,3> hyb_refl, 
+    nda::array_const_view<dcomplex,3> Gt, 
+    nda::array_const_view<dcomplex,3> Fs,
+    nda::array_const_view<dcomplex,3> F_dags);
+
 /**
  * @brief Build matrix of evaluations of K at imag times and real freqs
  * @param[in] dlr_it DLR imaginary time nodes
@@ -239,11 +249,26 @@ BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double,2>> H_blocks,
  * @return OCA term of self-energy
  */
 BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex,3> hyb,
-    nda::array_const_view<dcomplex,3> hyb_refl,
+    // nda::array_const_view<dcomplex,3> hyb_refl,
     imtime_ops &itops, 
     double beta, 
     const BlockDiagOpFun &Gt, 
     const std::vector<BlockOp> &Fs);
+
+nda::array<dcomplex,3> OCA_dense(nda::array_const_view<dcomplex,3> hyb,
+    imtime_ops &itops, 
+    double beta, 
+    nda::array_const_view<dcomplex,3> Gt, 
+    nda::array_const_view<dcomplex,3> Fs, 
+    nda::array_const_view<dcomplex,3> F_dags);
+
+nda::array<dcomplex,3> OCA_tpz(
+    nda::array_const_view<dcomplex,3> hyb,
+    imtime_ops &itops, 
+    double beta, 
+    nda::array_const_view<dcomplex, 3> Gt, 
+    nda::array_const_view<dcomplex, 3> Fs, 
+    int n_quad);
 
 /**
  * @brief Evaluate a single backbone diagram
