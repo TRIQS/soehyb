@@ -16,19 +16,20 @@
 using namespace nda;
 
 nda::array<dcomplex,3> Hmat_to_Gtmat(nda::array<dcomplex,2> Hmat, double beta, nda::array<double,1> dlr_it_abs) {
+    int N = Hmat.extent(0);
      auto [H_loc_eval, H_loc_evec] = nda::linalg::eigenelements(Hmat);
     auto E0 = nda::min_element(H_loc_eval);
     H_loc_eval -= E0;
     auto tr_exp_minusbetaH = nda::sum(exp(-beta*H_loc_eval));
     auto eta_0 = nda::log(tr_exp_minusbetaH) / beta;
     H_loc_eval += eta_0;
-    auto Gt_evals_t = nda::zeros<dcomplex>(16, 16); 
+    auto Gt_evals_t = nda::zeros<dcomplex>(N, N); 
     int r = dlr_it_abs.extent(0);
-    auto Gt_mat = nda::zeros<dcomplex>(r, 16, 16);
-    auto Gbeta = nda::zeros<dcomplex>(16, 16);
+    auto Gt_mat = nda::zeros<dcomplex>(r, N, N);
+    auto Gbeta = nda::zeros<dcomplex>(N, N);
     for (int t = 0; t < r; t++) {
-        for (int i = 0; i < 16; i++) {
-            Gt_evals_t(i,i) = -exp(-beta*dlr_it_abs(t)*(H_loc_eval(i)));
+        for (int i = 0; i < N; i++) {
+            Gt_evals_t(i,i) = -exp(-beta*dlr_it_abs(t)*H_loc_eval(i));
         }
         Gt_mat(t,_,_) = nda::matmul(
             H_loc_evec, 
@@ -351,6 +352,12 @@ TEST(BlockSparseMisc, compute_nonint_gf) {
     h5::read(hgroup, "H_mat_block_inds", H_block_inds);
     auto H_dense = nda::zeros<dcomplex>(16,16);
     h5::read(hgroup, "H_mat_dense", H_dense); // Hamiltonian in dense storage
+    std::cout << H_dense << std::endl;
+
+    h5::file hfile2("/home/paco/feynman/ppsc-soe/benchmarks/twoband/saved/G0_iaa_beta=2.0.h5", 'r');
+    h5::group hgroup2(hfile2);
+    auto G0_py = nda::zeros<dcomplex>(r,16,16);
+    h5::read(hgroup2, "G0_iaa", G0_py);
 
     // compute noninteracting Green's function from dense Hamiltonian
     auto [H_loc_eval, H_loc_evec] = nda::linalg::eigenelements(H_dense);
@@ -364,13 +371,10 @@ TEST(BlockSparseMisc, compute_nonint_gf) {
     auto Gbeta = nda::zeros<dcomplex>(16, 16);
     Gt_mat = Hmat_to_Gtmat(H_dense, beta, dlr_it_abs);
     for (int i = 0; i < 16; i++) {
-        Gbeta(i,i) = -exp(-beta*(H_loc_eval(i)));
+        Gbeta(i,i) = -exp(-beta*H_loc_eval(i));
     }
     Gbeta = nda::matmul(Gbeta, nda::transpose(H_loc_evec));
     Gbeta = nda::matmul(H_loc_evec, Gbeta);
-    for (int i = 0; i < 16; i++) {
-        std::cout << Gt_mat(_,i,i) << std::endl;
-    }
     // check that trace of noninteracting Green's function from dense 
     // Hamiltonian at tau = beta has trace 1
     ASSERT_LE(nda::abs(nda::trace(Gbeta) + 1), 1e-13);
@@ -378,12 +382,15 @@ TEST(BlockSparseMisc, compute_nonint_gf) {
     auto Gt = nonint_gf_BDOF(H_blocks, H_block_inds, beta, dlr_it_abs);
     // check that the noninteracting Green's function, computing from the 
     // sparse- and dense-storage Hamiltonians are the same
-    ASSERT_LE(nda::norm(Gt_mat(_,0,0) - Gt.get_block(0)(_,0,0)), 1e-13);
-    ASSERT_LE(nda::norm(Gt_mat(_,1,1) - Gt.get_block(0)(_,1,1)), 1e-13);
-    ASSERT_LE(nda::norm(Gt_mat(_,2,2) - Gt.get_block(0)(_,2,2)), 1e-13);
-    ASSERT_LE(nda::norm(Gt_mat(_,3,3) - Gt.get_block(0)(_,3,3)), 1e-13);
-    ASSERT_LE(nda::norm(Gt_mat(_,4,9) - Gt.get_block(1)(_,0,5)), 1e-13);
-    // TODO: rest of the entries
+    ASSERT_LE(nda::max_element(nda::abs(Gt_mat(_,range(0,4),range(0,4)) - Gt.get_block(0))), 1e-13);
+    ASSERT_LE(nda::max_element(nda::abs(Gt_mat(_,range(4,10),range(4,10)) - Gt.get_block(1))), 1e-13);
+    ASSERT_LE(nda::max_element(nda::abs(Gt_mat(_,range(10,11),range(10,11)) - Gt.get_block(2))), 1e-13);
+    ASSERT_LE(nda::max_element(nda::abs(Gt_mat(_,range(11,15),range(11,15)) - Gt.get_block(3))), 1e-13);
+    ASSERT_LE(nda::max_element(nda::abs(Gt_mat(_,range(15,16),range(15,16)) - Gt.get_block(4))), 1e-13);
+
+    std::cout << G0_py(0,range(4,10),range(4,10)) << std::endl;
+    std::cout << Gt_mat(0,range(4,10),range(4,10)) << std::endl;
+    ASSERT_LE(nda::max_element(nda::abs(G0_py - Gt_mat)), 1e-13);
 }
 
 TEST(BlockSparseOCATest, two_band_discrete_bath) {
@@ -503,18 +510,39 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     h5::read(Gtgroup, "F", Fs_dense);
     auto F_dags_dense = nda::zeros<dcomplex>(4,16,16);
     h5::read(Gtgroup, "F_dag", F_dags_dense);
+    auto Deltat_dense = nda::zeros<dcomplex>(r,4,4);
+    h5::read(Gtgroup, "delta_iaa", Deltat_dense);
+    auto Gt_dense_no_perm = nda::zeros<dcomplex>(r,16,16);
+    h5::read(Gtgroup, "G0_iaa_no_perm", Gt_dense_no_perm);
+    // 30 May 2025 read F from twoband.py
+    auto Fs_dense_no_perm = nda::zeros<dcomplex>(4,16,16);
+    h5::read(Gtgroup, "F_no_perm", Fs_dense_no_perm);
+    auto F_dags_dense_no_perm = nda::zeros<dcomplex>(4,16,16);
+    h5::read(Gtgroup, "F_dag_no_perm", F_dags_dense_no_perm);
+    auto dlr_rf_py = nda::make_regular(0 * dlr_rf);
+    h5::read(Gtgroup, "dlr_rf", dlr_rf_py);
+    std::cout << "dlr_rf_py = " << dlr_rf_py << "\n" << std::endl;
+    std::cout << "dlr_rf = " << dlr_rf << "\n" << std::endl;
 
-    std::cout << "Gt_dense their way = " << Gt_dense(4,range(4,10),range(4,10)) << "\n" << std::endl;
-
-    auto NCA_dense_result = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
+    // auto NCA_dense_result = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
+    auto NCA_dense_result = NCA_dense(Deltat_dense, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
     std::cout << "NCA dense = " << NCA_dense_result(5,range(0,4),range(0,4)) << std::endl;
 
-    auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
+    // auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
+    auto OCA_dense_result = OCA_dense(Deltat_dense, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
+    auto OCA_dense_result_no_perm = OCA_dense(Deltat_dense, itops, beta, Gt_dense_no_perm, Fs_dense_no_perm, F_dags_dense_no_perm);
     std::cout << "OCA dense = " << OCA_dense_result(_,0,0) << std::endl;
     std::cout << std::endl;
+    std::cout << "OCA dense no perm = " << OCA_dense_result_no_perm(_,0,0) << std::endl;
+    std::cout << std::endl;
+    std::cout << "Deltat no perm diff = " << nda::max_element(nda::abs(Deltat - Deltat_dense)) << std::endl;
+
+    auto NCA_dense_result_no_perm = NCA_dense(Deltat_dense, Deltat_refl, Gt_dense_no_perm, Fs_dense_no_perm, F_dags_dense_no_perm);
 
     int n_quad = 5;
-    auto OCA_tpz_result = OCA_tpz(Deltat, itops, beta, Gt_dense, Fs_dense, n_quad);
+    // auto OCA_tpz_result = OCA_tpz(Deltat, itops, beta, Gt_dense, Fs_dense, n_quad);
+    auto OCA_tpz_result = OCA_tpz(Deltat_dense, itops, beta, Gt_dense, Fs_dense, n_quad);
+    auto OCA_tpz_result_no_perm = OCA_tpz(Deltat_dense, itops, beta, Gt_dense_no_perm, Fs_dense_no_perm, n_quad);
 
     auto OCA_dense_result_coeffs = itops.vals2coefs(OCA_dense_result);
     auto it_eq = cppdlr::eqptsrel(n_quad+1);
@@ -523,14 +551,23 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
         OCA_dense_result_eq(i,_,_) = itops.coefs2eval(OCA_dense_result_coeffs, it_eq(i));
     }
 
+    auto OCA_dense_result_coeffs_no_perm = itops.vals2coefs(OCA_dense_result_no_perm);
+    auto OCA_dense_result_eq_no_perm = nda::array<dcomplex,3>(n_quad+1, 16, 16);
+    for (int i = 0; i <= n_quad; i++) {
+        OCA_dense_result_eq_no_perm(i,_,_) = itops.coefs2eval(OCA_dense_result_coeffs_no_perm, it_eq(i));
+    }
+
+    /*
     std::cout << std::endl;
     std::cout << "OCA dense on eq grid = " << OCA_dense_result_eq(_,0,0) << std::endl;
     std::cout << std::endl;
     std::cout << "OCA tpz result = " << OCA_tpz_result(_,0,0) << std::endl;
+    */
 
     h5::file h("/home/paco/feynman/saved_data/OCA_two_band/beta_1_eps_1e-10_Lambda_10.h5", 'a');
     h5::write(h, "NCA_result", NCA_result);
     h5::write(h, "NCA_dense_result", NCA_dense_result);
+    h5::write(h, "NCA_dense_result_no_perm", NCA_dense_result_no_perm);
 
     h5::array_interface::array_view OCA_dense_result_view(
         h5::hdf5_type<dcomplex>(), 
@@ -544,6 +581,7 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     OCA_dense_result_view.parent_shape[1] = 16;
     OCA_dense_result_view.parent_shape[2] = 16;
     h5::array_interface::write(h, "dense", OCA_dense_result_view, false);
+    h5::write(h, "dense_no_perm", OCA_dense_result_no_perm);
 
     h5::array_interface::array_view OCA_dense_result_eq_view(
         h5::hdf5_type<dcomplex>(), 
@@ -557,6 +595,7 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     OCA_dense_result_eq_view.parent_shape[1] = 16;
     OCA_dense_result_eq_view.parent_shape[2] = 16;
     h5::array_interface::write(h, "dense_nquad_" + std::to_string(n_quad), OCA_dense_result_eq_view, false);
+    h5::write(h, "dense_no_perm_nquad_" + std::to_string(n_quad), OCA_dense_result_eq_no_perm);
 
     h5::array_interface::array_view OCA_tpz_result_view(
         h5::hdf5_type<dcomplex>(), 

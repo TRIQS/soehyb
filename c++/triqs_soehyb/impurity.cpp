@@ -28,9 +28,6 @@ fastdiagram::fastdiagram(double beta, double lambda, imtime_ops itops,
   D_TCA_4{{0,3},{1,4},{2,5}}  // TCA 4th
   
   {
-    auto Freal = nda::make_regular(nda::real(F(3,_,_)));
-    std::cout << "F = " << Freal(_,_) << std::endl;
-
     // Change from tau in the [-0.5, 0.5] interval to [0, 1]
     for (int k = 0; k < r; ++k) {
       if (dlr_it_actual(k) < 0) {

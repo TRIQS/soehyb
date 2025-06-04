@@ -1214,6 +1214,7 @@ nda::array<dcomplex,3> OCA_dense(
     nda::array<dcomplex,3> Sigma(r,N,N);
     nda::array<dcomplex,3> Sigma_temp(r,N,N);
 
+    auto T_temp_dense = nda::array<dcomplex,3>(r, N, N);
     // loop over hybridization lines
     for (int fb1 = 0; fb1 <= 1; fb1++) {
         for (int fb2 = 0; fb2 <= 1; fb2++) {
@@ -1228,7 +1229,6 @@ nda::array<dcomplex,3> OCA_dense(
             for (int l = 0; l < r; l++) {
                 auto Sigma_l = nda::array<dcomplex, 3>(r, N, N);
                 // initialize summand assoc'd with index l
-                auto T_temp_dense = nda::array<dcomplex,3>(r, N, N);
                 for (int lam = 0; lam < num_Fs; lam++) {
                     auto F2 = F2list(lam,_,_);
                     auto T = OCA_dense_right(
@@ -1255,7 +1255,7 @@ nda::array<dcomplex,3> OCA_dense(
                         Fbar, 
                         U);
                 } // sum over lambda
-                // if (fb1 == 0 && fb2 == 1 && l == 0) {std::cout << "T_temp_dense = " << T_temp_dense(0,_,_) << std::endl;}
+                if (fb2 == 0 && l == 0) {T_temp_dense += Sigma_l;}
 
                 // prefactor with Ks
                 if (fb2 == 1) {
@@ -1285,7 +1285,7 @@ nda::array<dcomplex,3> OCA_dense(
                 }
                 Sigma += sfM*Sigma_l;
                 // if (fb1 == 0 && fb2 == 1 && l == 0) {Sigma_temp += sfM*Sigma_l;}
-                if (fb1 == 1 && fb2 == 0) Sigma_temp += sfM*Sigma_l;
+                if (fb1 == 1 && fb2 == 1) Sigma_temp += sfM*Sigma_l;
             } // sum over l
         } // sum over fb2
     } // sum over fb1
@@ -1294,6 +1294,9 @@ nda::array<dcomplex,3> OCA_dense(
     std::cout << std::endl;
     auto Sigma_temp_eq = eval_eq(itops, Sigma_temp(_,_,_), 25);
     std::cout << "Sigma_temp dense eq = " << Sigma_temp_eq(_,0,0) << std::endl;
+
+    std::cout << std::endl;
+    std::cout << "T_temp_dense = " << T_temp_dense(_,0,0) << std::endl;
 
     return Sigma;
 }

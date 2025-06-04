@@ -83,7 +83,8 @@ array<dcomplex,3> OCA_tpz(
                                             matmul(F2list(lam,_,_), 
                                             matmul(Gt_eq(i2,_,_), F1list(kap,_,_)))))));
 
-                                        Sigma_eq(i,_,_) += -1*w*hyb2(i-i2,lam,nu)*hyb1(i1,mu,kap)*FGFGFGF; 
+                                        // Sigma_eq(i,_,_) += -1*w*hyb2(i-i2,lam,nu)*hyb1(i1,mu,kap)*FGFGFGF; 
+                                        Sigma_eq(i,_,_) += -1*w*hyb2(i-i2,nu,lam)*hyb1(i1,mu,kap)*FGFGFGF; 
                                         // ^ sign on each term is the same because cppdlr::reflect accounts for negative sign
                                     } // sum over i2
                                 } // sum over i1 
@@ -112,6 +113,7 @@ int main() {
     double eps = 1.0e-10;
     // DLR generation
     auto dlr_rf = build_dlr_rf(Lambda, eps);
+    std::cout << "dlr_rf = " << dlr_rf << std::endl;
     auto itops = imtime_ops(Lambda, dlr_rf);
     auto const & dlr_it = itops.get_itnodes();
     auto dlr_it_abs = rel2abs(dlr_it);
@@ -137,13 +139,16 @@ int main() {
     OCA_py = OCA_py - NCA_py;
 
     // compute OCA using trapezoidal rule
-    int n_quad = 10;
+    int n_quad = 40;
     std::cout << "number of trapezoidal quadrature points: " << n_quad << "\n" << std::endl;
     auto start = std::chrono::high_resolution_clock::now();
     auto OCA_tpz_result = OCA_tpz(Deltat, itops, beta, Gt_dense, Fs_dense, n_quad);
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "time elapsed to do trapezoidal quadrature: " << duration.count() << " ms\n" << std::endl;
+
+    h5::file tpz_file("/home/paco/feynman/saved_data/OCA_two_band/tpz_vs_python_tpz_result_nquad_" + std::to_string(n_quad) + ".h5", 'w');
+    h5::write(tpz_file, "OCA_tpz_result", OCA_tpz_result);
 
     // evaluate OCA_py on uniform grid
     auto OCA_py_coefs = itops.vals2coefs(OCA_py);
@@ -161,12 +166,18 @@ int main() {
     auto err_full = make_regular(nda::abs(OCA_py_eq - OCA_tpz_result));
     std::cout << "L^inf err = " << max_element(err_full) << "\n" << std::endl;
 
-    // saved values:
+    // saved values, compress = False:
     // n_quad = 5   L^inf one entry = 7.1625007534e-03  L^inf = 9.0792215542e-03  time = 1.1 s
     // n_quad = 10  L^inf one entry = 1.7756127548e-03  L^inf = 2.3487887160e-03  time = 6 s
     // n_quad = 20  L^inf one entry = 4.4293584841e-04  L^inf = 6.7301063442e-04  time = 40 s
     // n_quad = 40  L^inf one entry = 1.1067303602e-04  L^inf = 2.8723963046e-04  time = 4.5 min
     // n_quad = 80  L^inf one entry = 2.7664445025e-04  L^inf = 1.9075833911e-04  time = 35 min
+
+    // saved values, compress = True:
+    // n_quad = 5   L^inf one entry = 7.1786547158e-03  L^inf = 9.0014940430e-03
+    // n_quad = 10  L^inf one entry = 1.7917667172e-03  L^inf = 2.2710612048e-03
+    // n_quad = 20  L^inf one entry = 4.5908981079e-04  L^inf = 5.7551812305e-04
+    // n_quad = 40  L^inf one entry = 
 
     return 0;
 }

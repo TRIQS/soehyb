@@ -440,12 +440,12 @@ nda::array<dcomplex,3> evaluate_one_diagram(hyb_F &hyb_F_self,hyb_F &hyb_F_refle
         //Do special things for the vertex connecting to 0.
         if (s+1 != D(0,1)) multiplicate_onto(vertex(s+1,_,_,_),T);
         else special_summation(T, F, F_dag, Deltat,Deltat_reflect, n, r, N, backward);
-        if (s == 1 && fb(1) == 0 && (num0_old == 0 || num0_old == 2)) {
-            T = itops.convolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T),TIME_ORDERED);
+        if (s == 1 && fb(1) == 1 && (num0_old == 0 || num0_old == 2)) {
+            T_temp = itops.convolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T),TIME_ORDERED);
             multiplicate_onto(vertex(s+1,_,_,_),T);
         }
     }
-    // if (fb(1) == 0 && (num0_old == 0 || num0_old == 2)) std::cout << "T_temp = " << T_temp(_,1,1) << std::endl;
+    if (fb(1) == 1 && (num0_old == 0 || num0_old == 2)) std::cout << "T_temp = " << T_temp(_,0,0) << std::endl;
     return make_regular(T*constant);
 }
 
