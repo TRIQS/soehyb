@@ -6,6 +6,7 @@
 #include <h5/h5.hpp>
 #include <cppdlr/cppdlr.hpp>
 #include <chrono>
+#include <iomanip>
 
 using namespace nda;
 using namespace cppdlr;
