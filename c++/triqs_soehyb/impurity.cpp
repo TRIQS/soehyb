@@ -86,9 +86,9 @@ void fastdiagram::hyb_decomposition(bool poledlrflag,double eps){
         auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)
         
         nda::vector<double> dlr_rf_reflect = -dlr_rf;
-	nda::array<dcomplex,3> Deltadlr_reflect = Deltadlr*1.0;
+	    nda::array<dcomplex,3> Deltadlr_reflect = Deltadlr*1.0;
 
-	for (int i = 0; i < Deltadlr.shape(0); ++i){
+	    for (int i = 0; i < Deltadlr.shape(0); ++i){
             Deltadlr_reflect(i,_,_) = transpose(Deltadlr(i,_,_));
         }
 	

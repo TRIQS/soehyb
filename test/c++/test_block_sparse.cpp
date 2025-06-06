@@ -2,6 +2,7 @@
 #include <cppdlr/dlr_kernels.hpp>
 #include <h5/complex.hpp>
 #include <h5/object.hpp>
+#include <ios>
 #include <limits>
 #include <nda/algorithms.hpp>
 #include <nda/declarations.hpp>
@@ -403,6 +404,7 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     auto itops = imtime_ops(Lambda, dlr_rf);
     auto const & dlr_it = itops.get_itnodes();
     auto dlr_it_abs = cppdlr::rel2abs(dlr_it);
+    std::cout << std::setprecision(10) << std::scientific << "cpp dlr_it_abs = " << dlr_it_abs << std::endl;
     int r = itops.rank();
 
     // hybridization parameters
@@ -501,7 +503,8 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
         << std::setprecision(10) << "Gt_dense computed my way = " << Gt_dense_2(4,range(4,10),range(4,10)) << "\n" <<  std::endl;
 
     // get G0 from hdf5 file
-    h5::file Gtfile("/home/paco/feynman/ppsc-soe/benchmarks/twoband/saved/G0_iaa_beta=1.0.h5", 'r');
+    std::string Lambda_str = (Lambda == 10.0) ? "10.0" : "100.0";
+    h5::file Gtfile("/home/paco/feynman/ppsc-soe/benchmarks/twoband/saved/G0_iaa_beta=1.0_Lambda=" + Lambda_str + ".h5", 'r');
     h5::group Gtgroup(Gtfile);
     auto Gt_dense = nda::zeros<dcomplex>(r,16,16);
     h5::read(Gtgroup, "G0_iaa", Gt_dense);
@@ -529,11 +532,14 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     std::cout << "NCA dense = " << NCA_dense_result(5,range(0,4),range(0,4)) << std::endl;
 
     // auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
-    auto OCA_dense_result = OCA_dense(Deltat_dense, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
+    // auto OCA_dense_result = OCA_dense(Deltat_dense, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
+    std::cout << "=========== no perm run ==============" << std::endl;
     auto OCA_dense_result_no_perm = OCA_dense(Deltat_dense, itops, beta, Gt_dense_no_perm, Fs_dense_no_perm, F_dags_dense_no_perm);
-    std::cout << "OCA dense = " << OCA_dense_result(_,0,0) << std::endl;
+
+    std::cout << "======= end no perm run ==============" << std::endl;
+    // std::cout << "OCA dense = " << OCA_dense_result(6,_,_) << std::endl;
     std::cout << std::endl;
-    std::cout << "OCA dense no perm = " << OCA_dense_result_no_perm(_,0,0) << std::endl;
+    std::cout << "OCA dense no perm = " << OCA_dense_result_no_perm(6,_,_) << std::endl;
     std::cout << std::endl;
     std::cout << "Deltat no perm diff = " << nda::max_element(nda::abs(Deltat - Deltat_dense)) << std::endl;
 
@@ -544,7 +550,7 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     auto OCA_tpz_result = OCA_tpz(Deltat_dense, itops, beta, Gt_dense, Fs_dense, n_quad);
     auto OCA_tpz_result_no_perm = OCA_tpz(Deltat_dense, itops, beta, Gt_dense_no_perm, Fs_dense_no_perm, n_quad);
 
-    auto OCA_dense_result_coeffs = itops.vals2coefs(OCA_dense_result);
+    /*auto OCA_dense_result_coeffs = itops.vals2coefs(OCA_dense_result);
     auto it_eq = cppdlr::eqptsrel(n_quad+1);
     auto OCA_dense_result_eq = nda::array<dcomplex,3>(n_quad+1, 16, 16);
     for (int i = 0; i <= n_quad; i++) {
@@ -555,7 +561,45 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     auto OCA_dense_result_eq_no_perm = nda::array<dcomplex,3>(n_quad+1, 16, 16);
     for (int i = 0; i <= n_quad; i++) {
         OCA_dense_result_eq_no_perm(i,_,_) = itops.coefs2eval(OCA_dense_result_coeffs_no_perm, it_eq(i));
-    }
+    }*/
+
+    auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)     
+    nda::vector<double> dlr_rf_reflect = -dlr_rf;
+    nda::array<dcomplex,3> Deltadlr_reflect = Deltadlr*1.0;
+    for (int i = 0; i < Deltadlr.shape(0); ++i) Deltadlr_reflect(i,_,_) = transpose(Deltadlr(i,_,_));
+    auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf,eps); //decomposition of Delta(t) using DLR coefficient
+    auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf_reflect,eps); // decomposition of Delta(-t) using DLR coefficient
+    int dim = Deltat.shape(1);
+    hyb_F Delta_F(16, r, dim);
+    hyb_F Delta_F_reflect(16, r, dim);
+    Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, Fs_dense, F_dags_dense); // Compression of Delta(t) and F, F_dag matrices
+    Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf_reflect, dlr_it, F_dags_dense, Fs_dense);
+    auto fb = nda::vector<int>(2); fb(1) = 0;
+
+    // this is both hybridization are forward
+    auto OCA_forward_forward = nda::make_regular(-Sigma_OCA_calc(Delta_F,   Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense,  false));
+
+    //this is result of Delta(t-t1) forward, which is the sum of Delta(t2,t0) being forward and backward
+    auto OCA_forward  = Sigma_OCA_calc(Delta_F,Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense, true);
+    // another way to calculate the same thing
+    nda::array<int,2> D2{{0,2},{1,3}};
+    auto OCA_forward2 = Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense,  fb, true);
+
+    //Get Delta(t-t1) forward Delta(t2,t0) backward result via subtraction:
+    auto OCA_forward_backward = nda::make_regular(-OCA_forward - OCA_forward_forward); /// !!!
+
+    // Get Delta(t-t1) backward Delta(t2,t0) forward
+    auto fb2 = nda::vector<int>(2); fb2(1) = 1;
+    auto OCA_backward_forward = nda::make_regular(-Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense,  fb2, false));
+
+    //Get Delta(t-t1) backward Delta(t2,t0) backward, from subtraction
+    auto OCA_backward = Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense,  fb2, true);
+    auto OCA_backward_backward = nda::make_regular(-OCA_backward - OCA_backward_forward); /// !!!
+
+    // auto OCA_combin = nda::make_regular(OCA_forward_forward + OCA_forward_backward + OCA_backward_forward + OCA_backward_backward); 
+    auto OCA_combin = nda::make_regular(OCA_forward - OCA_backward); 
+    std::cout << "OCA combining Zhen's combos = " << OCA_combin(_,0,0) << std::endl;
+    std::cout << std::endl;
 
     /*
     std::cout << std::endl;
@@ -564,99 +608,23 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     std::cout << "OCA tpz result = " << OCA_tpz_result(_,0,0) << std::endl;
     */
 
-    h5::file h("/home/paco/feynman/saved_data/OCA_two_band/beta_1_eps_1e-10_Lambda_10.h5", 'a');
+    h5::file h("/home/paco/feynman/saved_data/OCA_two_band/beta_1_eps_1e-10_Lambda_" + std::to_string(int (Lambda)) + ".h5", 'a');
     h5::write(h, "NCA_result", NCA_result);
     h5::write(h, "NCA_dense_result", NCA_dense_result);
     h5::write(h, "NCA_dense_result_no_perm", NCA_dense_result_no_perm);
-
-    h5::array_interface::array_view OCA_dense_result_view(
-        h5::hdf5_type<dcomplex>(), 
-        OCA_dense_result.data(), 
-        3, 
-        true);
-    OCA_dense_result_view.slab.count[0] = r;
-    OCA_dense_result_view.slab.count[1] = 16;
-    OCA_dense_result_view.slab.count[2] = 16;
-    OCA_dense_result_view.parent_shape[0] = r;
-    OCA_dense_result_view.parent_shape[1] = 16;
-    OCA_dense_result_view.parent_shape[2] = 16;
-    h5::array_interface::write(h, "dense", OCA_dense_result_view, false);
+    // h5::write(h, "dense", OCA_dense_result);
     h5::write(h, "dense_no_perm", OCA_dense_result_no_perm);
-
-    h5::array_interface::array_view OCA_dense_result_eq_view(
-        h5::hdf5_type<dcomplex>(), 
-        OCA_dense_result_eq.data(), 
-        3, 
-        true);
-    OCA_dense_result_eq_view.slab.count[0] = n_quad + 1;
-    OCA_dense_result_eq_view.slab.count[1] = 16;
-    OCA_dense_result_eq_view.slab.count[2] = 16;
-    OCA_dense_result_eq_view.parent_shape[0] = n_quad + 1;
-    OCA_dense_result_eq_view.parent_shape[1] = 16;
-    OCA_dense_result_eq_view.parent_shape[2] = 16;
-    h5::array_interface::write(h, "dense_nquad_" + std::to_string(n_quad), OCA_dense_result_eq_view, false);
-    h5::write(h, "dense_no_perm_nquad_" + std::to_string(n_quad), OCA_dense_result_eq_no_perm);
-
-    h5::array_interface::array_view OCA_tpz_result_view(
-        h5::hdf5_type<dcomplex>(), 
-        OCA_tpz_result.data(), 
-        3, 
-        true);
-    OCA_tpz_result_view.slab.count[0] = n_quad + 1;
-    OCA_tpz_result_view.slab.count[1] = 16;
-    OCA_tpz_result_view.slab.count[2] = 16;
-    OCA_tpz_result_view.parent_shape[0] = n_quad + 1;
-    OCA_tpz_result_view.parent_shape[1] = 16;
-    OCA_tpz_result_view.parent_shape[2] = 16;
-    h5::array_interface::write(h, "tpz_nquad_" + std::to_string(n_quad), OCA_tpz_result_view, false);
-
-    h5::array_interface::array_view dlr_it_abs_view(
-        h5::hdf5_type<double>(), 
-        dlr_it_abs.data(), 
-        1, 
-        false);
-    dlr_it_abs_view.slab.count[0] = 15;
-    dlr_it_abs_view.parent_shape[0] = 15;
-    h5::array_interface::write(h, "dlr_it_abs", dlr_it_abs_view, false);
-
-    h5::array_interface::array_view Deltat_view(
-        h5::hdf5_type<dcomplex>(), 
-        Deltat.data(), 
-        3, 
-        true);
-    Deltat_view.slab.count[0] = r;
-    Deltat_view.slab.count[1] = 4;
-    Deltat_view.slab.count[2] = 4;
-    Deltat_view.parent_shape[0] = r;
-    Deltat_view.parent_shape[1] = 4;
-    Deltat_view.parent_shape[2] = 4;
-    h5::array_interface::write(h, "Deltat", Deltat_view, false);
-
-    h5::array_interface::array_view Deltat_refl_view(
-        h5::hdf5_type<dcomplex>(), 
-        Deltat_refl.data(), 
-        3, 
-        true);
-    Deltat_refl_view.slab.count[0] = r;
-    Deltat_refl_view.slab.count[1] = 4;
-    Deltat_refl_view.slab.count[2] = 4;
-    Deltat_refl_view.parent_shape[0] = r;
-    Deltat_refl_view.parent_shape[1] = 4;
-    Deltat_refl_view.parent_shape[2] = 4;
-    h5::array_interface::write(h, "Deltat_refl", Deltat_refl_view, false);
-
-    h5::array_interface::array_view Gt_dense_view(
-        h5::hdf5_type<dcomplex>(), 
-        Gt_dense.data(), 
-        3, 
-        true);
-    Gt_dense_view.slab.count[0] = r;
-    Gt_dense_view.slab.count[1] = 16;
-    Gt_dense_view.slab.count[2] = 16;
-    Gt_dense_view.parent_shape[0] = r;
-    Gt_dense_view.parent_shape[1] = 16;
-    Gt_dense_view.parent_shape[2] = 16;
-    h5::array_interface::write(h, "Gt_dense", Gt_dense_view, false);
+    // h5::write(h, "dense_nquad_" + std::to_string(n_quad), OCA_dense_result_eq);
+    // h5::write(h, "dense_no_perm_nquad_" + std::to_string(n_quad), OCA_dense_result_eq_no_perm);
+    h5::write(h, "tpz_nquad_" + std::to_string(n_quad), OCA_tpz_result);
+    h5::write(h, "dlr_it_abs", dlr_it_abs);
+    h5::write(h, "Deltat", Deltat);
+    h5::write(h, "Deltat_refl", Deltat_refl);
+    h5::write(h, "Gt_dense", Gt_dense);
+    h5::write(h, "OCA_forward_forward_Zhen", OCA_forward_forward);
+    h5::write(h, "OCA_forward_backward_Zhen", OCA_forward_backward);
+    h5::write(h, "OCA_backward_forward_Zhen", OCA_backward_forward);
+    h5::write(h, "OCA_backward_backward_Zhen", OCA_backward_backward);
 }
 
 TEST(BlockSparseOCATest, two_band_semicircle_bath) {

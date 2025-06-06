@@ -52,8 +52,11 @@ array<dcomplex,3> OCA_tpz(
 
     double dt = beta/n_quad;
 
-    for (int fb1 = 0; fb1 <= 1; fb1++) {
-        for (int fb2 = 0; fb2 <= 1; fb2++) {
+    std::cout << "WARNING!!!! ONLY ONE FOR/BACK COMBINATION ON\n" << std::endl;
+    // for (int fb1 = 0; fb1 <= 1; fb1++) {
+        // for (int fb2 = 0; fb2 <= 1; fb2++) {
+    for (int fb1 = 1; fb1 < 2; fb1++) {
+        for (int fb2 = 1; fb2 < 2; fb2++) {
             // fb = 1 for forward line, else = 0
             // fb1 corresponds with line from 0 to tau_2
             auto const &F1list = (fb1==1) ? Fs(_,_,_) : F_dags(_,_,_);
@@ -109,7 +112,7 @@ int main() {
 
     // DLR parameters
     double beta = 1.0;
-    double Lambda = 10*beta;
+    double Lambda = 100*beta;
     double eps = 1.0e-10;
     // DLR generation
     auto dlr_rf = build_dlr_rf(Lambda, eps);
@@ -147,7 +150,7 @@ int main() {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "time elapsed to do trapezoidal quadrature: " << duration.count() << " ms\n" << std::endl;
 
-    h5::file tpz_file("/home/paco/feynman/saved_data/OCA_two_band/tpz_vs_python_tpz_result_nquad_" + std::to_string(n_quad) + ".h5", 'w');
+    h5::file tpz_file("/home/paco/feynman/saved_data/OCA_two_band/tpz_vs_python_tpz_result_nquad_" + std::to_string(n_quad) + "_ff.h5", 'w');
     h5::write(tpz_file, "OCA_tpz_result", OCA_tpz_result);
 
     // evaluate OCA_py on uniform grid
@@ -177,7 +180,8 @@ int main() {
     // n_quad = 5   L^inf one entry = 7.1786547158e-03  L^inf = 9.0014940430e-03
     // n_quad = 10  L^inf one entry = 1.7917667172e-03  L^inf = 2.2710612048e-03
     // n_quad = 20  L^inf one entry = 4.5908981079e-04  L^inf = 5.7551812305e-04
-    // n_quad = 40  L^inf one entry = 
+    // n_quad = 40  L^inf one entry = 1.2682699840e-04  L^inf = 1.5245092006e-04
+    // n_quad = 80  L^inf one entry = 7.8050566395e-05  L^inf = 9.1607140270e-05
 
     return 0;
 }
