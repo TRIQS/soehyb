@@ -1,6 +1,5 @@
 #include "strong_cpl.hpp"
 #include <cppdlr/dlr_kernels.hpp>
-#include <nda/basic_functions.hpp>
 #include <nda/blas/tools.hpp>
 #include <nda/declarations.hpp>
 #include <nda/linalg/matmul.hpp>
@@ -398,13 +397,11 @@ nda::array<dcomplex,3> evaluate_one_diagram(hyb_F &hyb_F_self,hyb_F &hyb_F_refle
 
     
     //obtain R2, ... , Rm, store as R[1],...,R[m-1]
-    int num0_old = num0;
        
     for (int v = 1;v<m;++v){
         R[v] = num0 % P;
         num0 = int(num0/P);
     }
-    if ((num0_old == 0 || num0_old == 2) && fb(1) == 0) {std::cout << "R = " << R << ", fb = " << fb(1) << std::endl;}
 
     //Phase 1: construct line object L and point object P;
     /* Construct line objects, i.e. functions of (t_s-t_{s-1}) for s =1 , ..., 2m-1
@@ -431,7 +428,6 @@ nda::array<dcomplex,3> evaluate_one_diagram(hyb_F &hyb_F_self,hyb_F &hyb_F_refle
     // first, calculate P(t1)*G(t1)
     for (int k = 0;k<r;++k) T(k,_,_) = matmul(vertex(1,k,_,_),Gt(k,_,_));
 
-    auto T_temp = nda::make_regular(0*T);
     //integrate out indices t1, ..., t(2m-2). In each for loop, first convolution, then multiplication.
     for (int s=1;s<=2*m-2;++s){
         // integrate ts out by convolution:  integral L_s(t(s+1)-ts) D(ts) dts
@@ -440,10 +436,6 @@ nda::array<dcomplex,3> evaluate_one_diagram(hyb_F &hyb_F_self,hyb_F &hyb_F_refle
         //Do special things for the vertex connecting to 0.
         if (s+1 != D(0,1)) multiplicate_onto(vertex(s+1,_,_,_),T);
         else special_summation(T, F, F_dag, Deltat,Deltat_reflect, n, r, N, backward);
-        if (s == 1 && fb(1) == 1 && (num0_old == 0 || num0_old == 2)) {
-            T_temp = itops.convolve(beta, Fermion,itops.vals2coefs(line(s,_,_,_)),itops.vals2coefs(T),TIME_ORDERED);
-            multiplicate_onto(vertex(s+1,_,_,_),T);
-        }
     }
     return make_regular(T*constant);
 }

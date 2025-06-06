@@ -404,7 +404,6 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     auto itops = imtime_ops(Lambda, dlr_rf);
     auto const & dlr_it = itops.get_itnodes();
     auto dlr_it_abs = cppdlr::rel2abs(dlr_it);
-    std::cout << std::setprecision(10) << std::scientific << "cpp dlr_it_abs = " << dlr_it_abs << std::endl;
     int r = itops.rank();
 
     // hybridization parameters
@@ -458,9 +457,12 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     auto Gt = nonint_gf_BDOF(H_blocks, H_block_inds, beta, dlr_it_abs);
     auto H_dense = nda::zeros<dcomplex>(16,16);
     h5::read(hgroup, "H_mat_dense", H_dense); // Hamiltonian in dense storage
-    // auto Fs_dense = nda::zeros<dcomplex>(4,16,16);
-    // h5::read(hgroup, "c_dense", Fs_dense);
-    // h5::read(hgroup, "c_dense_no_perm", Fs_dense);
+    auto Fs_dense = nda::zeros<dcomplex>(4,16,16);
+    h5::read(hgroup, "c_dense", Fs_dense);
+    auto F_dags_dense = nda::zeros<dcomplex>(4,16,16);
+    for (int i = 0; i < 4; i++) {
+        F_dags_dense(i,_,_) = nda::transpose(nda::conj(Fs_dense(i,_,_)));
+    }
 
     std::vector<nda::array<dcomplex,2>> dummy(num_blocks);
     std::vector<std::vector<nda::array<dcomplex,2>>> F_blocks(4, dummy);
@@ -479,17 +481,7 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
         nda::vector<int> Fdag_block_indices = cre_conn(i,_);
         Fdags.emplace_back(BlockOp(Fdag_block_indices, Fdag_blocks[i]));
     }
-
-    std::cout << "dlr nodes = " << dlr_it_abs << std::endl;
-    std::cout << "num dlr nodes = " << dlr_it_abs.shape() << std::endl;
     auto NCA_result = NCA_bs(Deltat, Deltat_refl, Gt, Fs); 
-    
-    std::cout 
-        << "NCA = " 
-        << NCA_result.get_block(0)(5,_,_) 
-        << std::endl;
-    
-    std::cout << std::endl;
 
     /*
     auto OCA_result = OCA_bs(Deltat, itops, beta, Gt, Fs);
@@ -505,123 +497,44 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     h5::group Gtgroup(Gtfile);
     auto Gt_dense = nda::zeros<dcomplex>(r,16,16);
     h5::read(Gtgroup, "G0_iaa", Gt_dense);
-    // 30 May 2025 read F from twoband.py
-    auto Fs_dense = nda::zeros<dcomplex>(4,16,16);
-    h5::read(Gtgroup, "F", Fs_dense);
-    auto F_dags_dense = nda::zeros<dcomplex>(4,16,16);
-    h5::read(Gtgroup, "F_dag", F_dags_dense);
-    auto Deltat_dense = nda::zeros<dcomplex>(r,4,4);
-    h5::read(Gtgroup, "delta_iaa", Deltat_dense);
+
+    // load G0, F, F_dag from twoband.py
     auto Gt_dense_no_perm = nda::zeros<dcomplex>(r,16,16);
     h5::read(Gtgroup, "G0_iaa_no_perm", Gt_dense_no_perm);
     auto Fs_dense_no_perm = nda::zeros<dcomplex>(4,16,16);
     h5::read(Gtgroup, "F_no_perm", Fs_dense_no_perm);
     auto F_dags_dense_no_perm = nda::zeros<dcomplex>(4,16,16);
     h5::read(Gtgroup, "F_dag_no_perm", F_dags_dense_no_perm);
-    auto dlr_rf_py = nda::make_regular(0 * dlr_rf);
-    h5::read(Gtgroup, "dlr_rf", dlr_rf_py);
-    std::cout << "dlr_rf_py = " << dlr_rf_py << "\n" << std::endl;
-    std::cout << "dlr_rf = " << dlr_rf << "\n" << std::endl;
 
-    // auto NCA_dense_result = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
-    auto NCA_dense_result = NCA_dense(Deltat_dense, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
-    std::cout << "NCA dense = " << NCA_dense_result(5,range(0,4),range(0,4)) << std::endl;
+    // load results from twoband.py
+    auto NCA_py = nda::zeros<dcomplex>(r,16,16);
+    h5::read(Gtgroup, "NCA", NCA_py);
+    auto OCA_py = nda::zeros<dcomplex>(r,16,16);
+    h5::read(Gtgroup, "OCA", OCA_py);
 
-    // auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
-    // auto OCA_dense_result = OCA_dense(Deltat_dense, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
-    std::cout << "=========== no perm run ==============" << std::endl;
-    auto OCA_dense_result_no_perm = OCA_dense(Deltat_dense, itops, beta, Gt_dense_no_perm, Fs_dense_no_perm, F_dags_dense_no_perm);
+    auto NCA_dense_result_no_perm = NCA_dense(Deltat, Deltat_refl, Gt_dense_no_perm, Fs_dense_no_perm, F_dags_dense_no_perm);
+    auto OCA_dense_result_no_perm = OCA_dense(Deltat, itops, beta, Gt_dense_no_perm, Fs_dense_no_perm, F_dags_dense_no_perm);
 
-    std::cout << "======= end no perm run ==============" << std::endl;
-    // std::cout << "OCA dense = " << OCA_dense_result(6,_,_) << std::endl;
-    std::cout << std::endl;
-    std::cout << "OCA dense no perm = " << OCA_dense_result_no_perm(6,_,_) << std::endl;
-    std::cout << std::endl;
-    std::cout << "Deltat no perm diff = " << nda::max_element(nda::abs(Deltat - Deltat_dense)) << std::endl;
+    ASSERT_LE(nda::max_element(nda::abs(NCA_dense_result_no_perm - NCA_py)), 1e-10);
+    ASSERT_LE(nda::max_element(nda::abs(OCA_dense_result_no_perm - OCA_py + NCA_py)), 1e-10);
 
-    auto NCA_dense_result_no_perm = NCA_dense(Deltat_dense, Deltat_refl, Gt_dense_no_perm, Fs_dense_no_perm, F_dags_dense_no_perm);
+    auto NCA_dense_result = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
+    auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
 
-    int n_quad = 5;
-    // auto OCA_tpz_result = OCA_tpz(Deltat, itops, beta, Gt_dense, Fs_dense, n_quad);
-    auto OCA_tpz_result = OCA_tpz(Deltat_dense, itops, beta, Gt_dense, Fs_dense, n_quad);
-    auto OCA_tpz_result_no_perm = OCA_tpz(Deltat_dense, itops, beta, Gt_dense_no_perm, Fs_dense_no_perm, n_quad);
-
-    /*auto OCA_dense_result_coeffs = itops.vals2coefs(OCA_dense_result);
-    auto it_eq = cppdlr::eqptsrel(n_quad+1);
-    auto OCA_dense_result_eq = nda::array<dcomplex,3>(n_quad+1, 16, 16);
-    for (int i = 0; i <= n_quad; i++) {
-        OCA_dense_result_eq(i,_,_) = itops.coefs2eval(OCA_dense_result_coeffs, it_eq(i));
+    nda::array<int,1> fock_state_order{1, 2, 4, 8, 3, 5, 6, 9, 10, 12, 0, 7, 11, 13, 14, 15};
+    auto NCA_py_perm = nda::zeros<dcomplex>(r,16,16);
+    auto OCA_py_perm = nda::zeros<dcomplex>(r,16,16);
+    for (int t = 0; t < r; t++) {
+        for (int i = 0; i < 16; i++) {
+            for (int j = 0; j < 16; j++) {
+                NCA_py_perm(t,i,j) = NCA_py(t,fock_state_order(i),fock_state_order(j));
+                OCA_py_perm(t,i,j) = OCA_py(t,fock_state_order(i),fock_state_order(j));
+            }
+        }
     }
 
-    auto OCA_dense_result_coeffs_no_perm = itops.vals2coefs(OCA_dense_result_no_perm);
-    auto OCA_dense_result_eq_no_perm = nda::array<dcomplex,3>(n_quad+1, 16, 16);
-    for (int i = 0; i <= n_quad; i++) {
-        OCA_dense_result_eq_no_perm(i,_,_) = itops.coefs2eval(OCA_dense_result_coeffs_no_perm, it_eq(i));
-    }*/
-
-    // Zhen's code
-    auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)     
-    nda::vector<double> dlr_rf_reflect = -dlr_rf;
-    nda::array<dcomplex,3> Deltadlr_reflect = Deltadlr*1.0;
-    for (int i = 0; i < Deltadlr.shape(0); ++i) Deltadlr_reflect(i,_,_) = transpose(Deltadlr(i,_,_));
-    auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf,eps); //decomposition of Delta(t) using DLR coefficient
-    auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf_reflect,eps); // decomposition of Delta(-t) using DLR coefficient
-    int dim = Deltat.shape(1);
-    hyb_F Delta_F(16, r, dim);
-    hyb_F Delta_F_reflect(16, r, dim);
-    Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, Fs_dense_no_perm, F_dags_dense_no_perm); // Compression of Delta(t) and F, F_dag matrices
-    Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf_reflect, dlr_it, F_dags_dense_no_perm, Fs_dense_no_perm);
-    auto fb = nda::vector<int>(2); fb(1) = 0;
-
-    // this is both hybridization are forward
-    auto OCA_forward_forward = nda::make_regular(-Sigma_OCA_calc(Delta_F,   Deltat,  Deltat_refl, Gt_dense_no_perm, itops, beta,  Fs_dense_no_perm,  F_dags_dense_no_perm,  false));
-
-    //this is result of Delta(t-t1) forward, which is the sum of Delta(t2,t0) being forward and backward
-    auto OCA_forward  = Sigma_OCA_calc(Delta_F,Deltat,  Deltat_refl, Gt_dense_no_perm, itops, beta,  Fs_dense_no_perm,  F_dags_dense_no_perm, true);
-    // another way to calculate the same thing
-    nda::array<int,2> D2{{0,2},{1,3}};
-    auto OCA_forward2 = Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense_no_perm, itops, beta,  Fs_dense_no_perm,  F_dags_dense_no_perm,  fb, true);
-
-    //Get Delta(t-t1) forward Delta(t2,t0) backward result via subtraction:
-    auto OCA_forward_backward = nda::make_regular(-OCA_forward - OCA_forward_forward); /// !!!
-
-    // Get Delta(t-t1) backward Delta(t2,t0) forward
-    auto fb2 = nda::vector<int>(2); fb2(1) = 1;
-    auto OCA_backward_forward = nda::make_regular(-Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense_no_perm, itops, beta,  Fs_dense_no_perm,  F_dags_dense_no_perm,  fb2, false));
-
-    //Get Delta(t-t1) backward Delta(t2,t0) backward, from subtraction
-    auto OCA_backward = Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense_no_perm, itops, beta,  Fs_dense_no_perm,  F_dags_dense_no_perm,  fb2, true);
-    auto OCA_backward_backward = nda::make_regular(-OCA_backward - OCA_backward_forward); /// !!!
-
-    // auto OCA_combin = nda::make_regular(OCA_forward_forward + OCA_forward_backward + OCA_backward_forward + OCA_backward_backward); 
-    auto OCA_combin = nda::make_regular(OCA_forward - OCA_backward); 
-    std::cout << "OCA combining Zhen's combos = " << OCA_combin(_,0,0) << std::endl;
-    std::cout << std::endl;
-
-    /*
-    std::cout << std::endl;
-    std::cout << "OCA dense on eq grid = " << OCA_dense_result_eq(_,0,0) << std::endl;
-    std::cout << std::endl;
-    std::cout << "OCA tpz result = " << OCA_tpz_result(_,0,0) << std::endl;
-    */
-
-    h5::file h("/home/paco/feynman/saved_data/OCA_two_band/beta_1_eps_1e-10_Lambda_" + std::to_string(int (Lambda)) + ".h5", 'a');
-    h5::write(h, "NCA_result", NCA_result);
-    h5::write(h, "NCA_dense_result", NCA_dense_result);
-    h5::write(h, "NCA_dense_result_no_perm", NCA_dense_result_no_perm);
-    // h5::write(h, "dense", OCA_dense_result);
-    h5::write(h, "dense_no_perm", OCA_dense_result_no_perm);
-    // h5::write(h, "dense_nquad_" + std::to_string(n_quad), OCA_dense_result_eq);
-    // h5::write(h, "dense_no_perm_nquad_" + std::to_string(n_quad), OCA_dense_result_eq_no_perm);
-    h5::write(h, "tpz_nquad_" + std::to_string(n_quad), OCA_tpz_result);
-    h5::write(h, "dlr_it_abs", dlr_it_abs);
-    h5::write(h, "Deltat", Deltat);
-    h5::write(h, "Deltat_refl", Deltat_refl);
-    h5::write(h, "Gt_dense", Gt_dense);
-    h5::write(h, "OCA_forward_forward_Zhen", OCA_forward_forward);
-    h5::write(h, "OCA_forward_backward_Zhen", OCA_forward_backward);
-    h5::write(h, "OCA_backward_forward_Zhen", OCA_backward_forward);
-    h5::write(h, "OCA_backward_backward_Zhen", OCA_backward_backward);
+    ASSERT_LE(nda::max_element(nda::abs(NCA_dense_result - NCA_py_perm)), 1e-10);
+    ASSERT_LE(nda::max_element(nda::abs(OCA_dense_result - OCA_py_perm + NCA_py_perm)), 1e-10);
 }
 
 TEST(BlockSparseOCATest, two_band_semicircle_bath) {
