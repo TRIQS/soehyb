@@ -445,7 +445,6 @@ nda::array<dcomplex,3> evaluate_one_diagram(hyb_F &hyb_F_self,hyb_F &hyb_F_refle
             multiplicate_onto(vertex(s+1,_,_,_),T);
         }
     }
-    if (fb(1) == 1 && (num0_old == 0 || num0_old == 2)) std::cout << "T_temp = " << T_temp(_,0,0) << std::endl;
     return make_regular(T*constant);
 }
 

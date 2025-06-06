@@ -397,7 +397,7 @@ TEST(BlockSparseMisc, compute_nonint_gf) {
 TEST(BlockSparseOCATest, two_band_discrete_bath) {
     // DLR parameters
     double beta = 1.0;
-    double Lambda = 10*beta;
+    double Lambda = 1000*beta;
     double eps = 1.0e-10;
     // DLR generation
     auto dlr_rf = build_dlr_rf(Lambda, eps);
@@ -499,11 +499,8 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
 
     auto Gt_dense_2 = Hmat_to_Gtmat(H_dense, beta, dlr_it_abs);
 
-    std::cout << std::fixed 
-        << std::setprecision(10) << "Gt_dense computed my way = " << Gt_dense_2(4,range(4,10),range(4,10)) << "\n" <<  std::endl;
-
     // get G0 from hdf5 file
-    std::string Lambda_str = (Lambda == 10.0) ? "10.0" : "100.0";
+    std::string Lambda_str = (Lambda == 10.0) ? "10.0" : (Lambda == 100.0) ? "100.0" : "1000.0";
     h5::file Gtfile("/home/paco/feynman/ppsc-soe/benchmarks/twoband/saved/G0_iaa_beta=1.0_Lambda=" + Lambda_str + ".h5", 'r');
     h5::group Gtgroup(Gtfile);
     auto Gt_dense = nda::zeros<dcomplex>(r,16,16);
@@ -517,7 +514,6 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     h5::read(Gtgroup, "delta_iaa", Deltat_dense);
     auto Gt_dense_no_perm = nda::zeros<dcomplex>(r,16,16);
     h5::read(Gtgroup, "G0_iaa_no_perm", Gt_dense_no_perm);
-    // 30 May 2025 read F from twoband.py
     auto Fs_dense_no_perm = nda::zeros<dcomplex>(4,16,16);
     h5::read(Gtgroup, "F_no_perm", Fs_dense_no_perm);
     auto F_dags_dense_no_perm = nda::zeros<dcomplex>(4,16,16);
@@ -563,6 +559,7 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
         OCA_dense_result_eq_no_perm(i,_,_) = itops.coefs2eval(OCA_dense_result_coeffs_no_perm, it_eq(i));
     }*/
 
+    // Zhen's code
     auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)     
     nda::vector<double> dlr_rf_reflect = -dlr_rf;
     nda::array<dcomplex,3> Deltadlr_reflect = Deltadlr*1.0;
@@ -572,28 +569,28 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     int dim = Deltat.shape(1);
     hyb_F Delta_F(16, r, dim);
     hyb_F Delta_F_reflect(16, r, dim);
-    Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, Fs_dense, F_dags_dense); // Compression of Delta(t) and F, F_dag matrices
-    Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf_reflect, dlr_it, F_dags_dense, Fs_dense);
+    Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, Fs_dense_no_perm, F_dags_dense_no_perm); // Compression of Delta(t) and F, F_dag matrices
+    Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf_reflect, dlr_it, F_dags_dense_no_perm, Fs_dense_no_perm);
     auto fb = nda::vector<int>(2); fb(1) = 0;
 
     // this is both hybridization are forward
-    auto OCA_forward_forward = nda::make_regular(-Sigma_OCA_calc(Delta_F,   Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense,  false));
+    auto OCA_forward_forward = nda::make_regular(-Sigma_OCA_calc(Delta_F,   Deltat,  Deltat_refl, Gt_dense_no_perm, itops, beta,  Fs_dense_no_perm,  F_dags_dense_no_perm,  false));
 
     //this is result of Delta(t-t1) forward, which is the sum of Delta(t2,t0) being forward and backward
-    auto OCA_forward  = Sigma_OCA_calc(Delta_F,Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense, true);
+    auto OCA_forward  = Sigma_OCA_calc(Delta_F,Deltat,  Deltat_refl, Gt_dense_no_perm, itops, beta,  Fs_dense_no_perm,  F_dags_dense_no_perm, true);
     // another way to calculate the same thing
     nda::array<int,2> D2{{0,2},{1,3}};
-    auto OCA_forward2 = Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense,  fb, true);
+    auto OCA_forward2 = Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense_no_perm, itops, beta,  Fs_dense_no_perm,  F_dags_dense_no_perm,  fb, true);
 
     //Get Delta(t-t1) forward Delta(t2,t0) backward result via subtraction:
     auto OCA_forward_backward = nda::make_regular(-OCA_forward - OCA_forward_forward); /// !!!
 
     // Get Delta(t-t1) backward Delta(t2,t0) forward
     auto fb2 = nda::vector<int>(2); fb2(1) = 1;
-    auto OCA_backward_forward = nda::make_regular(-Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense,  fb2, false));
+    auto OCA_backward_forward = nda::make_regular(-Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense_no_perm, itops, beta,  Fs_dense_no_perm,  F_dags_dense_no_perm,  fb2, false));
 
     //Get Delta(t-t1) backward Delta(t2,t0) backward, from subtraction
-    auto OCA_backward = Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense,  fb2, true);
+    auto OCA_backward = Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense_no_perm, itops, beta,  Fs_dense_no_perm,  F_dags_dense_no_perm,  fb2, true);
     auto OCA_backward_backward = nda::make_regular(-OCA_backward - OCA_backward_forward); /// !!!
 
     // auto OCA_combin = nda::make_regular(OCA_forward_forward + OCA_forward_backward + OCA_backward_forward + OCA_backward_backward); 

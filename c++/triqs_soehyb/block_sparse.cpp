@@ -1169,36 +1169,13 @@ nda::array<dcomplex,3> OCA_dense(
     nda::vector_const_view<double> dlr_it = itops.get_itnodes();
     // number of imaginary time nodes
     int r = dlr_it.extent(0);
-    std::cout << "r = " << r << std::endl;
     int N = Gt.extent(1);
 
     auto hyb_coeffs = itops.vals2coefs(hyb); // hybridization DLR coeffs
-    // auto hyb_refl = nda::make_regular(-itops.reflect(hyb));
-    auto hyb_refl = itops.reflect(hyb);
+    auto hyb_refl = nda::make_regular(-itops.reflect(hyb));
+    // auto hyb_refl = itops.reflect(hyb);
     auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
-    std::cout << "hyb = " << hyb(15,_,_) << std::endl;
-    std::cout << std::endl;
-    std::cout << "hyb_refl = " << hyb_refl(15,_,_) << std::endl;
-    std::cout << std::endl;
-    std::cout << "hyb_coeffs = " << hyb_coeffs(29,_,_) << std::endl;
-    std::cout << std::endl;
-    std::cout << "hyb_refl_coeffs = " << hyb_refl_coeffs(29,_,_) << std::endl;
-    std::cout << std::endl;
-    // adding transpose 29 May 2025
-    /*
-    for (int t = 0; t < r; t++) {
-        hyb_refl_coeffs(t,_,_) = nda::transpose(hyb_refl_coeffs(t,_,_));
-    }
-    */
-
-    // get F^dagger operators
     int num_Fs = Fs.extent(0);
-    /*
-    nda::array<dcomplex,3> F_dags(num_Fs, N, N);
-    for (int i = 0; i < num_Fs; i++) {
-        F_dags(i,_,_) = nda::transpose(nda::conj(Fs(i,_,_)));
-    }
-    */
 
     // evaluate matrices with (k,l)-entry K(tau_k,+-omega_l)
     nda::array<double,2> Kplus = K_mat(dlr_it, dlr_rf);
@@ -1213,15 +1190,12 @@ nda::array<dcomplex,3> OCA_dense(
         for (int l = 0; l < r; l++) {
             for (int nu = 0; nu < num_Fs; nu++) {
                 Fbars(lam,l,_,_) += hyb_coeffs(l,nu,lam)*Fs(nu,_,_);
-                Fdagbars(lam,l,_,_) += hyb_coeffs(l,nu,lam)*F_dags(nu,_,_);
-                // Fbarsrefl(lam,l,_,_) += hyb_refl_coeffs(l,nu,lam)*Fs(nu,_,_);
-                // Fdagbarsrefl(lam,l,_,_) += hyb_refl_coeffs(l,nu,lam)*F_dags(nu,_,_);
+                Fdagbars(lam,l,_,_) += hyb_coeffs(l,nu,lam)*F_dags(nu,_,_);\
                 Fbarsrefl(nu,l,_,_) += hyb_refl_coeffs(l,nu,lam)*Fs(lam,_,_);
                 Fdagbarsrefl(nu,l,_,_) += hyb_refl_coeffs(l,nu,lam)*F_dags(lam,_,_);
             }
         }
     }
-    // std::cout << "Fbarsrefl = " << nda::make_regular(nda::real(Fbarsrefl(3,15,_,_))) << std::endl;
 
     // initialize self-energy
     nda::array<dcomplex,3> Sigma(r,N,N);
@@ -1241,8 +1215,6 @@ nda::array<dcomplex,3> OCA_dense(
             auto const &F3list = (fb1==1) ? F_dags(_,_,_) : Fs(_,_,_);
             auto const &Fbar_array = (fb2==1) ? Fdagbars(_,_,_,_) : Fbarsrefl(_,_,_,_);
             int sfM = (fb1^fb2) ? 1 : -1; // sign
-
-            // if (fb1 == 1 && fb2 == 1) {std::cout << std::setprecision(1) << "F1list 2 = " << nda::make_regular(nda::real(F1list(2,_,_))) << std::endl;}
 
             for (int l = 0; l < r; l++) {
                 auto Sigma_l = nda::array<dcomplex, 3>(r, N, N);
@@ -1266,7 +1238,6 @@ nda::array<dcomplex,3> OCA_dense(
                         F3list, 
                         T);
                     auto Fbar = Fbar_array(lam,l,_,_);
-                    // if (fb2 == 0 && l == 0) {std::cout << "fb1 = " << fb1 << ", Sigma_l = " << nda::make_regular(nda::real(Sigma_l(20,_,_))) << std::endl; std::cout << std::endl;}
                     Sigma_l += OCA_dense_left(
                         beta, 
                         itops, 
@@ -1276,7 +1247,6 @@ nda::array<dcomplex,3> OCA_dense(
                         Fbar, 
                         U);
                 } // sum over lambda
-                // if (fb2 == 0 && l == 0) {std::cout << "fb1 = " << fb1 << ", Sigma_l = " << nda::make_regular(nda::real(Sigma_l(20,_,_))) << std::endl; std::cout << std::endl;}
                 if (fb2 == 0 && l == 0) {T_temp_dense += Sigma_l;}
 
                 // prefactor with Ks
@@ -1308,22 +1278,13 @@ nda::array<dcomplex,3> OCA_dense(
         } // sum over fb2
     } // sum over fb1
     
-    // std::cout << "Sigma_temp dense (fb1 = 1, fb2 = 1) = " << nda::max_element(nda::abs(Sigma_ff)) << std::endl;
     std::cout << std::endl;
 
-    h5::file h("/home/paco/feynman/saved_data/OCA_two_band/beta_1_eps_1e-10_Lambda_10_Sigma_dense_forward_forward.h5", 'w');
+    h5::file h("/home/paco/feynman/saved_data/OCA_two_band/beta_1_eps_1e-10_Lambda_1000_Sigma_dense_forward_forward.h5", 'w');
     h5::write(h, "Sigma_ff", Sigma_ff);
     h5::write(h, "Sigma_fb", Sigma_fb);
     h5::write(h, "Sigma_bf", Sigma_bf);
     h5::write(h, "Sigma_bb", Sigma_bb);
-
-    /*
-    auto Sigma_temp_eq = eval_eq(itops, Sigma_temp(_,_,_), 25);
-    std::cout << "Sigma_temp dense eq = " << Sigma_temp_eq(_,0,0) << std::endl;
-
-    std::cout << std::endl;
-    std::cout << "T_temp_dense = " << T_temp_dense(_,0,0) << std::endl;
-    */
 
     return Sigma;
 }
