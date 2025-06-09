@@ -438,25 +438,64 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     }
     Deltat = t*t*Deltat;
     Deltat_refl = t*t*Deltat_refl;
-    // Deltat_refl = itops.reflect(Deltat);
 
-    // get Hamiltonian, creation/annihilation operators from hdf5 file
+    // get Hamiltonian, creation/annihilation operators in block-sparse storage
     h5::file hfile("/home/paco/feynman/ppsc-soe/benchmarks/atom_diag_eval/two_band_ad.h5", 'r');
     h5::group hgroup(hfile);
     h5::group ad = hgroup.open_group("ad");
     long num_blocks;
     h5::read(hgroup, "num_blocks", num_blocks);
-    nda::array<long,2> ann_conn(4,num_blocks);
-    nda::array<long,2> cre_conn(4,num_blocks);
-    h5::read(ad, "annihilation_connection", ann_conn); // block column indices of F operators
-    h5::read(ad, "creation_connection", cre_conn); // block column indices of Fdag operators
+
+    // Hamiltonian
     std::vector<nda::array<double,2>> H_blocks;
     h5::read(hgroup, "H_mat_blocks", H_blocks);
     nda::array<long,1> H_block_inds(num_blocks);
     h5::read(hgroup, "H_mat_block_inds", H_block_inds);
+
+    // Green's function
     auto Gt = nonint_gf_BDOF(H_blocks, H_block_inds, beta, dlr_it_abs);
+
+    // creation/annihilation operators
+    nda::array<long,2> ann_conn(4,num_blocks);
+    nda::array<long,2> cre_conn(4,num_blocks);
+    h5::read(ad, "annihilation_connection", ann_conn); // block column indices of F operators
+    h5::read(ad, "creation_connection", cre_conn); // block column indices of Fdag operators
+    std::vector<BlockOp> Fs;
+    std::vector<BlockOp> Fdags;
+    std::vector<nda::array<dcomplex,2>> dummy(num_blocks);
+    std::vector<std::vector<nda::array<dcomplex,2>>> F_blocks(4, dummy);
+    std::vector<std::vector<nda::array<dcomplex,2>>> Fdag_blocks(4, dummy);
+    for (int i = 0; i < 4; i++) {
+        h5::read(hgroup, "c_blocks/" + std::to_string(i), F_blocks[i]);
+        h5::read(hgroup, "cdag_blocks/" + std::to_string(i), Fdag_blocks[i]);
+    }
+    for (int i = 0; i < 4; i++) {
+        nda::vector<int> F_block_indices = ann_conn(i,_);
+        Fs.emplace_back(BlockOp(F_block_indices, F_blocks[i]));
+        nda::vector<int> Fdag_block_indices = cre_conn(i,_);
+        Fdags.emplace_back(BlockOp(Fdag_block_indices, Fdag_blocks[i]));
+    }
+
+    // subspace indices
+    std::vector<unsigned long> dummy2;
+    std::vector<std::vector<unsigned long>> subspaces(num_blocks, dummy2);
+    for (int i = 0; i < num_blocks; i++) {
+        h5::read(ad, "sub_hilbert_spaces/" + std::to_string(i) + "/fock_states", subspaces[i]);
+    }
+    std::vector<long> fock_state_order(begin(subspaces[0]), end(subspaces[0]));
+    for (int i = 1; i < num_blocks; i++) {
+        fock_state_order.insert(end(fock_state_order), begin(subspaces[i]), end(subspaces[i]));
+    }
+
+    // Hamiltonian, creation/annihilation operators in dense storage
+    // Hamiltonian 
     auto H_dense = nda::zeros<dcomplex>(16,16);
-    h5::read(hgroup, "H_mat_dense", H_dense); // Hamiltonian in dense storage
+    h5::read(hgroup, "H_mat_dense", H_dense);
+
+    // Green's function 
+    auto Gt_dense = Hmat_to_Gtmat(H_dense, beta, dlr_it_abs);
+
+    // creation/annihilation operators
     auto Fs_dense = nda::zeros<dcomplex>(4,16,16);
     h5::read(hgroup, "c_dense", Fs_dense);
     auto F_dags_dense = nda::zeros<dcomplex>(4,16,16);
@@ -464,77 +503,51 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
         F_dags_dense(i,_,_) = nda::transpose(nda::conj(Fs_dense(i,_,_)));
     }
 
-    std::vector<nda::array<dcomplex,2>> dummy(num_blocks);
-    std::vector<std::vector<nda::array<dcomplex,2>>> F_blocks(4, dummy);
-    std::vector<std::vector<nda::array<dcomplex,2>>> Fdag_blocks(4, dummy);
-    
-    for (int i = 0; i < 4; i++) {
-        h5::read(hgroup, "c_blocks/" + std::to_string(i), F_blocks[i]);
-        h5::read(hgroup, "cdag_blocks/" + std::to_string(i), Fdag_blocks[i]);
-    }
-
-    std::vector<BlockOp> Fs;
-    std::vector<BlockOp> Fdags;
-    for (int i = 0; i < 4; i++) {
-        nda::vector<int> F_block_indices = ann_conn(i,_);
-        Fs.emplace_back(BlockOp(F_block_indices, F_blocks[i]));
-        nda::vector<int> Fdag_block_indices = cre_conn(i,_);
-        Fdags.emplace_back(BlockOp(Fdag_block_indices, Fdag_blocks[i]));
-    }
-    auto NCA_result = NCA_bs(Deltat, Deltat_refl, Gt, Fs); 
-
-    /*
+    // block-sparse NCA and OCA compuations
+    auto NCA_result = NCA_bs(Deltat, Deltat_refl, Gt, Fs);
     auto OCA_result = OCA_bs(Deltat, itops, beta, Gt, Fs);
+    /*
     for (int i = 0; i < 1; i++) {
         std::cout << "OCA = " << OCA_result.get_block(0)(_,i,i) << std::endl;
     }*/
 
-    auto Gt_dense_2 = Hmat_to_Gtmat(H_dense, beta, dlr_it_abs);
-
-    // get G0 from hdf5 file
+    // load NCA and OCA results from twoband.py
     std::string Lambda_str = (Lambda == 10.0) ? "10.0" : (Lambda == 100.0) ? "100.0" : "1000.0";
     h5::file Gtfile("/home/paco/feynman/ppsc-soe/benchmarks/twoband/saved/G0_iaa_beta=1.0_Lambda=" + Lambda_str + ".h5", 'r');
     h5::group Gtgroup(Gtfile);
-    auto Gt_dense = nda::zeros<dcomplex>(r,16,16);
-    h5::read(Gtgroup, "G0_iaa", Gt_dense);
-
-    // load G0, F, F_dag from twoband.py
-    auto Gt_dense_no_perm = nda::zeros<dcomplex>(r,16,16);
-    h5::read(Gtgroup, "G0_iaa_no_perm", Gt_dense_no_perm);
-    auto Fs_dense_no_perm = nda::zeros<dcomplex>(4,16,16);
-    h5::read(Gtgroup, "F_no_perm", Fs_dense_no_perm);
-    auto F_dags_dense_no_perm = nda::zeros<dcomplex>(4,16,16);
-    h5::read(Gtgroup, "F_dag_no_perm", F_dags_dense_no_perm);
-
-    // load results from twoband.py
     auto NCA_py = nda::zeros<dcomplex>(r,16,16);
     h5::read(Gtgroup, "NCA", NCA_py);
     auto OCA_py = nda::zeros<dcomplex>(r,16,16);
     h5::read(Gtgroup, "OCA", OCA_py);
 
-    auto NCA_dense_result_no_perm = NCA_dense(Deltat, Deltat_refl, Gt_dense_no_perm, Fs_dense_no_perm, F_dags_dense_no_perm);
-    auto OCA_dense_result_no_perm = OCA_dense(Deltat, itops, beta, Gt_dense_no_perm, Fs_dense_no_perm, F_dags_dense_no_perm);
-
-    ASSERT_LE(nda::max_element(nda::abs(NCA_dense_result_no_perm - NCA_py)), 1e-10);
-    ASSERT_LE(nda::max_element(nda::abs(OCA_dense_result_no_perm - OCA_py + NCA_py)), 1e-10);
-
     auto NCA_dense_result = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
     auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
 
-    nda::array<int,1> fock_state_order{1, 2, 4, 8, 3, 5, 6, 9, 10, 12, 0, 7, 11, 13, 14, 15};
     auto NCA_py_perm = nda::zeros<dcomplex>(r,16,16);
     auto OCA_py_perm = nda::zeros<dcomplex>(r,16,16);
     for (int t = 0; t < r; t++) {
         for (int i = 0; i < 16; i++) {
             for (int j = 0; j < 16; j++) {
-                NCA_py_perm(t,i,j) = NCA_py(t,fock_state_order(i),fock_state_order(j));
-                OCA_py_perm(t,i,j) = OCA_py(t,fock_state_order(i),fock_state_order(j));
+                NCA_py_perm(t,i,j) = NCA_py(t,fock_state_order[i],fock_state_order[j]);
+                OCA_py_perm(t,i,j) = OCA_py(t,fock_state_order[i],fock_state_order[j]);
             }
         }
     }
 
-    ASSERT_LE(nda::max_element(nda::abs(NCA_dense_result - NCA_py_perm)), 1e-10);
-    ASSERT_LE(nda::max_element(nda::abs(OCA_dense_result - OCA_py_perm + NCA_py_perm)), 1e-10);
+    // check that dense NCA and OCA calculations agree with twoband.py
+    ASSERT_LE(nda::max_element(nda::abs(NCA_dense_result - NCA_py_perm)), eps);
+    ASSERT_LE(nda::max_element(nda::abs(OCA_dense_result - OCA_py_perm + NCA_py_perm)), eps);
+
+    // check that block-sparse NCA and OCA calculations agree with twoband.py
+    int s0 = 0; 
+    int s1 = subspaces[0].size();
+    for (int i = 0; i < num_blocks; i++) { // compare each block
+        ASSERT_LE(nda::max_element(nda::abs(NCA_result.get_block(i) - NCA_py_perm(_,range(s0,s1),range(s0,s1)))), eps);
+        ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(i) - OCA_py_perm(_,range(s0,s1),range(s0,s1)) + NCA_py_perm(_,range(s0,s1),range(s0,s1)))), eps);
+        s0 = s1;
+        if (i < num_blocks - 1) s1 += subspaces[i+1].size();
+    }
+    
 }
 
 TEST(BlockSparseOCATest, two_band_semicircle_bath) {

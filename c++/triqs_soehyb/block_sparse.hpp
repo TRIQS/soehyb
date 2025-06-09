@@ -238,6 +238,15 @@ BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double,2>> H_blocks,
     double beta, 
     nda::vector_const_view<double> dlr_it);
 
+nda::array<dcomplex,3> OCA_bs_right(
+    double beta, 
+    imtime_ops &itops, 
+    double omega_l, 
+    bool forward, 
+    nda::array_const_view<dcomplex,3> Gt0, 
+    nda::array_const_view<dcomplex,3> Gt1, 
+    nda::array_const_view<dcomplex,2> Flam);
+
 /**
  * @brief Evaluate OCA using block-sparse storage
  * @param[in] hyb hybridization function at imaginary time nodes

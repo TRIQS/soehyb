@@ -2,7 +2,6 @@
 #include <cppdlr/dlr_imtime.hpp>
 #include <cppdlr/utils.hpp>
 #include <h5/format.hpp>
-#include <iomanip>
 #include <iostream>
 #include <cppdlr/dlr_kernels.hpp>
 #include <nda/algorithms.hpp>
@@ -697,6 +696,164 @@ BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double,2>> H_blocks,
     return Gt;
 }
 
+nda::array<dcomplex,3> OCA_bs_right(
+    double beta, 
+    imtime_ops &itops, 
+    double omega_l, 
+    bool forward, 
+    nda::array_const_view<dcomplex,3> Gt0, 
+    nda::array_const_view<dcomplex,3> Gt1, 
+    nda::array_const_view<dcomplex,2> Flam) {
+
+    int r = Gt0.extent(0);
+    nda::array<dcomplex,3> T(r,Flam.extent(0),Flam.extent(1));
+    auto dlr_it = itops.get_itnodes();
+
+    if (forward) {
+        if (omega_l <= 0) {
+            // 1. multiply F_lambda G(tau_1) K^-(tau_1)
+            for (int t = 0; t < r; t++) {
+                T(t,_,_) = k_it(dlr_it(t), -omega_l) * nda::matmul(Flam,Gt0(t,_,_));
+            }
+            // 2. convolve by G
+            T = convolve_rectangular(itops, beta, Gt1, T);
+        }
+        else {
+            // 1. multiply G(tau_2-tau_1) K^+(tau_2-tau_1) F_lambda
+            for (int t = 0; t < r; t++) {
+                T(t,_,_) = k_it(dlr_it(t), omega_l) * nda::matmul(Gt1(t,_,_),Flam);
+            }
+            // 2. convolve by G
+            T = convolve_rectangular(itops, beta, T, Gt0);
+        }
+    } else {
+        if (omega_l >= 0) {
+            // 1. multiply F_lambda G(tau_1) K^+(tau_1)
+            for (int t = 0; t < r; t++) {
+                T(t,_,_) = k_it(dlr_it(t), omega_l) * nda::matmul(Flam,Gt0(t,_,_));
+            }
+            // 2. convolve by G
+            T = convolve_rectangular(itops, beta, Gt1, T);
+        } else {
+            // 1. multiply G(tau_2-tau_1) K^-(tau_2-tau_1) F_lambda
+            for (int t = 0; t < r; t++) {
+                T(t,_,_) = k_it(dlr_it(t), -omega_l) * nda::matmul(Gt1(t,_,_),Flam);
+            }
+            // 2. convolve by G
+            T = convolve_rectangular(itops, beta, T, Gt0);
+        }
+    }
+
+    return T;
+}
+
+nda::array<dcomplex,3> OCA_bs_middle(
+    bool forward, 
+    nda::array_const_view<dcomplex,3> hyb, 
+    nda::array_const_view<dcomplex,3> hyb_refl, 
+    nda::array_const_view<dcomplex,3> Fkaps, 
+    nda::array_const_view<dcomplex,3> Fmus, 
+    nda::array_const_view<dcomplex,3> T) {
+    
+    int num_Fs = Fkaps.extent(0);
+    int r = hyb.extent(0);
+    // 3. for each kappa, multiply by F_kappa from right
+    auto Tkap = nda::zeros<dcomplex>(num_Fs, r, T.extent(1), Fkaps.extent(2));
+    for (int kap = 0; kap < num_Fs; kap++) {
+        auto Fkap = Fkaps(kap,_,_);
+        for (int t = 0; t < r; t++) {
+            Tkap(kap,t,_,_) = nda::matmul(T(t,_,_),Fkap);
+        }
+    }
+
+    // 4. for each mu, kap, mult by Delta_mu_kap and sum kap
+    auto Tmu = nda::make_regular(0*Tkap); 
+    // initialize Tmu with same shape as Tkap
+    for (int mu = 0; mu < num_Fs; mu++) {
+        for (int kap = 0; kap < num_Fs; kap++) {
+            for (int t = 0; t < r; t++) {
+                if (forward) {
+                    Tmu(mu,t,_,_) += hyb(t,mu,kap)*Tkap(kap,t,_,_);
+                } else {
+                    Tmu(mu,t,_,_) += hyb_refl(t,kap,mu)*Tkap(kap,t,_,_);
+                }
+            }
+        }
+    }
+
+    // 5. multiply by F^dag_mu and sum over mu
+    auto U = nda::zeros<dcomplex>(r, Fmus.extent(1), Fkaps.extent(2));
+    for (int mu = 0; mu < num_Fs; mu++) {
+        for (int t = 0; t < r; t++) {
+            auto Fmu = Fmus(mu,_,_);
+            U(t,_,_) += nda::matmul(Fmu, Tmu(mu,t,_,_));
+        }
+    }
+
+    return U;
+}
+
+nda::array<dcomplex,3> OCA_bs_left(
+    double beta, 
+    imtime_ops &itops, 
+    double omega_l, 
+    bool forward, 
+    nda::array_const_view<dcomplex,3> Gt, 
+    nda::array_const_view<dcomplex,2> Fbar, 
+    nda::array_const_view<dcomplex,3> U) {
+
+    int r = Gt.extent(0);
+    nda::array<dcomplex,3> Sigma_l(r,Fbar.extent(0),U.extent(2));
+    auto dlr_it = itops.get_itnodes();
+    nda::array<dcomplex,3> temp(r,U.extent(1),U.extent(2));
+
+    if (forward) {
+        if (omega_l <= 0) {
+            // 6. convolve by G
+            temp = convolve_rectangular(itops, beta, Gt, U);
+            // 7. multiply by Fbar
+            for (int t = 0; t < r; t++) {
+                Sigma_l(t,_,_) = nda::matmul(Fbar, temp(t,_,_));
+            }
+        }
+        else {
+            // 6. convolve by G K^+
+            nda::array<dcomplex,3> GKlplus(r,Gt.extent(1),Gt.extent(2));
+            for (int t = 0; t < r; t++) {
+                GKlplus(t,_,_) = k_it(dlr_it(t), omega_l)*Gt(t,_,_);
+            }
+            temp = convolve_rectangular(itops, beta, GKlplus, U);
+            // 7. multiply by Fbar
+            for (int t = 0; t < r; t++) {
+                Sigma_l(t,_,_) = nda::matmul(Fbar, temp(t,_,_));
+            }
+        }
+    } else {
+        if (omega_l >= 0) {
+            // 6. convolve by G
+            temp = convolve_rectangular(itops, beta, Gt, U);
+            // 7. multiply by Fbar
+            for (int t = 0; t < r; t++) {
+                Sigma_l(t,_,_) = nda::matmul(Fbar, temp(t,_,_));
+            }
+        }
+        else {
+            // 6. convolve by G K^-
+            nda::array<dcomplex,3> GKlminus(r,Gt.extent(1),Gt.extent(2));
+            for (int t = 0; t < r; t++) {
+                GKlminus(t,_,_) = k_it(dlr_it(t),-omega_l)*Gt(t,_,_);
+            }
+            temp = convolve_rectangular(itops, beta, GKlminus, U);
+            // 7. multiply by Fbar
+            for (int t = 0; t < r; t++) {
+                Sigma_l(t,_,_) = nda::matmul(Fbar, temp(t,_,_));
+            }
+        }
+    }
+
+    return Sigma_l;
+}
+
 BlockDiagOpFun OCA_bs(
     nda::array_const_view<dcomplex,3> hyb,
     // nda::array_const_view<dcomplex,3> hyb_refl,
@@ -720,7 +877,7 @@ BlockDiagOpFun OCA_bs(
     int r = dlr_it.shape(0);
 
     auto hyb_coeffs = itops.vals2coefs(hyb); // hybridization DLR coeffs
-    auto hyb_refl = itops.reflect(hyb);
+    auto hyb_refl = nda::make_regular(-itops.reflect(hyb));
     auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl); 
 
     // get F^dagger operators
@@ -729,10 +886,6 @@ BlockDiagOpFun OCA_bs(
     for (int i = 0; i < num_Fs; ++i) {
         F_dags[i] = dagger_bs(Fs[i]);
     }
-
-    // evaluate matrices with (k,l)-entry K(tau_k,+-omega_l)
-    nda::array<double,2> Kplus = K_mat(dlr_it, dlr_rf);
-    nda::array<double,2> Kminus = K_mat(dlr_it, nda::make_regular(-dlr_rf));
 
     // compute Fbars and Fdagbars
     auto Fbar_indices = Fs[0].get_block_indices();
@@ -772,8 +925,11 @@ BlockDiagOpFun OCA_bs(
 
     // initialize self-energy
     BlockDiagOpFun Sigma = BlockDiagOpFun(r, Gt.get_block_sizes());
+    BlockDiagOpFun Sigma_ff = BlockDiagOpFun(r, Gt.get_block_sizes());
+    BlockDiagOpFun Sigma_fb = BlockDiagOpFun(r, Gt.get_block_sizes());
+    BlockDiagOpFun Sigma_bf = BlockDiagOpFun(r, Gt.get_block_sizes());
+    BlockDiagOpFun Sigma_bb = BlockDiagOpFun(r, Gt.get_block_sizes());
     int num_block_cols = Gt.get_num_block_cols();
-    BlockDiagOpFun Sigma_temp = BlockDiagOpFun(r, Gt.get_block_sizes());
 
     // loop over hybridization lines
     for (int fb1 = 0; fb1 <= 1; fb1++) {
@@ -784,7 +940,7 @@ BlockDiagOpFun OCA_bs(
             auto const &F2list = (fb2) ? Fs : F_dags;
             auto const &F3list = (fb1) ? F_dags : Fs;
             auto const Fbar_array = (fb2) ? Fdagbars : Fbarsrefl;
-            int sfM = -1;//(fb1^fb2) ? 1 : -1; // sign
+            int sfM = (fb1^fb2) ? 1 : -1; // sign
 
             for (int i = 0; i < num_block_cols; i++) {
 
@@ -830,116 +986,79 @@ BlockDiagOpFun OCA_bs(
                 // matmuls and convolutions
                 if (path_all_nonzero) {
                     for (int l = 0; l < r; l++) {
-                        bool omega_l_is_pos = (dlr_rf(l) > 0);
                         // initialize summand assoc'd with index l
                         auto Sigma_l = nda::make_regular(0*Sigma.get_block(i)); // TODO: preallocate?
                         for (int lam = 0; lam < num_Fs; lam++) {
                             auto F2_block = F2list[lam].get_block(ind_path(0));
-                            auto T = nda::zeros<dcomplex>(
-                                r,
-                                F2_block.shape(0),
-                                F2_block.shape(1));
-                            if (omega_l_is_pos) {
-                                // 1. multiply G(tau_2-tau_1) K^+(tau_2-tau_1) F_lambda
-                                for (int t = 0; t < r; t++) {
-                                    T(t,_,_) = Kplus(t,l) * nda::matmul(
-                                        Gt.get_block(ind_path(1))(t,_,_),
-                                        F2_block);
-                                }
-                                // 2. convolve by G
-                                T = convolve_rectangular(itops, beta, T, Gt.get_block(ind_path(0)));
+                            auto T = OCA_bs_right(
+                                beta, 
+                                itops, 
+                                dlr_rf(l), 
+                                (fb2==1), 
+                                Gt.get_block(ind_path(0)), 
+                                Gt.get_block(ind_path(1)), 
+                                F2_block);
+                            // TODO: make Fs have blocks that are 3D nda::array?
+                            auto Fkaps = nda::zeros<dcomplex>(
+                                num_Fs, 
+                                F1list[0].get_block_size(i,0), 
+                                F1list[0].get_block_size(i,1));
+                            auto Fmus = nda::zeros<dcomplex>(
+                                num_Fs, 
+                                F3list[0].get_block_size(ind_path(1),0),
+                                F3list[0].get_block_size(ind_path(1),1));
+                            for (int j = 0; j < num_Fs; j++) {
+                                Fkaps(j,_,_) = F1list[j].get_block(i);
+                                Fmus(j,_,_) = F3list[j].get_block(ind_path(1));
                             }
-                            else {
-                                // 1. multiply F_lambda G(tau_1) K^-(tau_1)
-                                for (int t = 0; t < r; t++) {
-                                    T(t,_,_) = Kminus(t,l) * nda::matmul(
-                                        F2_block,
-                                        Gt.get_block(ind_path(0))(t,_,_));
-                                }
-                                // 2. convolve by G
-                                T = convolve_rectangular(itops, 
-                                    beta, 
-                                    Gt.get_block(ind_path(1)),
-                                    T);
-                            }
-                            
-                            // 3. for each kappa, multiply by F_kappa from right
-                            auto Tkap = nda::zeros<dcomplex>(
-                                num_Fs,
-                                r,
-                                F2_block.shape(0),
-                                F1list[0].get_block_size(i, 1));
-                            for (int kap = 0; kap < num_Fs; kap++) {
-                                auto F1_block = F1list[kap].get_block(i);
-                                for (int t = 0; t < r; t++) {
-                                    Tkap(kap,t,_,_) = nda::matmul(T(t,_,_),F1_block);
-                                }
-                            }
+                            auto U = OCA_bs_middle(
+                                (fb1==1), 
+                                hyb, 
+                                hyb_refl, 
+                                Fkaps, 
+                                Fmus, 
+                                T);
+                            Sigma_l += OCA_bs_left(
+                                beta, 
+                                itops, 
+                                dlr_rf(l), 
+                                (fb2==1), 
+                                Gt.get_block(ind_path(2)), 
+                                Fbar_array[lam][l].get_block(ind_path(2)), 
+                                U);
+                        } // sum over lambda
 
-                            // 4. for each mu, kap, mult by Delta_mu_kap and sum kap
-                            auto Tmu = nda::make_regular(0*Tkap); 
-                            // initialize Tmu with same shape as Tkap
-                            for (int mu = 0; mu < num_Fs; mu++) {
-                                for (int kap = 0; kap < num_Fs; kap++) {
-                                    for (int t = 0; t < r; t++) {
-                                        if (fb1) {
-                                            Tmu(mu,t,_,_) += hyb(t,mu,kap)*Tkap(kap,t,_,_);
-                                        } else {
-                                            Tmu(mu,t,_,_) += hyb_refl(t,mu,kap)*Tkap(kap,t,_,_);
-                                        }
-                                    }
+                        // prefactor with Ks
+                        if (fb2 == 1) {
+                            if (dlr_rf(l) <= 0) {
+                                for (int t = 0; t < r; t++) {
+                                    Sigma_l(t,_,_) = k_it(dlr_it(t), dlr_rf(l)) * Sigma_l(t,_,_);
                                 }
+                                Sigma_l = Sigma_l/k_it(0, -dlr_rf(l));
+                            } else {
+                                Sigma_l = Sigma_l/k_it(0, dlr_rf(l));
                             }
-
-                            // 5. multiply by F^dag_mu and sum over mu
-                            auto U = nda::zeros<dcomplex>(r, 
-                                F3list[0].get_block(ind_path(1)).extent(0), 
-                                F1list[0].get_block(i).extent(1));
-                            for (int mu = 0; mu < num_Fs; mu++) {
+                        } else {
+                            if (dlr_rf(l) >= 0) {
                                 for (int t = 0; t < r; t++) {
-                                    auto F3_block = F3list[mu].get_block(ind_path(1));
-                                    U(t,_,_) += nda::matmul(F3_block, Tmu(mu,t,_,_));
+                                    Sigma_l(t,_,_) = k_it(dlr_it(t), -dlr_rf(l)) * Sigma_l(t,_,_);
                                 }
-                            }
-
-                            auto Fbar_block = Fbar_array[lam][l].get_block(ind_path(2));
-                            if (omega_l_is_pos) {
-                                // 6. convolve by G K^+
-                                auto GKplus = nda::make_regular(Gt.get_block(ind_path(2)));
-                                for (int t = 0; t < r; t++) {
-                                    GKplus(t,_,_) = Kplus(t,l)*Gt.get_block(ind_path(2))(t,_,_);
-                                }
-                                U = convolve_rectangular(itops, beta, GKplus, U);
-                                // 7. multiply by Fbar                                
-                                for (int t = 0; t < r; t++) {
-                                    Sigma_l(t,_,_) = nda::matmul(Fbar_block, U(t,_,_));
-                                }
-                            }
-                            else {
-                                // 6. convolve by G
-                                U = convolve_rectangular(itops, beta, Gt.get_block(ind_path(2)), U);
-                                // 7. multiply by K^+(tau) Fbar
-                                for (int t = 0; t < r; t++) {
-                                    Sigma_l(t,_,_) = Kplus(t,l)*nda::matmul(Fbar_block, U(t,_,_));
-                                }
+                                Sigma_l = Sigma_l/k_it(0, dlr_rf(l));
+                            } else {
+                                Sigma_l = Sigma_l/k_it(0, -dlr_rf(l));
                             }
                         }
-                        if (omega_l_is_pos) {
-                            Sigma_block_i += nda::make_regular(sfM*Sigma_l/k_it(0, dlr_rf(l)));
-                        }
-                        else {
-                            Sigma_block_i += nda::make_regular(sfM*Sigma_l/k_it(0, -dlr_rf(l)));
-                        }
-                    }
-                }
-                Sigma.add_block(i, Sigma_block_i);
-                if (fb1 == 0 && fb2 == 1) {Sigma_temp.add_block(i, Sigma_block_i);}
-            }
-        }
-    }
-
-    std::cout << "Sigma temp bs = " << Sigma_temp << std::endl;
-
+                        Sigma_block_i += nda::make_regular(sfM*Sigma_l);
+                    } // sum over l
+                    Sigma.add_block(i, Sigma_block_i);
+                    if (fb1 == 1 && fb2 == 1) Sigma_ff.add_block(i, Sigma_block_i);
+                    if (fb1 == 0 && fb2 == 1) Sigma_fb.add_block(i, Sigma_block_i);
+                    if (fb1 == 1 && fb2 == 0) Sigma_bf.add_block(i, Sigma_block_i);
+                    if (fb1 == 0 && fb2 == 0) Sigma_bb.add_block(i, Sigma_block_i);
+                } // end if(path_all_nonzero)
+            } // end loop over i
+        } // end loop over fb2
+    } // end loop over fb1
     return Sigma;
 }
 
@@ -1190,7 +1309,7 @@ nda::array<dcomplex,3> OCA_dense(
         for (int l = 0; l < r; l++) {
             for (int nu = 0; nu < num_Fs; nu++) {
                 Fbars(lam,l,_,_) += hyb_coeffs(l,nu,lam)*Fs(nu,_,_);
-                Fdagbars(lam,l,_,_) += hyb_coeffs(l,nu,lam)*F_dags(nu,_,_);\
+                Fdagbars(lam,l,_,_) += hyb_coeffs(l,nu,lam)*F_dags(nu,_,_);
                 Fbarsrefl(nu,l,_,_) += hyb_refl_coeffs(l,nu,lam)*Fs(lam,_,_);
                 Fdagbarsrefl(nu,l,_,_) += hyb_refl_coeffs(l,nu,lam)*F_dags(lam,_,_);
             }
@@ -1204,7 +1323,6 @@ nda::array<dcomplex,3> OCA_dense(
     nda::array<dcomplex,3> Sigma_bf(r,N,N); // bf --> fb2 = 0, fb1 = 1
     nda::array<dcomplex,3> Sigma_bb(r,N,N);
 
-    auto T_temp_dense = nda::array<dcomplex,3>(r, N, N);
     // loop over hybridization lines
     for (int fb1 = 0; fb1 <= 1; fb1++) {
         for (int fb2 = 0; fb2 <= 1; fb2++) {
@@ -1229,7 +1347,6 @@ nda::array<dcomplex,3> OCA_dense(
                         (fb2==1), 
                         Gt, 
                         F2);
-                    if (fb1 == 0 && fb2 == 1 && l == 0) {T_temp_dense += T;}
                     auto U = OCA_dense_middle(
                         (fb1==1), 
                         hyb, 
@@ -1247,7 +1364,6 @@ nda::array<dcomplex,3> OCA_dense(
                         Fbar, 
                         U);
                 } // sum over lambda
-                if (fb2 == 0 && l == 0) {T_temp_dense += Sigma_l;}
 
                 // prefactor with Ks
                 if (fb2 == 1) {
@@ -1277,15 +1393,6 @@ nda::array<dcomplex,3> OCA_dense(
             } // sum over l
         } // sum over fb2
     } // sum over fb1
-    
-    std::cout << std::endl;
-
-    h5::file h("/home/paco/feynman/saved_data/OCA_two_band/beta_1_eps_1e-10_Lambda_1000_Sigma_dense_forward_forward.h5", 'w');
-    h5::write(h, "Sigma_ff", Sigma_ff);
-    h5::write(h, "Sigma_fb", Sigma_fb);
-    h5::write(h, "Sigma_bf", Sigma_bf);
-    h5::write(h, "Sigma_bb", Sigma_bb);
-
     return Sigma;
 }
 
