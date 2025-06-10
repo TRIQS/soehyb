@@ -2,7 +2,6 @@
 #include <cppdlr/dlr_kernels.hpp>
 #include <h5/complex.hpp>
 #include <h5/object.hpp>
-#include <ios>
 #include <limits>
 #include <nda/algorithms.hpp>
 #include <nda/declarations.hpp>
@@ -12,7 +11,6 @@
 #include <nda/nda.hpp>
 #include <block_sparse.hpp>
 #include <gtest/gtest.h>
-#include <iomanip>
 
 using namespace nda;
 
@@ -219,17 +217,17 @@ TEST(BlockSparseOCATest, single_exponential) {
     auto dlr_it_abs = cppdlr::rel2abs(dlr_it);
 
     // create hybridization
-    double D = 1.0;//0.07;
+    double D = -10.0;
     auto Deltat = nda::array<dcomplex,3>(r,1,1);
-    auto Deltat_refl = nda::array<dcomplex,3>(r,1,1);
-    Deltat(_,0,0) = exp(-D*dlr_it_abs*beta);
-    Deltat_refl(_,0,0) = exp(D*dlr_it_abs*beta);
+    // Deltat(_,0,0) = exp(-D*dlr_it_abs*beta);
+    for (int t = 0; t < r; t++) Deltat(t,0,0) = k_it(dlr_it(t), D);
 
     // create Green's function
-    double g = -1.0;//-0.0023;
+    double g = -13.0;
     auto Gt_block = nda::array<dcomplex,3>(r,1,1);
     auto Gt_zero_block_index = nda::ones<int>(1);
-    Gt_block(_,0,0) = exp(-g*dlr_it_abs*beta);
+    // Gt_block(_,0,0) = exp(-g*dlr_it_abs*beta);
+    for (int t = 0; t < r; t++) Gt_block(t,0,0) = k_it(dlr_it(t), g);
     std::vector<nda::array<dcomplex,3>> Gt_blocks = {Gt_block};
     auto Gt = BlockDiagOpFun(Gt_blocks, Gt_zero_block_index);
 
@@ -243,63 +241,33 @@ TEST(BlockSparseOCATest, single_exponential) {
 
     auto OCA_result = OCA_bs(Deltat, itops, beta, Gt, Fs);
     auto OCA_ana = nda::zeros<dcomplex>(r);
-    auto OCA_ana_fb10 = nda::zeros<dcomplex>(r);
     for (int i = 0; i < r; i++) {
         auto tau = dlr_it_abs(i);
-        // OCA_ana(i) = (1 - exp(-tau) - tau) - exp(2*tau)*(-1 + exp(tau) - tau) + (-1 + exp(tau))*(-1 + exp(tau));
-        // after sign fix v
-        // OCA_ana(i) = -exp(-2 - tau) * (exp(1) + exp(tau)) 
-        //     * (exp(1) - exp(2*tau) + exp(3*tau) - exp(1+tau) - exp(2*tau)*tau + exp(1+tau)*tau);
-        OCA_ana(i) = -exp(-g*tau - 2*D*(1+tau)) * (exp(D) + exp(D*tau)) 
-            * (exp(D) + exp(3*D*tau) + exp(D*(1+tau)) * (-1 + D*tau) 
-            - exp(2*D*tau) * (1 + D*tau)) / (D*D);
-        OCA_ana_fb10(i) = exp(-D - g*tau) * (-1 + nda::cosh(D*tau)) / (D * D);
-        // OCA_ana_fb10(i) = exp(-(D + g)*tau) * pow((-1 + exp(D*tau)), 2) / (2 * D * D);
+        // OCA_ana(i) = -exp(-(D+g)*tau) * (-1 + exp(D*tau)) * (-1 + exp(D*tau)) / (2 * D * D);
+        // OCA_ana(i) -= exp(D*(-1+tau)-g*tau) * (-1 + exp(D*tau) - D*tau) / (D * D);
+        // OCA_ana(i) -= exp(-(2*D+g)*tau) * (1 + exp(D*tau) * (-1 + D*tau)) / (D * D);
+
+        // OCA_ana(i) = -exp(D*(-2+tau)-g*tau) * (-1 + exp(D*tau) - D*tau) / exp(-2);
+        // OCA_ana(i) -= exp(-(2*D+g)*tau) * (1 + exp(D*tau) * (-1 + D*tau));
+        // OCA_ana(i) -= 2*exp(-D-g*tau) * (-1 + (exp(D*tau) + exp(-D*tau))/2);
+
+        // OCA_ana(i) = OCA_ana(i) / (D*D);
+
+        // ff term
+        OCA_ana(i) = exp(-g*(-3+tau) - 2*D*(-1+tau)) * (1 + exp(D*tau) * (-1 + D*tau)) 
+            / (D * D * (1 + exp(D)) * (1 + exp(D)) * (1 + exp(g)) * (1 + exp(g)) * (1 + exp(g)));
+        // fb term
+        OCA_ana(i) += exp(D + 3*g - (D+g)*tau) * (-1 + exp(D*tau)) * (-1 + exp(D*tau)) 
+            / (2 * D * D * (1 + exp(D)) * (1 + exp(D)) * (1 + exp(g)) * (1 + exp(g)) * (1 + exp(g)));
+        // bf term
+        OCA_ana(i) += exp(D + 3*g - (D+g)*tau) * (-1 + exp(D*tau)) * (-1 + exp(D*tau))
+            / (2 * D * D * (1 + exp(D)) * (1 + exp(D)) * (1 + exp(g)) * (1 + exp(g)) * (1 + exp(g)));
+        // bb term
+        OCA_ana(i) += -exp(-g*(-3+tau) + D*tau) * (1 - exp(D*tau) + D*tau) 
+            / (D * D * (1 + exp(D)) * (1 + exp(D)) * (1 + exp(g)) * (1 + exp(g)) * (1 + exp(g)));
     }
-    EXPECT_LT(
-        nda::norm(
-            (OCA_result.get_block(0)(_,0,0)-OCA_ana), 
-            std::numeric_limits<double>::infinity())/
-        nda::norm(OCA_ana, std::numeric_limits<double>::infinity()), 
-        1.0e-12);
-    nda::array<dcomplex,3> Fs_dense = {{{1.0}}};
-    auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_block, Fs_dense, Fs_dense);
-
-    nda::array<int,3> h5_test = {{{3, 4}, {2, 3}}, {{1, 2}, {2, 5}}};
-
-    h5::file hfile("/home/paco/feynman/saved_data/OCA_single_exponential_test.h5", 'w');
-
-    h5::array_interface::array_view OCA_result_view(h5::hdf5_type<dcomplex>(), (void *) OCA_result.get_block(0).data(), 1, true);
-    h5::array_interface::write(hfile, "OCA_result", OCA_result_view, false);
-
-    h5::array_interface::array_view OCA_dense_result_view(h5::hdf5_type<dcomplex>(), OCA_dense_result.data(), 3, true);
-    h5::array_interface::write(hfile, "OCA_dense_result", OCA_dense_result_view, false);
-
-    h5::array_interface::array_view OCA_ana_fb10_view(h5::hdf5_type<dcomplex>(),  OCA_ana_fb10.data(), 1, true);
-    h5::array_interface::write(hfile, "OCA_ana_fb10", OCA_ana_fb10_view, false);
-
-    h5::array_interface::array_view view(h5::hdf5_type<int>(), (void*) h5_test.data(), 3, false);
-    view.slab.count = {2, 2, 2};
-    view.parent_shape = {2, 2, 2};
-    h5::array_interface::write(hfile, "view", view, false);
-
-    std::cout << "OCA_result = " << OCA_result << std::endl;
-    std::cout << "OCA_dense_result = " << OCA_dense_result << std::endl;
-    std::cout << "OCA_ana_fb10 = " << OCA_ana_fb10 << std::endl;
-
-    int n_quad = 100;
-    auto OCA_tpz_result = OCA_tpz(Deltat, itops, beta, Gt_block, Fs_dense, n_quad);
-    auto OCA_dense_result_coeffs = itops.vals2coefs(OCA_dense_result);
-    auto it_eq = cppdlr::eqptsrel(n_quad+1);
-    auto OCA_dense_result_eq = nda::array<dcomplex,3>(n_quad+1,1,1);
-    for (int i = 0; i <= n_quad; i++) {
-        OCA_dense_result_eq(i,_,_) = itops.coefs2eval(OCA_dense_result_coeffs, it_eq(i));
-    }
-
-    std::cout << std::endl;
-    std::cout << "OCA dense on eq grid = " << OCA_dense_result_eq(_,0,0) << std::endl;
-    std::cout << std::endl;
-    std::cout << "OCA tpz result = " << OCA_tpz_result(_,0,0) << std::endl;
+    EXPECT_LT(nda::norm(
+        (OCA_result.get_block(0)(_,0,0)-OCA_ana), std::numeric_limits<double>::infinity()), 1.0e-7);
 }
 
 TEST(BlockSparseMisc, load_hdf5) {
@@ -455,6 +423,8 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     // Green's function
     auto Gt = nonint_gf_BDOF(H_blocks, H_block_inds, beta, dlr_it_abs);
 
+    // TODO: refactor
+
     // creation/annihilation operators
     nda::array<long,2> ann_conn(4,num_blocks);
     nda::array<long,2> cre_conn(4,num_blocks);
@@ -506,10 +476,14 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     // block-sparse NCA and OCA compuations
     auto NCA_result = NCA_bs(Deltat, Deltat_refl, Gt, Fs);
     auto OCA_result = OCA_bs(Deltat, itops, beta, Gt, Fs);
-    /*
-    for (int i = 0; i < 1; i++) {
-        std::cout << "OCA = " << OCA_result.get_block(0)(_,i,i) << std::endl;
-    }*/
+
+    // dense-matrix NCA and OCA computations
+    auto NCA_dense_result = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
+    auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
+
+    // compute OCA using trapezoidal rule using 10 quadrature nodes
+    // TODO: replace with precomputation
+    auto OCA_tpz_result = OCA_tpz(Deltat, itops, beta, Gt_dense, Fs_dense, 10);
 
     // load NCA and OCA results from twoband.py
     std::string Lambda_str = (Lambda == 10.0) ? "10.0" : (Lambda == 100.0) ? "100.0" : "1000.0";
@@ -520,9 +494,7 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     auto OCA_py = nda::zeros<dcomplex>(r,16,16);
     h5::read(Gtgroup, "OCA", OCA_py);
 
-    auto NCA_dense_result = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
-    auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
-
+    // permute twoband.py results to match block structure from atom_diag
     auto NCA_py_perm = nda::zeros<dcomplex>(r,16,16);
     auto OCA_py_perm = nda::zeros<dcomplex>(r,16,16);
     for (int t = 0; t < r; t++) {
@@ -548,6 +520,16 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
         if (i < num_blocks - 1) s1 += subspaces[i+1].size();
     }
     
+    // check that trapezoidal OCA calculation agrees with block-sparse calc.
+    s0 = 0;
+    s1 = subspaces[0].size();
+    for (int i = 0; i < num_blocks; i++) { // compare each block
+        auto OCA_result_block = OCA_result.get_block(i)(_,_,_);
+        auto OCA_result_block_eq = eval_eq(itops, OCA_result_block, 10);
+        ASSERT_LE(nda::max_element(nda::abs(OCA_result_block_eq - OCA_tpz_result(_,range(s0,s1),range(s0,s1)))), 1e-2);
+        s0 = s1;
+        if (i < num_blocks - 1) s1 += subspaces[i+1].size();
+    }
 }
 
 TEST(BlockSparseOCATest, two_band_semicircle_bath) {

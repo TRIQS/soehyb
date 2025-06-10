@@ -12,7 +12,6 @@ using namespace nda;
 // TODO:
 // templates for double/dcomplex
 // convolve on values, not DLR coeffs
-// OCA testing: Delta, G = single exponentials. fermionic dimer, G = G0 = e^(i*H_dimer*t)
 
 /**
  * @class BlockDiagOpFun
@@ -156,6 +155,23 @@ class BlockOpFun {
 };
 
 /**
+ * @class BackboneTopology
+ * @brief Representation of the common features of a given backbone diagram topology
+ */
+class BackboneTopology {
+    private:
+        std::vector<nda::vector<int>> vertices;
+        std::vector<nda::vector<int>> edges;
+        int vertex_to_0;
+
+    /**
+     * @brief Constructor for BackboneTopology
+     * @param[in] hyb_edges nda::array_const_view array of hybridization edges
+     */
+    BackboneTopology(nda::array_const_view<int,2> hyb_edges);
+};
+
+/**
  * @brief Print BlockDiagOpFun to output stream
  * @param[in] os output stream
  * @param[in] D BlockDiagOpFun
@@ -191,11 +207,11 @@ BlockOp operator*(const dcomplex c, const BlockOp &F);
 BlockDiagOpFun BOFtoBDOF(BlockOpFun const &A);
 
 /**
- * @brief Evaluate NCA using block-sparse storage
+ * @brief Evaluate NCA self-energy term using block-sparse storage
  * @param[in] hyb hybridization function
+ * @param[in] hyb_refl hyb evaluated at (beta - tau)
  * @param[in] Gt Greens function
- * @param[in] F F operator
- * @param[in] F_dag F^dagger operator
+ * @param[in] Fs vector of annihilation operators
  * @return NCA term of self-energy
  */
 BlockDiagOpFun NCA_bs(nda::array_const_view<dcomplex,3> hyb, 
@@ -203,6 +219,14 @@ BlockDiagOpFun NCA_bs(nda::array_const_view<dcomplex,3> hyb,
     const BlockDiagOpFun &Gt, 
     const std::vector<BlockOp> &Fs);
 
+/**
+ * @brief Evaluate NCA self-energy term using dense storage
+ * @param[in] hyb hybridization function
+ * @param[in] hyb_refl hyb evaluated at (beta - tau)
+ * @param[in] Gt Greens function
+ * @param[in] Fs vector of annihilation operators
+ * @param[in] F_dags vector of creation operators
+ */
 nda::array<dcomplex,3> NCA_dense(
     nda::array_const_view<dcomplex,3> hyb, 
     nda::array_const_view<dcomplex,3> hyb_refl, 
@@ -221,7 +245,10 @@ nda::array<double,2> K_mat(nda::vector_const_view<double> dlr_it,
 
 /**
  * @brief DLR convolution routine for rectangular matrices
-
+ * @param[in] itops CPPDLR imaginary time object
+ * @param[in] beta inverse temperature
+ * @param[in] fc DLR coefficients of first function
+ * @param[in] gc DLR coefficients of second function
  */
 nda::array<dcomplex,3> convolve_rectangular(
     imtime_ops &itops, 
@@ -231,26 +258,21 @@ nda::array<dcomplex,3> convolve_rectangular(
 );
 
 /**
- * @brief Compute noninteracting Green's function from Hamiltonian, both as BDOF
+ * @brief Compute noninteracting Green's function from Hamiltonian as a BDOF
+ * @param[in] H_blocks vector of blocks of Hamiltonian
+ * @param[in] H_block_inds vector, -1 if Hamiltonian has zero block in corresponding block column
+ * @param[in] beta inverse temperature
+ * @param[in] dlr_it imaginary time nodes in absolute format
  */
-BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double,2>> H_blocks, 
+BlockDiagOpFun nonint_gf_BDOF(
+    std::vector<nda::array<double,2>> H_blocks, 
     nda::vector<int> H_block_inds, 
     double beta, 
     nda::vector_const_view<double> dlr_it);
 
-nda::array<dcomplex,3> OCA_bs_right(
-    double beta, 
-    imtime_ops &itops, 
-    double omega_l, 
-    bool forward, 
-    nda::array_const_view<dcomplex,3> Gt0, 
-    nda::array_const_view<dcomplex,3> Gt1, 
-    nda::array_const_view<dcomplex,2> Flam);
-
 /**
  * @brief Evaluate OCA using block-sparse storage
  * @param[in] hyb hybridization function at imaginary time nodes
- * @param[in] hyb_refl hybridization at negatives of imaginary time nodes
  * @param[in] itops cppdlr imaginary time object
  * @param[in] beta inverse temperature
  * @param[in] Gt Greens function
@@ -258,12 +280,22 @@ nda::array<dcomplex,3> OCA_bs_right(
  * @return OCA term of self-energy
  */
 BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex,3> hyb,
-    // nda::array_const_view<dcomplex,3> hyb_refl,
     imtime_ops &itops, 
     double beta, 
     const BlockDiagOpFun &Gt, 
     const std::vector<BlockOp> &Fs);
 
+nda::array<dcomplex,3> eval_eq(imtime_ops &itops, nda::array_const_view<dcomplex, 3> f, int n_quad);
+
+/**
+ * @brief Evaluate OCA using dense storage
+ * @param[in] hyb hybridization function at imaginary time nodes
+ * @param[in] itops cppdlr imaginary time object
+ * @param[in] beta inverse temperature
+ * @param[in] Gt Greens function
+ * @param[in] Fs F operator
+ * @return OCA term of self-energy
+ */
 nda::array<dcomplex,3> OCA_dense(nda::array_const_view<dcomplex,3> hyb,
     imtime_ops &itops, 
     double beta, 
@@ -271,6 +303,16 @@ nda::array<dcomplex,3> OCA_dense(nda::array_const_view<dcomplex,3> hyb,
     nda::array_const_view<dcomplex,3> Fs, 
     nda::array_const_view<dcomplex,3> F_dags);
 
+/**
+ * @brief Evaluate OCA directly using trapezoidal quadrature
+ * @param[in] hyb hybridization function at imaginary time nodes
+ * @param[in] itops cppdlr imaginary time object
+ * @param[in] beta inverse temperature
+ * @param[in] Gt Greens function
+ * @param[in] Fs F operator
+ * @param[in] n_quad number of quadrature nodes
+ * @return OCA term of self-energy
+ */
 nda::array<dcomplex,3> OCA_tpz(
     nda::array_const_view<dcomplex,3> hyb,
     imtime_ops &itops, 
