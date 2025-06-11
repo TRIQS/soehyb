@@ -1078,12 +1078,8 @@ nda::array<dcomplex,3> OCA_dense_right(
                 T(t,_,_) = k_it(dlr_it(t), -omega_l) * nda::matmul(Flam,Gt(t,_,_));
             }
             // 2. convolve by G
-            T = itops.convolve(
-                    beta,
-                    Fermion,
-                    itops.vals2coefs(Gt),
-                    itops.vals2coefs(T),
-                    TIME_ORDERED);
+            T = itops.convolve(beta, Fermion, itops.vals2coefs(Gt), itops.vals2coefs(T), TIME_ORDERED);
+            // T = itops.convolve(Gt_conv, T); 
         }
         else {
             // 1. multiply G(tau_2-tau_1) K^+(tau_2-tau_1) F_lambda
@@ -1091,12 +1087,7 @@ nda::array<dcomplex,3> OCA_dense_right(
                 T(t,_,_) = k_it(dlr_it(t), omega_l) * nda::matmul(Gt(t,_,_),Flam);
             }
             // 2. convolve by G
-            T = itops.convolve(
-                    beta, 
-                    Fermion, 
-                    itops.vals2coefs(T), 
-                    itops.vals2coefs(Gt), 
-                    TIME_ORDERED);
+            T = itops.convolve(beta, Fermion, itops.vals2coefs(T), itops.vals2coefs(Gt), TIME_ORDERED);
         }
     } else {
         if (omega_l >= 0) {
@@ -1105,30 +1096,22 @@ nda::array<dcomplex,3> OCA_dense_right(
                 T(t,_,_) = k_it(dlr_it(t), omega_l) * nda::matmul(Flam,Gt(t,_,_));
             }
             // 2. convolve by G
-            T = itops.convolve(
-                    beta,
-                    Fermion,
-                    itops.vals2coefs(Gt),
-                    itops.vals2coefs(T),
-                    TIME_ORDERED);
+            T = itops.convolve(beta, Fermion, itops.vals2coefs(Gt), itops.vals2coefs(T), TIME_ORDERED);
+            // T = itops.convolve(Gt_conv, T); 
         } else {
             // 1. multiply G(tau_2-tau_1) K^-(tau_2-tau_1) F_lambda
             for (int t = 0; t < r; t++) {
                 T(t,_,_) = k_it(dlr_it(t), -omega_l) * nda::matmul(Gt(t,_,_),Flam);
             }
             // 2. convolve by G
-            T = itops.convolve(
-                    beta, 
-                    Fermion, 
-                    itops.vals2coefs(T), 
-                    itops.vals2coefs(Gt), 
-                    TIME_ORDERED);
+            T = itops.convolve(beta, Fermion, itops.vals2coefs(T), itops.vals2coefs(Gt), TIME_ORDERED);
         }
     }
 
     return T;
 }
 
+/*
 nda::array<dcomplex,3> OCA_dense_middle(
     bool forward, 
     nda::array_const_view<dcomplex,3> hyb, 
@@ -1170,7 +1153,48 @@ nda::array<dcomplex,3> OCA_dense_middle(
 
     return U;
 }
+*/
 
+void OCA_dense_middle_in_place(
+    bool forward, 
+    nda::array_const_view<dcomplex,3> hyb, 
+    nda::array_const_view<dcomplex,3> hyb_refl, 
+    nda::array_const_view<dcomplex,3> Fkaps, 
+    nda::array_const_view<dcomplex,3> Fmus, 
+    nda::array_view<dcomplex,3> T, 
+    nda::array_view<dcomplex,4> Tkaps, 
+    nda::array_view<dcomplex,3> Tmu
+) {
+    int num_Fs = Fkaps.extent(0);
+    int r = hyb.extent(0);
+    int N = Fkaps.extent(1);
+    // 3. for each kappa, multiply by F_kappa from right
+    for (int kap = 0; kap < num_Fs; kap++) {
+        for (int t = 0; t < r; t++) {
+            Tkaps(kap,t,_,_) = nda::matmul(T(t,_,_),Fkaps(kap,_,_));
+        }
+    }
+
+    // 4. for each mu, kap, mult by Delta_mu_kap and sum kap
+    for (int mu = 0; mu < num_Fs; mu++) {
+        Tmu = 0;
+        for (int kap = 0; kap < num_Fs; kap++) {
+            for (int t = 0; t < r; t++) {
+                if (forward) {
+                    Tmu(t,_,_) += hyb(t,mu,kap)*Tkaps(kap,t,_,_);
+                } else {
+                    Tmu(t,_,_) += hyb_refl(t,mu,kap)*Tkaps(kap,t,_,_);
+                }
+            }
+        }
+        // 5. multiply by F^dag_mu and sum over mu
+        for (int t = 0; t < r; t++) {
+            T(t,_,_) += nda::matmul(Fmus(mu,_,_), Tmu(t,_,_));
+        }
+    }
+}
+
+/*
 nda::array<dcomplex,3> OCA_dense_left(
     double beta, 
     imtime_ops &itops, 
@@ -1251,6 +1275,84 @@ nda::array<dcomplex,3> OCA_dense_left(
 
     return Sigma_l;
 }
+*/
+
+void OCA_dense_left_in_place(
+    double beta, 
+    imtime_ops &itops, 
+    double omega_l, 
+    bool forward, 
+    nda::array_const_view<dcomplex,3> Gt, 
+    nda::array_const_view<dcomplex,2> Fbar, 
+    nda::array_view<dcomplex,3> T, 
+    nda::array_view<dcomplex,3> GKt) {
+
+    int r = Gt.extent(0);
+    int N = Gt.extent(1);
+    auto dlr_it = itops.get_itnodes();
+
+    if (forward) {
+        if (omega_l <= 0) {
+            // 6. convolve by G
+            T = itops.convolve(
+                    beta, 
+                    Fermion, 
+                    itops.vals2coefs(Gt), 
+                    itops.vals2coefs(T), 
+                    TIME_ORDERED);
+            // 7. multiply by Fbar
+            for (int t = 0; t < r; t++) {
+                T(t,_,_) = nda::matmul(Fbar, T(t,_,_));
+            }
+        }
+        else {
+            // 6. convolve by G K^+
+            for (int t = 0; t < r; t++) {
+                GKt(t,_,_) = k_it(dlr_it(t), omega_l)*Gt(t,_,_);
+            }
+            T = itops.convolve(
+                    beta, 
+                    Fermion,
+                    itops.vals2coefs(GKt), 
+                    itops.vals2coefs(T),
+                    TIME_ORDERED);
+            // 7. multiply by Fbar
+            for (int t = 0; t < r; t++) {
+                T(t,_,_) = nda::matmul(Fbar, T(t,_,_));
+            }
+        }
+    } else {
+        if (omega_l >= 0) {
+            // 6. convolve by G
+            T = itops.convolve(
+                    beta, 
+                    Fermion, 
+                    itops.vals2coefs(Gt), 
+                    itops.vals2coefs(T), 
+                    TIME_ORDERED);
+            // 7. multiply by Fbar
+            for (int t = 0; t < r; t++) {
+                T(t,_,_) = nda::matmul(Fbar, T(t,_,_));
+            }
+        }
+        else {
+            // 6. convolve by G K^-
+            for (int t = 0; t < r; t++) {
+                GKt(t,_,_) = k_it(dlr_it(t),-omega_l)*Gt(t,_,_);
+            }
+            T = itops.convolve(
+                    beta, 
+                    Fermion,
+                    itops.vals2coefs(GKt), 
+                    itops.vals2coefs(T),
+                    TIME_ORDERED);
+            // 7. multiply by Fbar
+            for (int t = 0; t < r; t++) {
+                T(t,_,_) = nda::matmul(Fbar, T(t,_,_));
+            }
+        }
+    }
+}
 
 nda::array<dcomplex,3> eval_eq(imtime_ops &itops, nda::array_const_view<dcomplex, 3> f, int n_quad) {
     auto fc = itops.vals2coefs(f);
@@ -1305,9 +1407,10 @@ nda::array<dcomplex,3> OCA_dense(
     // nda::array<dcomplex,3> Sigma_bf(r,N,N); // bf --> fb2 = 0, fb1 = 1
     // nda::array<dcomplex,3> Sigma_bb(r,N,N);
 
-    nda::array<dcomplex, 3> Sigma_l(r, N, N), T(r, N, N), U(r, N, N); 
-    // Sigma_l = term of self-energy assoc'd with pole l
-    // T, U = placeholder arrays
+    // preallocate intermediate arrays
+    nda::array<dcomplex, 3> Sigma_l(r, N, N), T(r, N, N), Tmu(r, N, N), GKt(r, N, N); 
+    nda::array<dcomplex, 4> Tkaps(num_Fs, r, N, N);
+    // Sigma_l = term of self-energy assoc'd with pole l, rest are placeholders
     // loop over hybridization lines
     for (int fb1 = 0; fb1 <= 1; fb1++) {
         for (int fb2 = 0; fb2 <= 1; fb2++) {
@@ -1330,21 +1433,22 @@ nda::array<dcomplex,3> OCA_dense(
                         (fb2==1), 
                         Gt, 
                         F2list(lam,_,_));
-                    U = OCA_dense_middle(
+                    OCA_dense_middle_in_place(
                         (fb1==1), 
                         hyb, 
                         hyb_refl, 
                         F1list, 
                         F3list, 
-                        T);
-                    Sigma_l += OCA_dense_left(
+                        T, Tkaps, Tmu);
+                    OCA_dense_left_in_place(
                         beta, 
                         itops, 
                         dlr_rf(l), 
                         (fb2==1), 
                         Gt, 
                         Fbar_array(lam,l,_,_), 
-                        U);
+                        T, GKt);
+                    Sigma_l += T;
                 } // sum over lambda
 
                 // prefactor with Ks
