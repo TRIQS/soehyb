@@ -13,6 +13,8 @@ using namespace nda;
 // templates for double/dcomplex
 // convolve on values, not DLR coeffs
 
+static constexpr bool NCA = false, OCA = true; // for special BackboneTopology constructor
+
 /**
  * @class BlockDiagOpFun
  * @brief Block-sparse storage of time-dependent block-diagonal operator (e.g. Green's f'n)
@@ -155,20 +157,35 @@ class BlockOpFun {
 };
 
 /**
- * @class BackboneTopology
- * @brief Representation of the common features of a given backbone diagram topology
+ * @class BackboneSignature
+ * @brief Identifier of a diagram with specific forward/backward lines and orbital indices
  */
-class BackboneTopology {
+class BackboneSignature {
     private:
-        std::vector<nda::vector<int>> vertices;
-        std::vector<nda::vector<int>> edges;
-        int vertex_to_0;
+        int m; // order
+        int n; // number of state variables
+        nda::array<int,2> topology; 
+        nda::array<int,2> prefactor;
+        nda::array<int,2> vertices;
+        nda::array<int,2> edges;
+        nda::vector<int> fb; 
+        nda::vector<double> poles; 
+
+    public:
+        void set_directions(nda::vector_const_view<int> fb);
+        void set_poles(nda::vector_const_view<double> poles); 
+        void set_states(nda::vector_const_view<int> states);
 
     /**
-     * @brief Constructor for BackboneTopology
-     * @param[in] hyb_edges nda::array_const_view array of hybridization edges
+     * @brief Constructor for BackboneSignature
+     * 
+     * @param[in] topology list of vertices connected by a hybridization line
+     * @param[in] n number of state variables
+     *
+     * @note Each entry of fb is 1 or 0, where 1 corresponds to a forward line.
+     * @note The entries of fb are in the same order as specified by topology.
      */
-    BackboneTopology(nda::array_const_view<int,2> hyb_edges);
+    BackboneSignature(nda::array<int,2> topology, int n);
 };
 
 /**

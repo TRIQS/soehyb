@@ -364,7 +364,7 @@ TEST(BlockSparseMisc, compute_nonint_gf) {
 
 TEST(BlockSparseOCATest, two_band_discrete_bath) {
     // DLR parameters
-    double beta = 1.0;
+    double beta = 2.0; // 1.0;
     double Lambda = 1000*beta;
     double eps = 1.0e-10;
     // DLR generation
@@ -486,8 +486,9 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     auto OCA_tpz_result = OCA_tpz(Deltat, itops, beta, Gt_dense, Fs_dense, 10);
 
     // load NCA and OCA results from twoband.py
-    std::string Lambda_str = (Lambda == 10.0) ? "10.0" : (Lambda == 100.0) ? "100.0" : "1000.0";
-    h5::file Gtfile("/home/paco/feynman/ppsc-soe/benchmarks/twoband/saved/G0_iaa_beta=1.0_Lambda=" + Lambda_str + ".h5", 'r');
+    std::string Lambda_str = (beta == 2.0) ? "2000.0" : "`1000.0";
+    std::string beta_str = (beta == 2.0) ? "2.0" : "1.0";
+    h5::file Gtfile("/home/paco/feynman/ppsc-soe/benchmarks/twoband/saved/G0_iaa_beta=" + beta_str + "_Lambda=" + Lambda_str + ".h5", 'r');
     h5::group Gtgroup(Gtfile);
     auto NCA_py = nda::zeros<dcomplex>(r,16,16);
     h5::read(Gtgroup, "NCA", NCA_py);
@@ -526,10 +527,20 @@ TEST(BlockSparseOCATest, two_band_discrete_bath) {
     for (int i = 0; i < num_blocks; i++) { // compare each block
         auto OCA_result_block = OCA_result.get_block(i)(_,_,_);
         auto OCA_result_block_eq = eval_eq(itops, OCA_result_block, 10);
-        ASSERT_LE(nda::max_element(nda::abs(OCA_result_block_eq - OCA_tpz_result(_,range(s0,s1),range(s0,s1)))), 1e-2);
+        ASSERT_LE(nda::max_element(nda::abs(OCA_result_block_eq - OCA_tpz_result(_,range(s0,s1),range(s0,s1)))), 1e-2*beta);
         s0 = s1;
         if (i < num_blocks - 1) s1 += subspaces[i+1].size();
     }
+}
+
+TEST(Backbone, constructor) {
+    nda::array<int,2> topology = {{0, 2}, {1, 4}, {3, 5}}; 
+    int n = 4; 
+    auto BB = BackboneSignature(topology, n); 
+    nda::vector<int> fb = {-1, -1, -1};
+    BB.set_directions(fb); 
+    nda::vector<double> poles = {-1.0, -1.0};
+    BB.set_poles(poles); 
 }
 
 TEST(BlockSparseXCATest, OCA) {
@@ -591,6 +602,4 @@ TEST(BlockSparseXCATest, OCA) {
 
     auto F_up_dag = dagger_bs(F_up);
     auto F_down_dag = dagger_bs(F_down);
-
-    // TODO: abstract representation for backbone diagrams?
 }

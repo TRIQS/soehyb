@@ -367,7 +367,159 @@ const int BlockOpFun::get_num_time_nodes() const {
     return 0; // BlockDiagOpFun is all zeros anyways
 }
 
-/////////////// BackboneTopology ///////////////
+/////////////// BackboneSignature ///////////////
+
+BackboneSignature::BackboneSignature(nda::array<int,2> topology, int n) : 
+    topology(topology), n(n) {
+    
+    m = topology.extent(0); // e.g. 2CA, m = 3, topology has 3 lines
+    prefactor = nda::zeros<int>(m-1, 3); 
+    /*        |  sign  |  sign on K  | exponent on K |
+     p   ---------------------------------------------
+     o   l    |        |             |               |
+     l   ---------------------------------------------
+     e   l'   |        |             |               |
+        ---------------------------------------------
+     i   l''  |        |             |               |
+     n   ---------------------------------------------
+     d   ...  |        |             |               |
+     e
+     x
+    */
+    vertices = nda::zeros<int>(2*m, m+n+1); 
+    /*                                 pole index      |  spin+orbital index
+                                  _____________________|_____________________
+             |  bar?  |  dagger?  | l | l' | l'' | ... | lambda | mu | ... 
+     v   ---------------------------------------------------------------------
+     e   0   |        |           |                    |
+     r   ---------------------------------------------------------------------
+     t   1   |        |           |                    |
+     e   ---------------------------------------------------------------------
+     x   2   |        |           |                    |
+     #   ---------------------------------------------------------------------
+         ... |        |           |                    |
+         ---------------------------------------------------------------------
+         2*m |        |           |                    |
+         ---------------------------------------------------------------------
+    */
+    edges = nda::zeros<int>(2*m-1, m-1); // 2*m-1 = # edges; m-1: each pole index
+    /*            pole index      
+             | l | l' | l'' | ... 
+         -------------------------
+         0   |                    
+     e   -------------------------
+     d   1   |                    
+     g   -------------------------
+     e   2   |                    
+     #   -------------------------
+         ... |                    
+         -------------------------
+         2*m |                    
+         -------------------------
+    */
+}
+
+void BackboneSignature::set_directions(nda::vector_const_view<int> fb) {
+    // @param[in] fb forward/backward line information
+
+    this->fb = fb; 
+    if (m != fb.size()) {
+        throw std::invalid_argument("topology and fb must have same # of vertices");
+    }
+    for (int i = 0; i < m; i++) {
+        if (topology(i,0) >= topology(i,1)) {
+            throw std::invalid_argument("first row of topology must contain smaller-numbered vertices");
+        }
+    }
+    if (topology(0,0) != 0) throw std::invalid_argument("topology(0,0) must be 0"); 
+
+    // set operator flags for each vertex, depending on fb
+
+    vertices(0, 0) = 0; // operator on vertex 0 has no bar
+    vertices(topology(0,1), 0) = 0; // operator on vertex connected to 0 has no bar
+    if (fb(0) == 1) {
+        vertices(0, 1) = 0; // annihilation operator on vertex 0
+        vertices(topology(0,1), 1) = 1; // creation operator on vertex connected to 0
+    } else {
+        vertices(0, 1) = 1; // creation operator on vertex 0
+        vertices(topology(0,1), 1) = 0; // annihilation operator on vertex connected to 0
+    }
+
+    for (int i = 1; i < m; i++) {
+        vertices(topology(i,0), 0) = 0; // operator on vertex i has no bar
+        vertices(topology(i,1), 0) = 1; // operator on vertex connected to i has a bar
+
+        if (fb(i) == 1) {
+            vertices(topology(i,0), 1) = 0; // annihilation operator on vertex i
+            vertices(topology(i,1), 1) = 1; // creation operator on vertex i
+        } else {
+            vertices(topology(i,0), 1) = 1; // creation operator on vertex i
+            vertices(topology(i,1), 1) = 0; // annihilation operator on vertex i
+        }
+    }
+}
+
+void BackboneSignature::set_poles(nda::vector_const_view<double> poles) {
+    // @param[in] poles DLR/AAA poles (e.g. l, l' indices)
+    this->poles = poles;
+    for (int i = 1; i < m; i++) {
+        if (fb(i) == 1) {
+            if (poles(i-1) <= 0) {
+                // step 4(a)
+                // place K^-_l F_nu at the right vertex
+                vertices(topology(i,0), i+1) = -1; 
+                // place K^+_l F^bar^dag_nu_l at the left vertex
+                vertices(topology(i,1), i+1) = 1;
+                // divide by K^-_l(0)
+                prefactor(i-1, 0) = 1; 
+                prefactor(i-1, 1) = -1; 
+                prefactor(i-1, 2) = 1;
+            } else {
+                // step 4(b)
+                // no K's on vertices
+                // place K^+_l on each edge between the two vertices
+                for (int j = topology(i,0); j < topology(i,1); j++) edges(j, i-1) = 1;
+                // divide by (K^+_l(0))^(# edges between vertices - 1)
+                prefactor(i-1, 0) = 1; 
+                prefactor(i-1, 1) = 1;
+                prefactor(i-1, 2) = topology(i,1) - topology(i,0) - 1; 
+            }
+        }
+        else {
+            if (poles(i-1) >= 0) {
+                // step 4(a)
+                // place K^+_l F^dag_pi at the right vertex
+                vertices(topology(i,0), i+1) = 1;
+                // place K^-_l F^bar_pi_l at the left vertex
+                vertices(topology(i,1), i+1) = -1;
+                // divide by -K^-+l(0)
+                prefactor(i-1, 0) = -1; 
+                prefactor(i-1, 1) = 1; 
+                prefactor(i-1, 2) = 1;
+            } else {
+                // step 4(b)
+                // no K's on vertices
+                // place K^-_l on each edge between the two vertices
+                for (int j = topology(i,0); j < topology(i,1); j++) edges(j, i-1) = -1;
+                // divide by -(K^-_l(0))^(# edges between vertices - 1)
+                prefactor(i-1, 0) = -1; 
+                prefactor(i-1, 1) = -1;
+                prefactor(i-1, 2) = topology(i,1) - topology(i,0) - 1; 
+            }
+        }
+    }
+
+    std::cout << prefactor << std::endl;
+    std::cout << vertices << std::endl;
+    std::cout << edges << std::endl;
+}
+
+void BackboneSignature::set_states(nda::vector_const_view<int> states) {
+    // @param[in] states orbital+spin indices (e.g. lambda, mu indices), going right to left
+
+    int n = states.size();
+    // TODO: this
+}
 
 /////////////// Utilities and operator overrides ///////////////
 
@@ -699,63 +851,6 @@ BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double,2>> H_blocks,
     return Gt;
 }
 
-/*
-nda::array<dcomplex,3> OCA_bs_right(
-    double beta, 
-    imtime_ops &itops, 
-    double omega_l, 
-    bool forward, 
-    nda::array_const_view<dcomplex,3> Gt0, 
-    nda::array_const_view<dcomplex,3> Gt1, 
-    nda::array_const_view<dcomplex,2> Flam) {
-
-    int r = Gt0.extent(0);
-    nda::array<dcomplex,3> T(r,Flam.extent(0),Flam.extent(1));
-    auto dlr_it = itops.get_itnodes();
-
-    if (forward) {
-        if (omega_l <= 0) {
-            // 1. multiply F_lambda G(tau_1) K^-(tau_1)
-            for (int t = 0; t < r; t++) {
-                T(t,_,_) = k_it(dlr_it(t), -omega_l) * nda::matmul(Flam,Gt0(t,_,_));
-            }
-            // 2. convolve by G
-            // T = convolve_rectangular(itops, beta, Gt1, T);
-            T = itops.convolve(beta, Fermion, itops.vals2coefs(Gt1), itops.vals2coefs(T), TIME_ORDERED);
-        }
-        else {
-            // 1. multiply G(tau_2-tau_1) K^+(tau_2-tau_1) F_lambda
-            for (int t = 0; t < r; t++) {
-                T(t,_,_) = k_it(dlr_it(t), omega_l) * nda::matmul(Gt1(t,_,_),Flam);
-            }
-            // 2. convolve by G
-            // T = convolve_rectangular(itops, beta, T, Gt0);
-            T = itops.convolve(beta, Fermion, itops.vals2coefs(T), itops.vals2coefs(Gt0), TIME_ORDERED);
-        }
-    } else {
-        if (omega_l >= 0) {
-            // 1. multiply F_lambda G(tau_1) K^+(tau_1)
-            for (int t = 0; t < r; t++) {
-                T(t,_,_) = k_it(dlr_it(t), omega_l) * nda::matmul(Flam,Gt0(t,_,_));
-            }
-            // 2. convolve by G
-            // T = convolve_rectangular(itops, beta, Gt1, T);
-            T = itops.convolve(beta, Fermion, itops.vals2coefs(Gt1), itops.vals2coefs(T), TIME_ORDERED);
-        } else {
-            // 1. multiply G(tau_2-tau_1) K^-(tau_2-tau_1) F_lambda
-            for (int t = 0; t < r; t++) {
-                T(t,_,_) = k_it(dlr_it(t), -omega_l) * nda::matmul(Gt1(t,_,_),Flam);
-            }
-            // 2. convolve by G
-            // T = convolve_rectangular(itops, beta, T, Gt0);
-            T = itops.convolve(beta, Fermion, itops.vals2coefs(T), itops.vals2coefs(Gt0), TIME_ORDERED); 
-        }
-    }
-
-    return T;
-}
-*/
-
 void OCA_bs_right_in_place(
     double beta, 
     imtime_ops &itops, 
@@ -806,52 +901,6 @@ void OCA_bs_right_in_place(
     }
 }
 
-/*
-nda::array<dcomplex,3> OCA_bs_middle(
-    bool forward, 
-    nda::array_const_view<dcomplex,3> hyb, 
-    nda::array_const_view<dcomplex,3> hyb_refl, 
-    nda::array_const_view<dcomplex,3> Fkaps, 
-    nda::array_const_view<dcomplex,3> Fmus, 
-    nda::array_const_view<dcomplex,3> T) {
-    
-    int num_Fs = Fkaps.extent(0);
-    int r = hyb.extent(0);
-    // 3. for each kappa, multiply by F_kappa from right
-    auto Tkap = nda::zeros<dcomplex>(num_Fs, r, T.extent(1), Fkaps.extent(2));
-    for (int kap = 0; kap < num_Fs; kap++) {
-        auto Fkap = Fkaps(kap,_,_);
-        for (int t = 0; t < r; t++) {
-            Tkap(kap,t,_,_) = nda::matmul(T(t,_,_),Fkap);
-        }
-    }
-
-    // 4. for each mu, kap, mult by Delta_mu_kap and sum kap
-    // auto Tmu = nda::make_regular(0*Tkap); 
-    nda::array<dcomplex,3> Tmu(r, T.extent(1), Fkaps.extent(2));
-    auto U = nda::zeros<dcomplex>(r, Fmus.extent(1), Fkaps.extent(2));
-    for (int mu = 0; mu < num_Fs; mu++) {
-        Tmu = 0;
-        for (int kap = 0; kap < num_Fs; kap++) {
-            for (int t = 0; t < r; t++) {
-                if (forward) {
-                    Tmu(t,_,_) += hyb(t,mu,kap)*Tkap(kap,t,_,_);
-                } else {
-                    Tmu(t,_,_) += hyb_refl(t,kap,mu)*Tkap(kap,t,_,_);
-                }
-            }
-        }
-        // 5. multiply by F^dag_mu and sum over mu
-        for (int t = 0; t < r; t++) {
-            auto Fmu = Fmus(mu,_,_);
-            U(t,_,_) += nda::matmul(Fmu, Tmu(t,_,_));
-        }
-    }
-
-    return U;
-}
-    */
-
 void OCA_bs_middle_in_place(
     bool forward, 
     nda::array_const_view<dcomplex,3> hyb, 
@@ -895,69 +944,6 @@ void OCA_bs_middle_in_place(
         }
     }
 }
-
-/*
-nda::array<dcomplex,3> OCA_bs_left(
-    double beta, 
-    imtime_ops &itops, 
-    double omega_l, 
-    bool forward, 
-    nda::array_const_view<dcomplex,3> Gt, 
-    nda::array_const_view<dcomplex,2> Fbar, 
-    nda::array_const_view<dcomplex,3> U) {
-
-    int r = Gt.extent(0);
-    nda::array<dcomplex,3> Sigma_l(r,Fbar.extent(0),U.extent(2));
-    auto dlr_it = itops.get_itnodes();
-    nda::array<dcomplex,3> temp(r,U.extent(1),U.extent(2));
-
-    if (forward) {
-        if (omega_l <= 0) {
-            // 6. convolve by G
-            temp = itops.convolve(beta, Fermion, itops.vals2coefs(Gt), itops.vals2coefs(U), TIME_ORDERED);
-            // 7. multiply by Fbar
-            for (int t = 0; t < r; t++) {
-                Sigma_l(t,_,_) = nda::matmul(Fbar, temp(t,_,_));
-            }
-        }
-        else {
-            // 6. convolve by G K^+
-            nda::array<dcomplex,3> GKlplus(r,Gt.extent(1),Gt.extent(2));
-            for (int t = 0; t < r; t++) {
-                GKlplus(t,_,_) = k_it(dlr_it(t), omega_l)*Gt(t,_,_);
-            }
-            temp = itops.convolve(beta, Fermion, itops.vals2coefs(GKlplus), itops.vals2coefs(U), TIME_ORDERED);
-            // 7. multiply by Fbar
-            for (int t = 0; t < r; t++) {
-                Sigma_l(t,_,_) = nda::matmul(Fbar, temp(t,_,_));
-            }
-        }
-    } else {
-        if (omega_l >= 0) {
-            // 6. convolve by G
-            temp = itops.convolve(beta, Fermion, itops.vals2coefs(Gt), itops.vals2coefs(U), TIME_ORDERED);
-            // 7. multiply by Fbar
-            for (int t = 0; t < r; t++) {
-                Sigma_l(t,_,_) = nda::matmul(Fbar, temp(t,_,_));
-            }
-        }
-        else {
-            // 6. convolve by G K^-
-            nda::array<dcomplex,3> GKlminus(r,Gt.extent(1),Gt.extent(2));
-            for (int t = 0; t < r; t++) {
-                GKlminus(t,_,_) = k_it(dlr_it(t),-omega_l)*Gt(t,_,_);
-            }
-            temp = itops.convolve(beta, Fermion, itops.vals2coefs(GKlminus), itops.vals2coefs(U), TIME_ORDERED);
-            // 7. multiply by Fbar
-            for (int t = 0; t < r; t++) {
-                Sigma_l(t,_,_) = nda::matmul(Fbar, temp(t,_,_));
-            }
-        }
-    }
-
-    return Sigma_l;
-}
-*/
 
 void OCA_bs_left_in_place(
     double beta, 

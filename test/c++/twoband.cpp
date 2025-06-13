@@ -146,10 +146,10 @@ int main() {
     // block-sparse NCA and OCA compuations
     // std::cout << "starting NCA_bs" << std::endl;
     // auto NCA_result = NCA_bs(Deltat, Deltat_refl, Gt, Fs);
-    std::cout << "starting OCA_dense" << std::endl;
+    std::cout << "starting OCA_bs" << std::endl;
     auto start = std::chrono::high_resolution_clock::now();
-    // auto OCA_result = OCA_bs(Deltat, itops, beta, Gt, Fs);
-    auto OCA_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense); 
+    auto OCA_result = OCA_bs(Deltat, itops, beta, Gt, Fs);
+    // auto OCA_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense); 
     auto stop = std::chrono::high_resolution_clock::now();
     std::cout << "done." << std::endl;
     auto duration = duration_cast<std::chrono::milliseconds>(stop - start);
