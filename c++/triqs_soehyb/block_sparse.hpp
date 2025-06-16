@@ -158,12 +158,10 @@ class BlockOpFun {
 
 /**
  * @class BackboneSignature
- * @brief Identifier of a diagram with specific forward/backward lines and orbital indices
+ * @brief Identifier of a diagram with specific signs on poles
  */
 class BackboneSignature {
     private:
-        int m; // order
-        int n; // number of state variables
         nda::array<int,2> topology; 
         nda::array<int,2> prefactor;
         nda::array<int,2> vertices;
@@ -172,9 +170,16 @@ class BackboneSignature {
         nda::vector<double> poles; 
 
     public:
+        int m; // order
+        int n; // number of state variables
         void set_directions(nda::vector_const_view<int> fb);
         void set_poles(nda::vector_const_view<double> poles); 
         void set_states(nda::vector_const_view<int> states);
+        int get_prefactor(int pole_ind, int i);
+        int get_vertex(int num, int i);
+        int get_edge(int num, int pole_ind);
+        int get_topology(int i, int j);
+        double get_pole(int i); 
 
     /**
      * @brief Constructor for BackboneSignature
@@ -215,6 +220,13 @@ BlockOp dagger_bs(BlockOp const &F);
  * @param[in] F BlockOp
  */
 BlockOp operator*(const dcomplex c, const BlockOp &F);
+
+/**
+ * @brief Print BackboneSignature to output stream
+ * @param[in] os output stream
+ * @param[in] B BackboneSignature
+ */
+std::ostream& operator<<(std::ostream& os, BackboneSignature &B);
 
 /**
  * @brief Convert a BlockOpFun with diagonal structure to a BlockDiagOpFun
@@ -340,22 +352,18 @@ nda::array<dcomplex,3> OCA_tpz(
 
 /**
  * @brief Evaluate a single backbone diagram
+ * @param[in] backbone BackboneSignature object
  * @param[in] beta inverse temperature
  * @param[in] itops DLR imaginary time object
- * @param[in] vertex_0 BlockOp
- * @param[in] vertex_1 BlockOpFun
- * @param[in] right_vertices vector of BlockOps
- * @param[in] special_vertex BlockOpFun
- * @param[in] left_vertices vector of BlockOps
- * @param[in] edges vector of BlockDiagOpFuns
- * @param[in] prefactor 1-dimensional nda::array
+ * @param[in] hyb hybridization function at imaginary time nodes
+ * @param[in] Gt Greens function
+ * @param[in] Fs annihilation operators
+ * @param[in] F_dags creation operators
  */
-BlockDiagOpFun eval_backbone(double beta, 
+nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone, 
+    double beta, 
     imtime_ops &itops, 
-    const BlockOp &vertex_0, 
-    const BlockOpFun &vertex_1, 
-    const std::vector<BlockOp> &right_vertices, 
-    const BlockOpFun &special_vertex, 
-    const std::vector<BlockOp> &left_vertices, 
-    const std::vector<BlockDiagOpFun> &edges, 
-    nda::array_const_view<dcomplex,1> prefactor);
+    nda::array_const_view<dcomplex, 3> hyb, 
+    nda::array_const_view<dcomplex, 3> Gt, 
+    nda::array_const_view<dcomplex, 3> Fs, 
+    nda::array_const_view<dcomplex, 3> F_dags);

@@ -53,11 +53,8 @@ array<dcomplex,3> OCA_tpz(
 
     double dt = beta/n_quad;
 
-    std::cout << "WARNING!!!! ONLY ONE FOR/BACK COMBINATION ON\n" << std::endl;
-    // for (int fb1 = 0; fb1 <= 1; fb1++) {
-        // for (int fb2 = 0; fb2 <= 1; fb2++) {
-    for (int fb1 = 1; fb1 < 2; fb1++) {
-        for (int fb2 = 1; fb2 < 2; fb2++) {
+    for (int fb1 = 0; fb1 <= 1; fb1++) {
+        for (int fb2 = 0; fb2 <= 1; fb2++) {
             // fb = 1 for forward line, else = 0
             // fb1 corresponds with line from 0 to tau_2
             auto const &F1list = (fb1==1) ? Fs(_,_,_) : F_dags(_,_,_);
@@ -87,7 +84,6 @@ array<dcomplex,3> OCA_tpz(
                                             matmul(F2list(lam,_,_), 
                                             matmul(Gt_eq(i2,_,_), F1list(kap,_,_)))))));
 
-                                        // Sigma_eq(i,_,_) += -1*w*hyb2(i-i2,lam,nu)*hyb1(i1,mu,kap)*FGFGFGF; 
                                         Sigma_eq(i,_,_) += -1*w*hyb2(i-i2,nu,lam)*hyb1(i1,mu,kap)*FGFGFGF; 
                                         // ^ sign on each term is the same because cppdlr::reflect accounts for negative sign
                                     } // sum over i2
@@ -112,19 +108,18 @@ int main() {
     int N = 16; // size of Green's function, cre/ann operators
 
     // DLR parameters
-    double beta = 1.0;
-    double Lambda = 100*beta;
+    double beta = 2.0;
+    double Lambda = 1000*beta;
     double eps = 1.0e-10;
     // DLR generation
     auto dlr_rf = build_dlr_rf(Lambda, eps);
-    std::cout << "dlr_rf = " << dlr_rf << std::endl;
     auto itops = imtime_ops(Lambda, dlr_rf);
     auto const & dlr_it = itops.get_itnodes();
     auto dlr_it_abs = rel2abs(dlr_it);
-    int r = itops.rank(); // when beta = 1, r = 15
+    int r = itops.rank(); 
 
     // read G0, F, F_dag, NCA, OCA from ppsc-soe/benchmarks/twoband/twoband.by
-    h5::file Gtfile("/home/paco/feynman/ppsc-soe/benchmarks/twoband/saved/G0_iaa_beta=1.0.h5", 'r');
+    h5::file Gtfile("/home/paco/feynman/ppsc-soe/benchmarks/twoband/saved/G0_iaa_beta=2.0_Lambda=2000.0.h5", 'r');
     h5::group Gtgroup(Gtfile);
     auto Gt_dense = zeros<dcomplex>(r,N,N);
     h5::read(Gtgroup, "G0_iaa_no_perm", Gt_dense);
@@ -141,9 +136,10 @@ int main() {
     h5::read(Gtgroup, "OCA", OCA_py);
     // subtract off NCA
     OCA_py = OCA_py - NCA_py;
+    std::cout << Deltat.shape() << std::endl;
 
     // compute OCA using trapezoidal rule
-    int n_quad = 40;
+    int n_quad = 100;
     std::cout << "number of trapezoidal quadrature points: " << n_quad << "\n" << std::endl;
     auto start = std::chrono::high_resolution_clock::now();
     auto OCA_tpz_result = OCA_tpz(Deltat, itops, beta, Gt_dense, Fs_dense, n_quad);
@@ -151,7 +147,7 @@ int main() {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     std::cout << "time elapsed to do trapezoidal quadrature: " << duration.count() << " ms\n" << std::endl;
 
-    h5::file tpz_file("/home/paco/feynman/saved_data/OCA_two_band/tpz_vs_python_tpz_result_nquad_" + std::to_string(n_quad) + "_ff.h5", 'w');
+    h5::file tpz_file("/home/paco/feynman/saved_data/OCA_two_band/tpz_vs_python_tpz_result_nquad_" + std::to_string(n_quad) + ".h5", 'w');
     h5::write(tpz_file, "OCA_tpz_result", OCA_tpz_result);
 
     // evaluate OCA_py on uniform grid
