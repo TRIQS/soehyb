@@ -5,7 +5,15 @@ foreach(file ${all_h5_ref_files})
 endforeach()
 
 # List of all tests
-set(all_tests Basic)
+set(all_tests
+  load_module
+  spinless_dimer
+  spinless_dimer_solver
+  offdiagonal_nca
+  test_diag
+  unitary_invariance
+  h5_io
+  )
 
 foreach(test ${all_tests})
   get_filename_component(test_name ${test} NAME_WE)
