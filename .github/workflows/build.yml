@@ -115,7 +115,7 @@ jobs:
         make -j1 install VERBOSE=1
         cd ../
 
-    - name: Build app4triqs
+    - name: Build triqs_soehyb
       env:
         CC: ${{ matrix.cc }}
         CXX: ${{ matrix.cxx }}
@@ -124,7 +124,7 @@ jobs:
         mkdir build && cd build && cmake ..
         make -j2 || make -j1 VERBOSE=1
 
-    - name: Test app4triqs
+    - name: Test triqs_soehyb
       env:
         OPENBLAS_NUM_THREADS: "1"
       run: |

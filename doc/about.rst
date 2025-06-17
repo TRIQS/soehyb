@@ -1,6 +1,6 @@
 .. _about:
 
-About app4triqs
+About triqs_soehyb
 ***************
 
 An example application using ``cpp2py`` and TRIQS.
