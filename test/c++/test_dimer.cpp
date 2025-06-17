@@ -1,5 +1,5 @@
-#include "strong_cpl.hpp"
-#include "impurity.hpp"
+#include "triqs_soehyb/strong_cpl.hpp"
+#include "triqs_soehyb/impurity.hpp"
 #include "nda/nda.hpp"
 #include <cppdlr/cppdlr.hpp>
 #include <cppdlr/dlr_imtime.hpp>

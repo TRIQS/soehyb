@@ -8,8 +8,8 @@ module = module_(full_name = "impurity", doc = r"", app_name = "impurity")
 # Imports
 
 # Add here all includes
-module.add_include("impurity.hpp")
-module.add_include("dlr_dyson_ppsc.hpp")
+module.add_include("triqs_soehyb/impurity.hpp")
+module.add_include("triqs_soehyb/dlr_dyson_ppsc.hpp")
 
 # Add here anything to add in the C++ code at the start, e.g. namespace using
 module.add_preamble("""
