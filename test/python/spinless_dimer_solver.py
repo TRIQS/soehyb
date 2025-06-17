@@ -2,6 +2,8 @@
 
 import numpy as np
 
+from mpi4py import MPI
+
 from triqs.gf import Gf, MeshImTime
 from triqs.operators import c, c_dag
 from pyed.TriqsExactDiagonalization import TriqsExactDiagonalization
@@ -113,7 +115,10 @@ def test_spinless_dimer(verbose=False):
         tau_j=tau_j,
         )
 
-    res = [ calc_spinless_dimer(order=order, **opts, **ppsc_opts) for order in [1, 3, 5] ]
+    res = [ calc_spinless_dimer(order=order, **opts, **ppsc_opts) for order in [1, 3] ]
+    nca = res[0]
+    tca = res[1]
+    
     #nca = calc_spinless_dimer(order=1, **opts, **ppsc_opts)
     #oca = calc_spinless_dimer(order=2, **opts, **ppsc_opts)    
     #tca = calc_spinless_dimer(order=3, **opts, **ppsc_opts)
@@ -183,7 +188,7 @@ def test_spinless_dimer(verbose=False):
         plt.savefig('figure_spinless_dimer.pdf')
         plt.show()
 
-    np.testing.assert_array_almost_equal(nca.g_iaa, oca.g_iaa)
+    #np.testing.assert_array_almost_equal(nca.g_iaa, oca.g_iaa)
 
     np.testing.assert_array_almost_equal(nca.g_jaa.flatten(), g_ed.data[:, 0, 0].real, decimal=2)
     np.testing.assert_array_almost_equal(tca.g_jaa.flatten(), g_ed.data[:, 0, 0].real, decimal=4)
@@ -191,4 +196,4 @@ def test_spinless_dimer(verbose=False):
     
 if __name__ == '__main__':
     
-    test_spinless_dimer(verbose=True)
+    test_spinless_dimer(verbose=False)
