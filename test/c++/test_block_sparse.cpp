@@ -11,6 +11,8 @@
 #include <nda/mapped_functions.hxx>
 #include <nda/nda.hpp>
 #include <triqs_soehyb/block_sparse.hpp>
+#include <triqs_soehyb/block_sparse_manual.hpp>
+#include <triqs_soehyb/block_sparse_backbone.hpp>
 #include <gtest/gtest.h>
 
 using namespace nda;
@@ -79,7 +81,7 @@ std::tuple<int,
                 Deltat(_,i,j) = Jt(_,0,0);
                 Deltat_refl(_,i,j) = Jt_refl(_,0,0);
             }
-            else if (i == 0 && j == 1 || i == 1 && j == 0 || i == 2 && j == 3 || i == 3 && j == 2) {
+            else if ((i == 0 && j == 1) || (i == 1 && j == 0) || (i == 2 && j == 3) || (i == 3 && j == 2)) {
                 Deltat(_,i,j) = s*Jt(_,0,0);
                 Deltat_refl(_,i,j) = s*Jt_refl(_,0,0);
             }
@@ -582,8 +584,6 @@ TEST(BlockSparseOCA, two_band_discrete_bath_dense) {
     auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
 
     // load NCA and OCA results from twoband.py
-    std::string Lambda_str = (beta == 2.0) ? "2000.0" : "1000.0";
-    std::string beta_str = (beta == 2.0) ? "2.0" : "1.0";
     h5::file Gtfile("../test/c++/h5/two_band_py.h5", 'r');
     h5::group Gtgroup(Gtfile);
     auto NCA_py = nda::zeros<dcomplex>(r,16,16);
@@ -706,8 +706,11 @@ TEST(Backbone, one_vertex_and_edge) {
 
     nda::vector<int> pole_inds = {0, r-1}; 
     BB.set_pole_inds(pole_inds, dlr_rf); 
+
+    nda::vector<int> states = {1, 0, 2, 3, 4, 5}; 
     
-    multiply_vertex_dense(BB, dlr_it, Fs_dense, F_dags_dense, Fdagbars, Fbarsrefl, 1, 0, pole_inds(0), dlr_rf(pole_inds(0)), T); 
+    // multiply_vertex_dense(BB, dlr_it, dlr_rf, Fs_dense, F_dags_dense, Fdagbars, Fbarsrefl, 1, 0, pole_inds(0), dlr_rf(pole_inds(0)), T); 
+    multiply_vertex_dense(BB, dlr_it, dlr_rf, Fs_dense, F_dags_dense, Fdagbars, Fbarsrefl, 1, T); 
     std::cout << BB << std::endl;
 
     nda::array<dcomplex,3> Tact(r,N,N); 

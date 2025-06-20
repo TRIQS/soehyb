@@ -157,45 +157,6 @@ class BlockOpFun {
 };
 
 /**
- * @class BackboneSignature
- * @brief Identifier of a diagram with specific signs on poles
- */
-class BackboneSignature {
-    private:
-        nda::array<int,2> topology; 
-        nda::array<int,2> prefactor;
-        nda::array<int,2> vertices;
-        nda::array<int,2> edges;
-        nda::vector<int> fb; 
-        nda::vector<int> pole_inds; 
-
-    public:
-        int m; // order
-        int n; // number of state variables
-        void set_directions(nda::vector_const_view<int> fb);
-        void reset_directions(); 
-        void set_pole_inds(nda::vector_const_view<int> pole_inds, nda::vector_const_view<double> dlr_rf); 
-        void reset_pole_inds(); 
-        void set_states(nda::vector_const_view<int> states);
-        int get_prefactor(int pole_ind, int i);
-        int get_vertex(int num, int i);
-        int get_edge(int num, int pole_ind);
-        int get_topology(int i, int j);
-        int get_pole_ind(int i); 
-
-    /**
-     * @brief Constructor for BackboneSignature
-     * 
-     * @param[in] topology list of vertices connected by a hybridization line
-     * @param[in] n number of state variables
-     *
-     * @note Each entry of fb is 1 or 0, where 1 corresponds to a forward line.
-     * @note The entries of fb are in the same order as specified by topology.
-     */
-    BackboneSignature(nda::array<int,2> topology, int n);
-};
-
-/**
  * @brief Print BlockDiagOpFun to output stream
  * @param[in] os output stream
  * @param[in] D BlockDiagOpFun
@@ -224,69 +185,11 @@ BlockOp dagger_bs(BlockOp const &F);
 BlockOp operator*(const dcomplex c, const BlockOp &F);
 
 /**
- * @brief Print BackboneSignature to output stream
- * @param[in] os output stream
- * @param[in] B BackboneSignature
- */
-std::ostream& operator<<(std::ostream& os, BackboneSignature &B);
-
-/**
  * @brief Convert a BlockOpFun with diagonal structure to a BlockDiagOpFun
  * @param[in] A BlockOpFun
  * @return BlockDiagOpFun
  */
 BlockDiagOpFun BOFtoBDOF(BlockOpFun const &A);
-
-/**
- * @brief Evaluate NCA self-energy term using block-sparse storage
- * @param[in] hyb hybridization function
- * @param[in] hyb_refl hyb evaluated at (beta - tau)
- * @param[in] Gt Greens function
- * @param[in] Fs vector of annihilation operators
- * @return NCA term of self-energy
- */
-BlockDiagOpFun NCA_bs(nda::array_const_view<dcomplex,3> hyb, 
-    nda::array_const_view<dcomplex,3> hyb_refl, 
-    const BlockDiagOpFun &Gt, 
-    const std::vector<BlockOp> &Fs);
-
-/**
- * @brief Evaluate NCA self-energy term using dense storage
- * @param[in] hyb hybridization function
- * @param[in] hyb_refl hyb evaluated at (beta - tau)
- * @param[in] Gt Greens function
- * @param[in] Fs vector of annihilation operators
- * @param[in] F_dags vector of creation operators
- */
-nda::array<dcomplex,3> NCA_dense(
-    nda::array_const_view<dcomplex,3> hyb, 
-    nda::array_const_view<dcomplex,3> hyb_refl, 
-    nda::array_const_view<dcomplex,3> Gt, 
-    nda::array_const_view<dcomplex,3> Fs,
-    nda::array_const_view<dcomplex,3> F_dags);
-
-/**
- * @brief Build matrix of evaluations of K at imag times and real freqs
- * @param[in] dlr_it DLR imaginary time nodes
- * @param[in] dlr_rf DLR real frequencies
- * @return matrix of K evalutions
- */
-nda::array<double,2> K_mat(nda::vector_const_view<double> dlr_it,
-    nda::vector_const_view<double> dlr_rf, double beta);
-
-/**
- * @brief DLR convolution routine for rectangular matrices
- * @param[in] itops CPPDLR imaginary time object
- * @param[in] beta inverse temperature
- * @param[in] fc DLR coefficients of first function
- * @param[in] gc DLR coefficients of second function
- */
-nda::array<dcomplex,3> convolve_rectangular(
-    imtime_ops &itops, 
-    double beta, 
-    nda::array<dcomplex,3> fc, 
-    nda::array<dcomplex,3> gc
-);
 
 /**
  * @brief Compute noninteracting Green's function from Hamiltonian as a BDOF
@@ -302,114 +205,26 @@ BlockDiagOpFun nonint_gf_BDOF(
     nda::vector_const_view<double> dlr_it);
 
 /**
- * @brief Evaluate OCA using block-sparse storage
- * @param[in] hyb hybridization function at imaginary time nodes
- * @param[in] itops cppdlr imaginary time object
+ * @brief Compute noninteracting Green's function from Hamiltonian as a BDOF
+ * @param[in] H_blocks vector of blocks of Hamiltonian
+ * @param[in] H_block_inds vector, -1 if Hamiltonian has zero block in corresponding block column
  * @param[in] beta inverse temperature
- * @param[in] Gt Greens function
- * @param[in] Fs F operator
- * @return OCA term of self-energy
+ * @param[in] dlr_it imaginary time nodes in absolute format
  */
-BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex,3> hyb,
-    imtime_ops &itops, 
+BlockDiagOpFun nonint_gf_BDOF(
+    std::vector<nda::array<double,2>> H_blocks, 
+    nda::vector<int> H_block_inds, 
     double beta, 
-    const BlockDiagOpFun &Gt, 
-    const std::vector<BlockOp> &Fs);
-
-nda::array<dcomplex,3> eval_eq(imtime_ops &itops, nda::array_const_view<dcomplex, 3> f, int n_quad);
-
+    nda::vector_const_view<double> dlr_it);
 /**
- * @brief Evaluate OCA using dense storage
- * @param[in] hyb hybridization function at imaginary time nodes
- * @param[in] itops cppdlr imaginary time object
+ * @brief Compute noninteracting Green's function from Hamiltonian as a BDOF
+ * @param[in] H_blocks vector of blocks of Hamiltonian
+ * @param[in] H_block_inds vector, -1 if Hamiltonian has zero block in corresponding block column
  * @param[in] beta inverse temperature
- * @param[in] Gt Greens function
- * @param[in] Fs F operator
- * @return OCA term of self-energy
+ * @param[in] dlr_it imaginary time nodes in absolute format
  */
-nda::array<dcomplex,3> OCA_dense(nda::array_const_view<dcomplex,3> hyb,
-    imtime_ops &itops, 
+BlockDiagOpFun nonint_gf_BDOF(
+    std::vector<nda::array<double,2>> H_blocks, 
+    nda::vector<int> H_block_inds, 
     double beta, 
-    nda::array_const_view<dcomplex,3> Gt, 
-    nda::array_const_view<dcomplex,3> Fs, 
-    nda::array_const_view<dcomplex,3> F_dags);
-
-/**
- * @brief Evaluate OCA directly using trapezoidal quadrature
- * @param[in] hyb hybridization function at imaginary time nodes
- * @param[in] itops cppdlr imaginary time object
- * @param[in] beta inverse temperature
- * @param[in] Gt Greens function
- * @param[in] Fs F operator
- * @param[in] n_quad number of quadrature nodes
- * @return OCA term of self-energy
- */
-nda::array<dcomplex,3> OCA_tpz(
-    nda::array_const_view<dcomplex,3> hyb,
-    imtime_ops &itops, 
-    double beta, 
-    nda::array_const_view<dcomplex, 3> Gt, 
-    nda::array_const_view<dcomplex, 3> Fs, 
-    int n_quad);
-
-/**
- * @brief Multiply by a single vertex in a backbone diagram
- * @param[in] backbone BackboneSignature object
- * @param[in] dlr_it DLR imaginary time nodes in relative ordering
- * @param[in] Fs F operators
- * @param[in] F_dags F^dag operators
- * @param[in] Fdagbars F^{bar dag} operators
- * @param[in] Fbarsrefl F^bar operators
- * @param[in] v_ix vertex index to multiply
- * @param[in] s_ix state index for F operator
- * @param[in] l_ix DLR/AAA pole index
- * @param[in] pole DLR/AAA pole
- * @param[in] T array on which to left-multiply vertex
- */
-void multiply_vertex_dense(
-    BackboneSignature& backbone, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::array_const_view<dcomplex,3> Fs, 
-    nda::array_const_view<dcomplex,3> F_dags, 
-    nda::array_const_view<dcomplex,4> Fdagbars, 
-    nda::array_const_view<dcomplex,4> Fbarsrefl, 
-    int v_ix, 
-    int s_ix, 
-    int l_ix, 
-    double pole, 
-    nda::array_view<dcomplex,3> T); 
-
-/**
- * @brief Compute a single edge in a backbone diagram
- * @param[in] backbone BackboneSignature object
- * @param[in] dlr_it DLR imaginary time nodes in relative ordering
- * @param[in] dlr_rf DLR frequency nodes
- * @param[in] Gt Green's function
- * @param[in] e_ix edge index to compute
- * @param[in] GKt array for storing result
- */
-void compute_edge_dense(
-    BackboneSignature& backbone, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    nda::array_const_view<dcomplex,3> Gt, 
-    int e_ix, 
-    nda::array_view<dcomplex,3> GKt); 
-
-/**
- * @brief Evaluate a single backbone diagram
- * @param[in] backbone BackboneSignature object
- * @param[in] beta inverse temperature
- * @param[in] itops DLR imaginary time object
- * @param[in] hyb hybridization function at imaginary time nodes
- * @param[in] Gt Greens function
- * @param[in] Fs annihilation operators
- * @param[in] F_dags creation operators
- */
-nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone, 
-    double beta, 
-    imtime_ops &itops, 
-    nda::array_const_view<dcomplex, 3> hyb, 
-    nda::array_const_view<dcomplex, 3> Gt, 
-    nda::array_const_view<dcomplex, 3> Fs, 
-    nda::array_const_view<dcomplex, 3> F_dags);
+    nda::vector_const_view<double> dlr_it);

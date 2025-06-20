@@ -9,6 +9,7 @@
 #include <nda/mapped_functions.hxx>
 #include <nda/nda.hpp>
 #include <triqs_soehyb/block_sparse.hpp>
+#include <triqs_soehyb/block_sparse_manual.hpp>
 #include <chrono>
 
 nda::array<dcomplex,3> Hmat_to_Gtmat(nda::array<dcomplex,2> Hmat, double beta, nda::array<double,1> dlr_it_abs) {
@@ -70,7 +71,7 @@ int main() {
                 Deltat(_,i,j) = Jt(_,0,0);
                 Deltat_refl(_,i,j) = Jt_refl(_,0,0);
             }
-            else if (i == 0 && j == 1 || i == 1 && j == 0 || i == 2 && j == 3 || i == 3 && j == 2) {
+            else if ((i == 0 && j == 1) || (i == 1 && j == 0) || (i == 2 && j == 3) || (i == 3 && j == 2)) {
                 Deltat(_,i,j) = s*Jt(_,0,0);
                 Deltat_refl(_,i,j) = s*Jt_refl(_,0,0);
             }
@@ -83,7 +84,7 @@ int main() {
     h5::file hfile("/home/paco/feynman/ppsc-soe/benchmarks/atom_diag_eval/two_band_ad.h5", 'r');
     h5::group hgroup(hfile);
     h5::group ad = hgroup.open_group("ad");
-    long num_blocks;
+    long num_blocks = 0;
     h5::read(hgroup, "num_blocks", num_blocks);
 
     // Hamiltonian
