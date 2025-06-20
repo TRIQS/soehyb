@@ -10,7 +10,7 @@
 #include <nda/linalg/eigenelements.hpp>
 #include <nda/mapped_functions.hxx>
 #include <nda/nda.hpp>
-#include <block_sparse.hpp>
+#include <triqs_soehyb/block_sparse.hpp>
 #include <gtest/gtest.h>
 
 using namespace nda;
@@ -174,11 +174,13 @@ TEST(BlockSparseNCA, simple) {
 
     // set up hybridization
     nda::array<dcomplex,3> hyb({r, n, n});
+    nda::array<dcomplex,3> hyb_refl({r, n, n}); 
     for (int t = 0; t < r; ++t) {
         hyb(t,0,0) = 1;
         hyb(t,1,1) = -1;
         hyb(t,0,1) = -1;
         hyb(t,1,0) = 4;
+        hyb_refl(t,_,_) = nda::transpose(hyb(t,_,_)); 
     }
 
     // set up Green's function
@@ -219,7 +221,7 @@ TEST(BlockSparseNCA, simple) {
     BlockOp F_down(block_indices_F, F_down_blocks);
 
     std::vector<BlockOp> Fs = {F_up, F_down};
-    BlockDiagOpFun NCA_result = NCA_bs(hyb, hyb, Gt, Fs);
+    BlockDiagOpFun NCA_result = NCA_bs(hyb, hyb_refl, Gt, Fs);
 
     // compute NCA_result using dense storage
 
@@ -443,7 +445,7 @@ TEST(BlockSparseOCA, single_exponential) {
 TEST(BlockSparseMisc, compute_nonint_gf) {
     // DLR parameters
     double beta = 2.0;
-    double Lambda = 10*beta;
+    double Lambda = 1000*beta;
     double eps = 1.0e-10;
     // DLR generation
     auto dlr_rf = build_dlr_rf(Lambda, eps);
@@ -607,7 +609,7 @@ TEST(BlockSparseOCA, two_band_discrete_bath_dense) {
 
 TEST(BlockSparseOCA, two_band_discrete_bath_tpz) {
     // DLR parameters
-    double beta = 20;
+    double beta = 2.0;
     double Lambda = 1000*beta;
     double eps = 1.0e-10;
     // DLR generation
@@ -622,30 +624,23 @@ TEST(BlockSparseOCA, two_band_discrete_bath_tpz) {
     // block-sparse OCA compuation
     auto OCA_result = OCA_bs(Deltat, itops, beta, Gt, Fs);
 
+    int n_quad = 100; 
     // compute OCA using trapezoidal rule using 100 quadrature nodes0
-    // load precomputed values from the following function call:
-    auto OCA_tpz_result = OCA_tpz(Deltat, itops, beta, Gt_dense, Fs_dense, 100);
-    // h5::file tpz_file("../test/c++/h5/tpz100.h5", 'r');
-    // nda::array<dcomplex,3> OCA_tpz_result(101,16,16);
-    // h5::read(tpz_file, "OCA_tpz_result", OCA_tpz_result); 
-
-    nda::array<dcomplex,3> OCA_tpz_result_perm(101,16,16); 
-    for (int t = 0; t < r; t++) {
-        for (int i = 0; i < 16; i++) {
-            for (int j = 0; j < 16; j++) {
-                OCA_tpz_result_perm(t,i,j) = OCA_tpz_result(t,fock_state_order[i],fock_state_order[j]);
-            }
-        }
-    }
+    // load precomputed values from the followin 3 lines:
+    // auto OCA_tpz_result = OCA_tpz(Deltat, itops, beta, Gt_dense, Fs_dense, n_quad);
+    // h5::file tpz_file("../test/c++/h5/tpz100.h5", 'w');
+    // h5::write(tpz_file, "OCA_tpz_result", OCA_tpz_result);
+    h5::file tpz_file("../test/c++/h5/tpz100.h5", 'r');
+    nda::array<dcomplex,3> OCA_tpz_result(101,16,16);
+    h5::read(tpz_file, "OCA_tpz_result", OCA_tpz_result); 
     
     // check that trapezoidal OCA calculation agrees with block-sparse calc.
     int s0 = 0;
     int s1 = subspaces[0].size();
     for (int i = 0; i < num_blocks; i++) { // compare each block
         auto OCA_result_block = OCA_result.get_block(i)(_,_,_);
-        auto OCA_result_block_eq = eval_eq(itops, OCA_result_block, 100);
-        std::cout << nda::max_element(nda::abs(OCA_result_block_eq - OCA_tpz_result_perm(_,range(s0,s1),range(s0,s1)))) << std::endl;
-        ASSERT_LE(nda::max_element(nda::abs(OCA_result_block_eq - OCA_tpz_result_perm(_,range(s0,s1),range(s0,s1)))), 0.2);
+        auto OCA_result_block_eq = eval_eq(itops, OCA_result_block, n_quad);
+        ASSERT_LE(nda::max_element(nda::abs(OCA_result_block_eq - OCA_tpz_result(_,range(s0,s1),range(s0,s1)))), 2e-4);
         s0 = s1;
         if (i < num_blocks - 1) s1 += subspaces[i+1].size();
     }
@@ -658,7 +653,127 @@ TEST(Backbone, constructor) {
     nda::vector<int> fb = {1, 1, 1};
     BB.set_directions(fb); 
     nda::vector<double> poles = {-1.0, -1.0};
-    BB.set_poles(poles);
+    // BB.set_pole_inds(poles);
 
     std::cout << BB << std::endl;
+}
+
+TEST(Backbone, one_vertex_and_edge) {
+    nda::array<int,2> topology = {{0, 2}, {1, 4}, {3, 5}}; 
+    int n = 4, N = 16; 
+    double beta = 2.0; 
+    double Lambda = 100.0*beta; 
+    double eps = 1.0e-6; 
+    auto [num_blocks, 
+        Deltat, 
+        Deltat_refl, 
+        Gt, 
+        Fs, 
+        Gt_dense, 
+        Fs_dense, 
+        F_dags_dense, 
+        subspaces, 
+        fock_state_order] = two_band_discrete_bath_helper(beta, Lambda, eps);
+    // DLR generation
+    auto dlr_rf = build_dlr_rf(Lambda, eps);
+    auto itops = imtime_ops(Lambda, dlr_rf);
+    auto const & dlr_it = itops.get_itnodes();
+    auto dlr_it_abs = cppdlr::rel2abs(dlr_it);
+    int r = itops.rank();
+
+    nda::array<dcomplex,3> T(r,N,N);
+    for (int t = 0; t < r; t++) T(t,_,_) = nda::eye<dcomplex>(N); 
+
+    // compute Fbars and Fdagbars
+    auto hyb_coeffs = itops.vals2coefs(Deltat); // hybridization DLR coeffs
+    auto hyb_refl = nda::make_regular(-itops.reflect(Deltat));
+    auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
+    auto Fdagbars = nda::array<dcomplex, 4>(n, r, N, N);
+    auto Fbarsrefl = nda::array<dcomplex, 4>(n, r, N, N);
+    for (int lam = 0; lam < n; lam++) {
+        for (int l = 0; l < r; l++) {
+            for (int nu = 0; nu < n; nu++) {
+                Fdagbars(lam,l,_,_) += hyb_coeffs(l,nu,lam)*F_dags_dense(nu,_,_);
+                Fbarsrefl(nu,l,_,_) += hyb_refl_coeffs(l,nu,lam)*Fs_dense(lam,_,_);
+            }
+        }
+    }
+
+    auto BB = BackboneSignature(topology, n); 
+    int fb1 = 0; 
+    nda::vector<int> fb = {1, fb1, 0};
+    BB.set_directions(fb); 
+
+    nda::vector<int> pole_inds = {0, r-1}; 
+    BB.set_pole_inds(pole_inds, dlr_rf); 
+    
+    multiply_vertex_dense(BB, dlr_it, Fs_dense, F_dags_dense, Fdagbars, Fbarsrefl, 1, 0, pole_inds(0), dlr_rf(pole_inds(0)), T); 
+    std::cout << BB << std::endl;
+
+    nda::array<dcomplex,3> Tact(r,N,N); 
+    if (fb1 == 1) {
+        for (int t = 0; t < r; t++) Tact(t,_,_) = k_it(dlr_it(t), -dlr_rf(pole_inds(0))) * Fs_dense(0,_,_); 
+    } else {
+        for (int t = 0; t < r; t++) Tact(t,_,_) = F_dags_dense(0,_,_); 
+    }
+    ASSERT_LE(nda::max_element(nda::abs(T-Tact)), 1e-12); 
+
+    nda::array<dcomplex,3> GKt(r,N,N); 
+    compute_edge_dense(BB, dlr_it, dlr_rf, Gt_dense, 1, GKt); 
+    if (fb1 == 1) {
+        ASSERT_LE(nda::max_element(nda::abs(GKt-Gt_dense)), 1e-12); 
+    } else {
+        nda::array<dcomplex,3> GKt_act(r,N,N); 
+        for (int t = 0; t < r; t++) GKt_act(t,_,_) = k_it(dlr_it(t), -dlr_rf(pole_inds(0))) * Gt_dense(t,_,_); 
+        ASSERT_LE(nda::max_element(nda::abs(GKt-GKt_act)), 1e-12); 
+    }
+}
+
+TEST(Backbone, OCA) {
+    nda::array<int,2> topology = {{0, 2}, {1, 3}}; 
+    int n = 4, N = 16; 
+    double beta = 2.0; 
+    double Lambda = 1000.0*beta; 
+    double eps = 1.0e-6; 
+    auto [num_blocks, 
+        Deltat, 
+        Deltat_refl, 
+        Gt, 
+        Fs, 
+        Gt_dense, 
+        Fs_dense, 
+        F_dags_dense, 
+        subspaces, 
+        fock_state_order] = two_band_discrete_bath_helper(beta, Lambda, eps);
+    // DLR generation
+    auto dlr_rf = build_dlr_rf(Lambda, eps);
+    auto itops = imtime_ops(Lambda, dlr_rf);
+    auto const & dlr_it = itops.get_itnodes();
+    auto dlr_it_abs = cppdlr::rel2abs(dlr_it);
+    int r = itops.rank();
+
+    nda::array<dcomplex,3> T(r,N,N);
+    for (int t = 0; t < r; t++) T(t,_,_) = nda::eye<dcomplex>(N); 
+
+    // compute Fbars and Fdagbars
+    auto hyb_coeffs = itops.vals2coefs(Deltat); // hybridization DLR coeffs
+    auto hyb_refl = nda::make_regular(-itops.reflect(Deltat));
+    auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
+    auto Fdagbars = nda::array<dcomplex, 4>(n, r, N, N);
+    auto Fbarsrefl = nda::array<dcomplex, 4>(n, r, N, N);
+    for (int lam = 0; lam < n; lam++) {
+        for (int l = 0; l < r; l++) {
+            for (int nu = 0; nu < n; nu++) {
+                Fdagbars(lam,l,_,_) += hyb_coeffs(l,nu,lam)*F_dags_dense(nu,_,_);
+                Fbarsrefl(nu,l,_,_) += hyb_refl_coeffs(l,nu,lam)*Fs_dense(lam,_,_);
+            }
+        }
+    }
+
+    auto BB = BackboneSignature(topology, n); 
+    
+    auto OCA_result = eval_backbone_dense(BB, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense); 
+    auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
+
+    ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_dense_result)), 1e-12); 
 }

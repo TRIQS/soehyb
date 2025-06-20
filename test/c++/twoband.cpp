@@ -8,7 +8,7 @@
 #include <nda/linalg/eigenelements.hpp>
 #include <nda/mapped_functions.hxx>
 #include <nda/nda.hpp>
-#include <block_sparse.hpp>
+#include <triqs_soehyb/block_sparse.hpp>
 #include <chrono>
 
 nda::array<dcomplex,3> Hmat_to_Gtmat(nda::array<dcomplex,2> Hmat, double beta, nda::array<double,1> dlr_it_abs) {

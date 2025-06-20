@@ -36,13 +36,13 @@ class BlockDiagOpFun {
         const std::vector<nda::array<dcomplex,3>>& get_blocks() const;
         nda::array_const_view<dcomplex,3> get_block(int i) const;
         nda::vector<int> get_block_sizes() const;
-        const int get_block_size(int i) const;
-        const int get_num_block_cols() const;
-        const int get_zero_block_index(int i) const;
+        int get_block_size(int i) const;
+        int get_num_block_cols() const;
+        int get_zero_block_index(int i) const;
         void set_blocks_dlr_coeffs(imtime_ops &itops);
         const std::vector<nda::array<dcomplex,3>>& get_blocks_dlr_coeffs() const;
         nda::array_const_view<dcomplex,3> get_block_dlr_coeffs(int i) const;
-        const int get_num_time_nodes() const;
+        int get_num_time_nodes() const;
         void add_block(int i, nda::array_const_view<dcomplex,3> block);
         static std::string hdf5_format();
         friend void h5_write(h5::group g, const std::string& subgroup_name, const BlockDiagOpFun& BDOF);
@@ -84,7 +84,7 @@ class BlockOp {
         int get_block_index(int i) const;
         const std::vector<nda::array<dcomplex,2>>& get_blocks() const;
         nda::array_const_view<dcomplex,2> get_block(int i) const;
-        const int get_num_block_cols() const;
+        int get_num_block_cols() const;
         nda::array<int,2> get_block_sizes() const;
         nda::vector<int> get_block_size(int i) const;
         int get_block_size(int block_ind, int dim) const;
@@ -129,13 +129,13 @@ class BlockOpFun {
         int get_block_index(int i) const;
         const std::vector<nda::array<dcomplex,3>>& get_blocks() const;
         nda::array_const_view<dcomplex,3> get_block(int i) const;
-        const int get_num_block_cols() const;
+        int get_num_block_cols() const;
         nda::array<int,2> get_block_sizes() const;
         nda::vector<int> get_block_size(int i) const;
         void set_blocks_dlr_coeffs(imtime_ops& itops);
         const std::vector<nda::array<dcomplex,3>>& get_blocks_dlr_coeffs();
         nda::array_const_view<dcomplex,3> get_block_dlr_coeffs(int i) const;
-        const int get_num_time_nodes() const;
+        int get_num_time_nodes() const;
 
     /**
      * @brief Constructor for BlockOpFun 
@@ -167,19 +167,21 @@ class BackboneSignature {
         nda::array<int,2> vertices;
         nda::array<int,2> edges;
         nda::vector<int> fb; 
-        nda::vector<double> poles; 
+        nda::vector<int> pole_inds; 
 
     public:
         int m; // order
         int n; // number of state variables
         void set_directions(nda::vector_const_view<int> fb);
-        void set_poles(nda::vector_const_view<double> poles); 
+        void reset_directions(); 
+        void set_pole_inds(nda::vector_const_view<int> pole_inds, nda::vector_const_view<double> dlr_rf); 
+        void reset_pole_inds(); 
         void set_states(nda::vector_const_view<int> states);
         int get_prefactor(int pole_ind, int i);
         int get_vertex(int num, int i);
         int get_edge(int num, int pole_ind);
         int get_topology(int i, int j);
-        double get_pole(int i); 
+        int get_pole_ind(int i); 
 
     /**
      * @brief Constructor for BackboneSignature
@@ -349,6 +351,50 @@ nda::array<dcomplex,3> OCA_tpz(
     nda::array_const_view<dcomplex, 3> Gt, 
     nda::array_const_view<dcomplex, 3> Fs, 
     int n_quad);
+
+/**
+ * @brief Multiply by a single vertex in a backbone diagram
+ * @param[in] backbone BackboneSignature object
+ * @param[in] dlr_it DLR imaginary time nodes in relative ordering
+ * @param[in] Fs F operators
+ * @param[in] F_dags F^dag operators
+ * @param[in] Fdagbars F^{bar dag} operators
+ * @param[in] Fbarsrefl F^bar operators
+ * @param[in] v_ix vertex index to multiply
+ * @param[in] s_ix state index for F operator
+ * @param[in] l_ix DLR/AAA pole index
+ * @param[in] pole DLR/AAA pole
+ * @param[in] T array on which to left-multiply vertex
+ */
+void multiply_vertex_dense(
+    BackboneSignature& backbone, 
+    nda::vector_const_view<double> dlr_it, 
+    nda::array_const_view<dcomplex,3> Fs, 
+    nda::array_const_view<dcomplex,3> F_dags, 
+    nda::array_const_view<dcomplex,4> Fdagbars, 
+    nda::array_const_view<dcomplex,4> Fbarsrefl, 
+    int v_ix, 
+    int s_ix, 
+    int l_ix, 
+    double pole, 
+    nda::array_view<dcomplex,3> T); 
+
+/**
+ * @brief Compute a single edge in a backbone diagram
+ * @param[in] backbone BackboneSignature object
+ * @param[in] dlr_it DLR imaginary time nodes in relative ordering
+ * @param[in] dlr_rf DLR frequency nodes
+ * @param[in] Gt Green's function
+ * @param[in] e_ix edge index to compute
+ * @param[in] GKt array for storing result
+ */
+void compute_edge_dense(
+    BackboneSignature& backbone, 
+    nda::vector_const_view<double> dlr_it, 
+    nda::vector_const_view<double> dlr_rf, 
+    nda::array_const_view<dcomplex,3> Gt, 
+    int e_ix, 
+    nda::array_view<dcomplex,3> GKt); 
 
 /**
  * @brief Evaluate a single backbone diagram
