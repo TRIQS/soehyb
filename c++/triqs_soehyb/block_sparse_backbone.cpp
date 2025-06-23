@@ -5,8 +5,8 @@
 using namespace nda;
 
 BackboneSignature::BackboneSignature(nda::array<int,2> topology, int n) : 
-    topology(topology), prefactor_sign(1), m(topology.extent(0)), // e.g. 2CA, m = 3, topology has 3 lines 
-    n(n) {
+    topology(topology), m(topology.extent(0)), n(n), // e.g. 2CA, m = 3, topology has 3 lines 
+    prefactor_sign(1) {
     
     prefactor_Ksigns = nda::vector<int>(m-1, 0); 
     prefactor_Kexps = nda::vector<int>(m-1, 0); 
@@ -22,7 +22,11 @@ BackboneSignature::BackboneSignature(nda::array<int,2> topology, int n) :
      e
      x
     */
-    vertices = nda::zeros<int>(2*m, 5); 
+    vertex_bars = nda::vector<bool>(2*m, false); 
+    vertex_dags = nda::vector<bool>(2*m, false);
+    vertex_which_pole_ind = nda::vector<int>(2*m, 0); 
+    vertex_Ksigns = nda::vector<int>(2*m, 0); 
+    vertex_states = nda::vector<int>(2*m, 0); 
     /*         | bar? | dagger? |    pole index      |  sign on K  |  state index
          --------------------------------------------------------
          0     |      |         |                    |
@@ -68,34 +72,33 @@ void BackboneSignature::set_directions(nda::vector_const_view<int> fb) {
     if (topology(0,0) != 0) throw std::invalid_argument("topology(0,0) must be 0"); 
 
     // set operator flags for each vertex, depending on fb
-
-    vertices(0, 0) = 0; // operator on vertex 0 has no bar
-    vertices(topology(0,1), 0) = 0; // operator on vertex connected to 0 has no bar
+    vertex_bars(0) = false; // operator on vertex 0 has no bar
+    vertex_bars(topology(0,1)) = false; // operator on vertex connected to 0 has no bar
     if (fb(0) == 1) {
-        vertices(0, 1) = 0; // annihilation operator on vertex 0
-        vertices(topology(0,1), 1) = 1; // creation operator on vertex connected to 0
+        vertex_dags(0) = false; // annihilation operator on vertex 0
+        vertex_dags(topology(0,1)) = true; // creation operator on vertex connected to 0
     } else {
-        vertices(0, 1) = 1; // creation operator on vertex 0
-        vertices(topology(0,1), 1) = 0; // annihilation operator on vertex connected to 0
+        vertex_dags(0) = true; // creation operator on vertex 0
+        vertex_dags(topology(0,1)) = false; // annihilation operator on vertex connected to 0
     }
 
     for (int i = 1; i < m; i++) {
-        vertices(topology(i,0), 0) = 0; // operator on vertex i has no bar
-        vertices(topology(i,1), 0) = 1; // operator on vertex connected to i has a bar
-
+        vertex_bars(topology(i,0)) = false; // operator on vertex i has no bar
+        vertex_bars(topology(i,1)) = true; // operator on vertex connected to i has a bar
         if (fb(i) == 1) {
-            vertices(topology(i,0), 1) = 0; // annihilation operator on vertex i
-            vertices(topology(i,1), 1) = 1; // creation operator on vertex i
+            vertex_dags(topology(i,0)) = false; // annihilation operator on vertex i
+            vertex_dags(topology(i,1)) = true; // creation operator on vertex i
         } else {
-            vertices(topology(i,0), 1) = 1; // creation operator on vertex i
-            vertices(topology(i,1), 1) = 0; // annihilation operator on vertex i
+            vertex_dags(topology(i,0)) = true; // creation operator on vertex i
+            vertex_dags(topology(i,1)) = false; // annihilation operator on vertex i
         }
     }
 }
 
 void BackboneSignature::reset_directions() {
     fb = 0; 
-    vertices(_,range(0,2)) = 0; 
+    vertex_bars = false;
+    vertex_dags = false; 
 }
 
 void BackboneSignature::set_pole_inds(
@@ -109,14 +112,13 @@ void BackboneSignature::set_pole_inds(
             if (dlr_rf(pole_inds(i-1)) <= 0) {
                 // step 4(a)
                 // place K^-_l F_nu at the right vertex
-                vertices(topology(i,0), 2) = i-1; 
-                vertices(topology(i,0), 3) = -1; 
+                vertex_which_pole_ind(topology(i,0)) = i-1; 
+                vertex_Ksigns(topology(i,0)) = -1; 
                 // place K^+_l F^bar^dag_nu_l at the left vertex
-                vertices(topology(i,1), 2) = i-1;
-                vertices(topology(i,1), 3) = 1;
+                vertex_which_pole_ind(topology(i,1)) = i-1;
+                vertex_Ksigns(topology(i,1)) = 1;
                 // divide by K^-_l(0)
                 prefactor_Ksigns(i-1) = -1; 
-                // prefactor(i-1, 2) = 1;
                 prefactor_Kexps(i-1) = 1; 
             } else {
                 // step 4(b)
@@ -132,11 +134,11 @@ void BackboneSignature::set_pole_inds(
             if (dlr_rf(pole_inds(i-1)) >= 0) {
                 // step 4(a)
                 // place K^+_l F^dag_pi at the right vertex
-                vertices(topology(i,0), 2) = i-1; 
-                vertices(topology(i,0), 3) = 1;
+                vertex_which_pole_ind(topology(i,0)) = i-1; 
+                vertex_Ksigns(topology(i,0)) = 1;
                 // place K^-_l F^bar_pi_l at the left vertex
-                vertices(topology(i,1), 2) = i-1;
-                vertices(topology(i,1), 3) = -1;
+                vertex_which_pole_ind(topology(i,1)) = i-1;
+                vertex_Ksigns(topology(i,1)) = -1;
                 // divide by -K^-+l(0)
                 prefactor_sign *= -1; 
                 prefactor_Ksigns(i-1) = 1; 
@@ -157,11 +159,13 @@ void BackboneSignature::set_pole_inds(
 
 void BackboneSignature::reset_pole_inds() {
     pole_inds = 0; 
-    vertices(_,range(2,4)) = 0; 
     edges = 0; 
     prefactor_sign = 1; 
     prefactor_Ksigns = 0; 
     prefactor_Kexps = 0; 
+    vertex_which_pole_ind = 0; 
+    vertex_Ksigns = 0; 
+    vertex_states = 0; 
 }
 
 void BackboneSignature::set_states(nda::vector_const_view<int> states) {
@@ -170,20 +174,29 @@ void BackboneSignature::set_states(nda::vector_const_view<int> states) {
 
     for (int i = 0; i < 2*m; i++) {
         if (i != 0 && i != topology(0,1)) {
-            vertices(i,4) = states(i); 
+            // vertices(i,4) = states(i); 
+            vertex_states(i) = states(i); 
         }
     }
 }
 
 void BackboneSignature::reset_states() {
-    vertices(_,4) = 0; 
+    vertex_states = 0; 
 }
 
 int BackboneSignature::get_prefactor_Ksign(int i) {return prefactor_Ksigns(i);}
 
 int BackboneSignature::get_prefactor_Kexp(int i) {return prefactor_Kexps(i);}
 
-int BackboneSignature::get_vertex(int num, int i) {return vertices(num, i);}
+bool BackboneSignature::get_vertex_bar(int i) {return vertex_bars(i);}
+
+bool BackboneSignature::get_vertex_dag(int i) {return vertex_dags(i);}
+
+int BackboneSignature::get_vertex_which_pole_ind(int i) {return vertex_which_pole_ind(i);}
+
+int BackboneSignature::get_vertex_Ksign(int i) {return vertex_Ksigns(i);}
+
+int BackboneSignature::get_vertex_state(int i) {return vertex_states(i);}
 
 int BackboneSignature::get_edge(int num, int pole_ind) {return edges(num, pole_ind);}
 
@@ -219,28 +232,28 @@ std::ostream& operator<<(std::ostream& os, BackboneSignature &B) {
     std::string v_str_tmp = "", e_str_tmp = "";
     for (int i = 0; i < 2*B.m; i++) {
         // K factor
-        if (B.get_vertex(i, 3) != 0) {
+        if (B.get_vertex_Ksign(i) != 0) {
             v_str_tmp += "K_{l";
-            for (int j = 0; j < B.get_vertex(i, 2); j++) v_str_tmp += "`";
+            for (int j = 0; j < B.get_vertex_which_pole_ind(i); j++) v_str_tmp += "`";
             v_str_tmp += "}";
-            if (B.get_vertex(i, 3) == 1) v_str_tmp += "^+";
+            if (B.get_vertex_Ksign(i) == 1) v_str_tmp += "^+";
             else v_str_tmp += "^-"; 
         }
 
         // F operator
         v_str_tmp += "F";
-        if (B.get_vertex(i, 0) == 1 || B.get_vertex(i, 1) == 1) v_str_tmp += "^{"; 
-        if (B.get_vertex(i, 0) == 1) v_str_tmp += "bar";
-        if (B.get_vertex(i, 1) == 1) v_str_tmp += "dag";
-        if (B.get_vertex(i, 0) == 1 || B.get_vertex(i, 1) == 1) v_str_tmp += "}"; 
-        if (B.get_vertex(i, 0) != 1) v_str_tmp += "_" + std::to_string(i); 
+        if (B.get_vertex_bar(i) || B.get_vertex_dag(i) ) v_str_tmp += "^{"; 
+        if (B.get_vertex_bar(i)) v_str_tmp += "bar";
+        if (B.get_vertex_dag(i)) v_str_tmp += "dag";
+        if (B.get_vertex_bar(i) || B.get_vertex_dag(i)) v_str_tmp += "}"; 
+        if (not B.get_vertex_bar(i)) v_str_tmp += "_" + std::to_string(i); 
         else {
             for (int j = 0; j < B.m; j++) if (B.get_topology(j,1) == i) v_str_tmp += "_" + std::to_string(B.get_topology(j,0));
         }
         // hybridization
         if (i == B.get_topology(0, 1)) {
             v_str_tmp += " Delta_{"; 
-            if (B.get_vertex(i, 1) == 1) v_str_tmp += "0," + std::to_string(i) + "} "; 
+            if (B.get_vertex_dag(i) == 1) v_str_tmp += "0," + std::to_string(i) + "} "; 
             else v_str_tmp += std::to_string(i) + ",0}";
         } else v_str_tmp += " ";
         int vlen0 = v_str_tmp.size(); 
@@ -282,22 +295,20 @@ void multiply_vertex_dense(
     nda::array_const_view<dcomplex,4> Fdagbars, 
     nda::array_const_view<dcomplex,4> Fbarsrefl, 
     int v_ix, // vertex index
-    // int l_ix, // pole index
-    // double pole, 
     nda::array_view<dcomplex,3> T) {
 
     int r = dlr_it.size();
-    int s_ix = backbone.get_vertex(v_ix, 4); // state_index
-    int l_ix = backbone.get_pole_ind(backbone.get_vertex(v_ix, 2)); 
+    int s_ix = backbone.get_vertex_state(v_ix); // state_index
+    int l_ix = backbone.get_pole_ind(backbone.get_vertex_which_pole_ind(v_ix)); 
 
-    if (backbone.get_vertex(v_ix, 0) == 1) { // F has bar
-        if (backbone.get_vertex(v_ix, 1) == 1) { // F has dagger
+    if (backbone.get_vertex_bar(v_ix)) { // F has bar
+        if (backbone.get_vertex_dag(v_ix)) { // F has dagger
             for (int t = 0; t < r; t++) T(t,_,_) = nda::matmul(Fdagbars(s_ix,l_ix,_,_), T(t,_,_)); 
         } else {
             for (int t = 0; t < r; t++) T(t,_,_) = nda::matmul(Fbarsrefl(s_ix,l_ix,_,_), T(t,_,_)); 
         }
     } else {
-        if (backbone.get_vertex(v_ix, 1) == 1) { // F has dagger
+        if (backbone.get_vertex_dag(v_ix)) { // F has dagger
             for (int t = 0; t < r; t++) T(t,_,_) = nda::matmul(F_dags(s_ix,_,_), T(t,_,_));
         } else {
             for (int t = 0; t < r; t++) T(t,_,_) = nda::matmul(Fs(s_ix,_,_), T(t,_,_));
@@ -305,7 +316,7 @@ void multiply_vertex_dense(
     }
 
     // K factor
-    int bv = backbone.get_vertex(v_ix, 3); // sign on K
+    int bv = backbone.get_vertex_Ksign(v_ix); // sign on K
     double pole = dlr_rf(l_ix); 
     if (bv != 0) {
         for (int t = 0; t < r; t++) {
@@ -467,7 +478,7 @@ nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone,
                 //    mu, kappa, multiply by Delta_{mu kappa}, and sum over 
                 //    kappa. Finally for each mu, multiply F_mu[^dag] and sum 
                 //    over mu. 
-                if (backbone.get_vertex(0, 1) == 0) { // line connected to zero is forward
+                if (not backbone.get_vertex_dag(0)) { // line connected to zero is forward
                     hyb_vertex(backbone, hyb, Fs, F_dags, Tkaps, Tmu, T); 
                 } else { // line connected to zero is backward
                     hyb_vertex(backbone, hyb_refl, F_dags, Fs, Tkaps, Tmu, T); 
@@ -494,8 +505,7 @@ nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone,
                     for (int q = 0; q < exp; q++) Sigma_L = Sigma_L / k; 
                 }
             }
-            Sigma_L = Sigma_L * backbone.prefactor_sign; 
-            Sigma += sign*Sigma_L; 
+            Sigma += sign*backbone.prefactor_sign*Sigma_L; 
             backbone.reset_pole_inds(); 
         } // sum over poles
         backbone.reset_directions(); 

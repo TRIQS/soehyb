@@ -15,7 +15,13 @@ class BackboneSignature {
         nda::vector<int> prefactor_Ksigns; 
         nda::vector<int> prefactor_Kexps; 
 
-        nda::array<int,2> vertices;
+        // nda::array<int,2> vertices;
+        nda::vector<bool> vertex_bars;
+        nda::vector<bool> vertex_dags;
+        nda::vector<int> vertex_which_pole_ind;
+        nda::vector<int> vertex_Ksigns;
+        nda::vector<int> vertex_states; 
+
         nda::array<int,2> edges;
         nda::vector<int> fb; 
         nda::vector<int> pole_inds; 
@@ -34,7 +40,12 @@ class BackboneSignature {
         int get_prefactor_Ksign(int i); 
         int get_prefactor_Kexp(int i); 
 
-        int get_vertex(int num, int i);
+        bool get_vertex_bar(int i); 
+        bool get_vertex_dag(int i); 
+        int get_vertex_which_pole_ind(int i); 
+        int get_vertex_Ksign(int i); 
+        int get_vertex_state(int i); 
+
         int get_edge(int num, int pole_ind);
         int get_topology(int i, int j);
         int get_pole_ind(int i); 

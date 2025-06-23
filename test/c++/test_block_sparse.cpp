@@ -67,9 +67,9 @@ std::tuple<int,
     auto Jt = nda::array<dcomplex,3>(r,1,1);
     auto Jt_refl = nda::array<dcomplex,3>(r,1,1);
     for (int i = 0; i <= 1; i++) {
-        for (int t = 0; t < r; t++) {
-            Jt(t,0,0) += k_it(dlr_it_abs(t), e(i), beta);
-            Jt_refl(t,0,0) += k_it(-dlr_it_abs(t), e(i), beta);
+        for (int u = 0; u < r; u++) {
+            Jt(u,0,0) += k_it(dlr_it_abs(u), e(i), beta);
+            Jt_refl(u,0,0) += k_it(-dlr_it_abs(u), e(i), beta);
         }
     }
     // orbital index order: do 0, do 1, up 0, up 1. same level <-> same parity index
@@ -617,7 +617,6 @@ TEST(BlockSparseOCA, two_band_discrete_bath_tpz) {
     auto itops = imtime_ops(Lambda, dlr_rf);
     auto const & dlr_it = itops.get_itnodes();
     auto dlr_it_abs = cppdlr::rel2abs(dlr_it);
-    int r = itops.rank();
 
     auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] = two_band_discrete_bath_helper(beta, Lambda, eps);
 
