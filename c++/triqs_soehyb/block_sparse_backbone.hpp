@@ -11,7 +11,10 @@ using namespace nda;
 class BackboneSignature {
     private:
         nda::array<int,2> topology; 
-        nda::array<int,2> prefactor;
+
+        nda::vector<int> prefactor_Ksigns; 
+        nda::vector<int> prefactor_Kexps; 
+
         nda::array<int,2> vertices;
         nda::array<int,2> edges;
         nda::vector<int> fb; 
@@ -20,13 +23,17 @@ class BackboneSignature {
     public:
         int m; // order
         int n; // number of state variables
+        int prefactor_sign; 
         void set_directions(nda::vector_const_view<int> fb);
         void reset_directions(); 
         void set_pole_inds(nda::vector_const_view<int> pole_inds, nda::vector_const_view<double> dlr_rf); 
         void reset_pole_inds(); 
         void set_states(nda::vector_const_view<int> states);
         void reset_states(); 
-        int get_prefactor(int pole_ind, int i);
+
+        int get_prefactor_Ksign(int i); 
+        int get_prefactor_Kexp(int i); 
+
         int get_vertex(int num, int i);
         int get_edge(int num, int pole_ind);
         int get_topology(int i, int j);

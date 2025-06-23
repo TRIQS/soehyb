@@ -5,10 +5,11 @@
 using namespace nda;
 
 BackboneSignature::BackboneSignature(nda::array<int,2> topology, int n) : 
-    topology(topology), m(topology.extent(0)), // e.g. 2CA, m = 3, topology has 3 lines 
+    topology(topology), prefactor_sign(1), m(topology.extent(0)), // e.g. 2CA, m = 3, topology has 3 lines 
     n(n) {
     
-    prefactor = nda::zeros<int>(m-1, 3); 
+    prefactor_Ksigns = nda::vector<int>(m-1, 0); 
+    prefactor_Kexps = nda::vector<int>(m-1, 0); 
     /*        |  sign  |  sign on K  | exponent on K |
      p   ---------------------------------------------
      o   l    |        |             |               |
@@ -114,18 +115,17 @@ void BackboneSignature::set_pole_inds(
                 vertices(topology(i,1), 2) = i-1;
                 vertices(topology(i,1), 3) = 1;
                 // divide by K^-_l(0)
-                prefactor(i-1, 0) = 1; 
-                prefactor(i-1, 1) = -1; 
-                prefactor(i-1, 2) = 1;
+                prefactor_Ksigns(i-1) = -1; 
+                // prefactor(i-1, 2) = 1;
+                prefactor_Kexps(i-1) = 1; 
             } else {
                 // step 4(b)
                 // no K's on vertices
                 // place K^+_l on each edge between the two vertices
                 for (int j = topology(i,0); j < topology(i,1); j++) edges(j, i-1) = 1;
                 // divide by (K^+_l(0))^(# edges between vertices - 1)
-                prefactor(i-1, 0) = 1; 
-                prefactor(i-1, 1) = 1;
-                prefactor(i-1, 2) = topology(i,1) - topology(i,0) - 1; 
+                prefactor_Ksigns(i-1) = 1; 
+                prefactor_Kexps(i-1) = topology(i,1) - topology(i,0) - 1; 
             }
         }
         else {
@@ -138,18 +138,18 @@ void BackboneSignature::set_pole_inds(
                 vertices(topology(i,1), 2) = i-1;
                 vertices(topology(i,1), 3) = -1;
                 // divide by -K^-+l(0)
-                prefactor(i-1, 0) = -1; 
-                prefactor(i-1, 1) = 1; 
-                prefactor(i-1, 2) = 1;
+                prefactor_sign *= -1; 
+                prefactor_Ksigns(i-1) = 1; 
+                prefactor_Kexps(i-1) = 1; 
             } else {
                 // step 4(b)
                 // no K's on vertices
                 // place K^-_l on each edge between the two vertices
                 for (int j = topology(i,0); j < topology(i,1); j++) edges(j, i-1) = -1;
                 // divide by -(K^-_l(0))^(# edges between vertices - 1)
-                prefactor(i-1, 0) = -1; 
-                prefactor(i-1, 1) = -1;
-                prefactor(i-1, 2) = topology(i,1) - topology(i,0) - 1; 
+                prefactor_sign *= -1; 
+                prefactor_Ksigns(i-1) = -1; 
+                prefactor_Kexps(i-1) = topology(i,1) - topology(i,0) - 1; 
             }
         }
     }
@@ -159,7 +159,9 @@ void BackboneSignature::reset_pole_inds() {
     pole_inds = 0; 
     vertices(_,range(2,4)) = 0; 
     edges = 0; 
-    prefactor = 0; 
+    prefactor_sign = 1; 
+    prefactor_Ksigns = 0; 
+    prefactor_Kexps = 0; 
 }
 
 void BackboneSignature::set_states(nda::vector_const_view<int> states) {
@@ -177,7 +179,9 @@ void BackboneSignature::reset_states() {
     vertices(_,4) = 0; 
 }
 
-int BackboneSignature::get_prefactor(int pole_ind, int i) {return prefactor(pole_ind, i);}
+int BackboneSignature::get_prefactor_Ksign(int i) {return prefactor_Ksigns(i);}
+
+int BackboneSignature::get_prefactor_Kexp(int i) {return prefactor_Kexps(i);}
 
 int BackboneSignature::get_vertex(int num, int i) {return vertices(num, i);}
 
@@ -190,19 +194,18 @@ int BackboneSignature::get_pole_ind(int i) {return pole_inds(i);}
 std::ostream& operator<<(std::ostream& os, BackboneSignature &B) {
     // prefactor --> p_str
     std::string p_str = "1 / ("; 
-    int sign = 1;
-    for (int i = 0; i < B.m-1; i++) sign *= B.get_prefactor(i, 0); 
+    int sign = B.prefactor_sign; 
     if (sign == -1) p_str = "-" + p_str; 
     for (int i = 0; i < B.m-1; i++) {
-        if (B.get_prefactor(i, 2) >= 1) {
+        if (B.get_prefactor_Kexp(i) >= 1) {
             p_str += "K_{l";
             for (int j = 0; j < i; j++) p_str += "`";
             p_str += "}";
-            if (B.get_prefactor(i, 1) == 1) p_str += "^+";
+            if (B.get_prefactor_Ksign(i) == 1) p_str += "^+";
             else p_str += "^-"; 
         }
-        if (B.get_prefactor(i, 2) > 1) {
-            p_str += "^" + std::to_string(B.get_prefactor(i, 2)); 
+        if (B.get_prefactor_Kexp(i) > 1) {
+            p_str += "^" + std::to_string(B.get_prefactor_Kexp(i)); 
         }
         p_str += "(0)";
         if (i < B.m-2) p_str += " ";
@@ -453,8 +456,6 @@ nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone,
                 for (int v = 1; v < backbone.get_topology(0,1); v++) { // loop from the first vertex to before the special vertex
                     // compute vertex (multiply)
                     // TODO: struct/class for Fs
-                    // TODO: have this not take in l, pole
-                    // multiply_vertex_dense(backbone, dlr_it, Fs, F_dags, Fdagbars, Fbarsrefl, v, states(v), l, pole, T); 
                     multiply_vertex_dense(backbone, dlr_it, dlr_rf, Fs, F_dags, Fdagbars, Fbarsrefl, v, T); 
                     compute_edge_dense(backbone, dlr_it, dlr_rf, Gt, v, GKt); 
                     // convolve with edge
@@ -477,7 +478,6 @@ nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone,
                 for (int v = backbone.get_topology(0,1) + 1; v < 2*m; v++) { // loop from the next edge to the final vertex
                     compute_edge_dense(backbone, dlr_it, dlr_rf, Gt, v-1, GKt);
                     T = itops.convolve(beta, Fermion, itops.vals2coefs(GKt), itops.vals2coefs(T), TIME_ORDERED); 
-                    // multiply_vertex_dense(backbone, dlr_it, Fs, F_dags, Fdagbars, Fbarsrefl, v, states(v), l, pole, T); 
                     multiply_vertex_dense(backbone, dlr_it, dlr_rf, Fs, F_dags, Fdagbars, Fbarsrefl, v, T); 
                 }
                 Sigma_L += T; 
@@ -486,15 +486,15 @@ nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone,
 
             // 4. Multiply by prefactor
             for (int p = 0; p < m-1; p++) { // loop over pole indices
-                int exp = backbone.get_prefactor(p, 2); // exponent on K for this pole index
+                int exp = backbone.get_prefactor_Kexp(p); // exponent on K for this pole index
                 if (exp != 0) { 
-                    int Ksign = backbone.get_prefactor(p, 1); // 1 if K^+, -1 if K^-
+                    int Ksign = backbone.get_prefactor_Ksign(p); 
                     double om = dlr_rf(pole_inds(p)); 
                     double k = k_it(0, Ksign*om); 
                     for (int q = 0; q < exp; q++) Sigma_L = Sigma_L / k; 
                 }
-                Sigma_L = Sigma_L * backbone.get_prefactor(p, 0); // multiply by overall sign on prefactor
             }
+            Sigma_L = Sigma_L * backbone.prefactor_sign; 
             Sigma += sign*Sigma_L; 
             backbone.reset_pole_inds(); 
         } // sum over poles

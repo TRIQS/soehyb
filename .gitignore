@@ -5,3 +5,4 @@ doc/cpp2rst_generated
 .cache/
 build/
 cmake_script
+.vscode/
