@@ -13,8 +13,6 @@ using namespace nda;
 // templates for double/dcomplex
 // convolve on values, not DLR coeffs
 
-static constexpr bool NCA = false, OCA = true; // for special BackboneTopology constructor
-
 /**
  * @class BlockDiagOpFun
  * @brief Block-sparse storage of time-dependent block-diagonal operator (e.g. Green's f'n)
@@ -154,6 +152,30 @@ class BlockOpFun {
      */
      BlockOpFun(int r, nda::vector_const_view<int> block_indices, 
         nda::array_const_view<int,2> block_sizes);
+};
+
+/**
+ * @class DenseFSet
+ * @brief Container for (linear combinations of) creation and annihilation operators
+ */
+class DenseFSet {
+    public:
+        nda::array<dcomplex,3> Fs; 
+        nda::array<dcomplex,3> F_dags; 
+        nda::array<dcomplex,4> F_dag_bars; 
+        nda::array<dcomplex,4> F_bars_refl;
+
+    /**
+     * @brief Constructor for DenseFSet
+     * @param[in] Fs annihilation operators
+     * @param[in] F_dags creation operators
+     * @param[in] hyb_coeffs DLR coefficients of hybridization
+     * @param[in] hyb_refl_coeffs DLR coefficients of reflected hybridization
+     */
+    DenseFSet(nda::array_const_view<dcomplex, 3> Fs, 
+        nda::array_const_view<dcomplex, 3> F_dags, 
+        nda::array_const_view<dcomplex, 3> hyb_coeffs, 
+        nda::array_const_view<dcomplex, 3> hyb_refl_coeffs); 
 };
 
 /**

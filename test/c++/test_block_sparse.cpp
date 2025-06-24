@@ -771,11 +771,57 @@ TEST(Backbone, OCA) {
             }
         }
     }
+    auto Fset = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs); 
 
     auto BB = BackboneSignature(topology, n); 
     
     auto OCA_result = eval_backbone_dense(BB, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense); 
+    auto OCA_result_2 = eval_backbone_dense(BB, beta, itops, Deltat, Gt_dense, Fset); 
     auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
 
+    ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_result_2)), 1e-12); 
     ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_dense_result)), 1e-12); 
+}
+
+TEST(Backbone, third_order) {
+    nda::array<int,3> topologies = {{{0,2},{1,4},{3,5}}, 
+                                    {{0,3},{1,5},{2,4}}, 
+                                    {{0,4},{1,3},{2,5}}, 
+                                    {{0,3},{1,4},{2,5}}}; 
+
+    nda::array<int,2> topology = {{0, 2}, {1, 3}}; 
+    int n = 4, N = 16; 
+    double beta = 2.0; 
+    double Lambda = 1000.0*beta; 
+    double eps = 1.0e-6; 
+    auto [num_blocks, 
+        Deltat, 
+        Deltat_refl, 
+        Gt, 
+        Fs, 
+        Gt_dense, 
+        Fs_dense, 
+        F_dags_dense, 
+        subspaces, 
+        fock_state_order] = two_band_discrete_bath_helper(beta, Lambda, eps);
+    // DLR generation
+    auto dlr_rf = build_dlr_rf(Lambda, eps);
+    auto itops = imtime_ops(Lambda, dlr_rf);
+    auto const & dlr_it = itops.get_itnodes();
+    auto dlr_it_abs = cppdlr::rel2abs(dlr_it);
+    int r = itops.rank();
+
+    nda::array<dcomplex,3> T(r,N,N);
+    for (int t = 0; t < r; t++) T(t,_,_) = nda::eye<dcomplex>(N); 
+
+    // compute Fbars and Fdagbars
+    auto hyb_coeffs = itops.vals2coefs(Deltat); // hybridization DLR coeffs
+    auto hyb_refl = nda::make_regular(-itops.reflect(Deltat));
+    auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
+    auto Fset = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs); 
+
+    for (int i = 0; i < 4; i++) {
+        auto B = BackboneSignature(topologies(i,_,_), n); 
+        auto third_order_result = eval_backbone_dense(B, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense); 
+    }
 }

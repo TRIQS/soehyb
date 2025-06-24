@@ -357,6 +357,27 @@ int BlockOpFun::get_num_time_nodes() const {
     return 0; // BlockDiagOpFun is all zeros anyways
 }
 
+/////////////// DenseFSet class ///////////////
+DenseFSet::DenseFSet(nda::array_const_view<dcomplex, 3> Fs, 
+    nda::array_const_view<dcomplex, 3> F_dags, 
+    nda::array_const_view<dcomplex, 3> hyb_coeffs, 
+    nda::array_const_view<dcomplex, 3> hyb_refl_coeffs
+) : Fs(Fs), F_dags(F_dags) {
+
+    int n = Fs.extent(0); 
+    int N = Fs.extent(1); 
+    int r = hyb_coeffs.extent(0); 
+    F_dag_bars = nda::array<dcomplex,4>(n,r,N,N);
+    F_bars_refl = nda::array<dcomplex,4>(n,r,N,N);
+    for (int lam = 0; lam < n; lam++) {
+        for (int l = 0; l < r; l++) {
+            for (int nu = 0; nu < n; nu++) {
+                F_dag_bars(lam,l,_,_) += hyb_coeffs(l,nu,lam)*F_dags(nu,_,_);
+                F_bars_refl(nu,l,_,_) += hyb_refl_coeffs(l,nu,lam)*Fs(lam,_,_);
+            }
+        }
+    }
+}
 
 /////////////// Utilities and operator overrides ///////////////
 

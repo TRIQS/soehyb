@@ -1,3 +1,4 @@
+#include <cppdlr/dlr_imtime.hpp>
 #include <nda/nda.hpp>
 #include <triqs_soehyb/block_sparse.hpp>
 #include <triqs_soehyb/block_sparse_backbone.hpp>
@@ -9,38 +10,24 @@ BackboneSignature::BackboneSignature(nda::array<int,2> topology, int n) :
     prefactor_sign(1) {
     
     prefactor_Ksigns = nda::vector<int>(m-1, 0); 
+    // for each of m-1 pole indices (l, l`, ...), the sign on K_l^?(0)
     prefactor_Kexps = nda::vector<int>(m-1, 0); 
-    /*        |  sign  |  sign on K  | exponent on K |
-     p   ---------------------------------------------
-     o   l    |        |             |               |
-     l   ---------------------------------------------
-     e   l'   |        |             |               |
-        ---------------------------------------------
-     i   l''  |        |             |               |
-     n   ---------------------------------------------
-     d   ...  |        |             |               |
-     e
-     x
-    */
+    // for each of m-1 pole_indices, the exponent on K_l(0)^?
+    
     vertex_bars = nda::vector<bool>(2*m, false); 
+    // for each of 2*m vertices, true if F has a bar
     vertex_dags = nda::vector<bool>(2*m, false);
+    // for each of 2*m vertices, true if F has a dagger
     vertex_which_pole_ind = nda::vector<int>(2*m, 0); 
+    // for each of 2*m vertices, which of the pole indices l, l`, ... is assoc'd with this vertex
     vertex_Ksigns = nda::vector<int>(2*m, 0); 
+    // for each of 2*m vertices, the sign on K_l^?(tau)
     vertex_states = nda::vector<int>(2*m, 0); 
-    /*         | bar? | dagger? |    pole index      |  sign on K  |  state index
-         --------------------------------------------------------
-         0     |      |         |                    |
-     v   --------------------------------------------------------
-     e   1     |      |         |                    |
-     r   --------------------------------------------------------
-     t   2     |      |         |                    |
-     e   --------------------------------------------------------
-     x   ...   |      |         |                    |
-     #   --------------------------------------------------------
-         2*m-1 |      |         |                    |
-         --------------------------------------------------------
-    */
-    edges = nda::zeros<int>(2*m-1, m-1); // 2*m-1 = # edges; m-1: each pole index
+    // for each of 2^m vertices, the state index on F_?
+    
+    edges = nda::zeros<int>(2*m-1, m-1); 
+    // 2*m-1 = # edges; m-1: each pole index
+    // edges(e,p) = exponent on K_l(tau) on edge e, where l has p primes
     /*            pole index      
               | l | l' | l'' | ... 
          -------------------------
@@ -174,7 +161,6 @@ void BackboneSignature::set_states(nda::vector_const_view<int> states) {
 
     for (int i = 0; i < 2*m; i++) {
         if (i != 0 && i != topology(0,1)) {
-            // vertices(i,4) = states(i); 
             vertex_states(i) = states(i); 
         }
     }
@@ -325,6 +311,46 @@ void multiply_vertex_dense(
     }
 }
 
+void multiply_vertex_dense(
+    BackboneSignature& backbone, 
+    nda::vector_const_view<double> dlr_it, 
+    nda::vector_const_view<double> dlr_rf, 
+    DenseFSet& Fset,  
+    int v_ix, // vertex index
+    nda::array_view<dcomplex,3> T) {
+
+    int r = dlr_it.size();
+    int s_ix = backbone.get_vertex_state(v_ix); // state_index
+    int l_ix = backbone.get_pole_ind(backbone.get_vertex_which_pole_ind(v_ix)); 
+
+    if (backbone.get_vertex_bar(v_ix)) { // F has bar
+        if (backbone.get_vertex_dag(v_ix)) { // F has dagger
+            // for (int t = 0; t < r; t++) T(t,_,_) = nda::matmul(Fdagbars(s_ix,l_ix,_,_), T(t,_,_)); 
+            for (int t = 0; t < r; t++) T(t,_,_) = nda::matmul(Fset.F_dag_bars(s_ix,l_ix,_,_), T(t,_,_)); 
+        } else {
+            // for (int t = 0; t < r; t++) T(t,_,_) = nda::matmul(Fbarsrefl(s_ix,l_ix,_,_), T(t,_,_)); 
+            for (int t = 0; t < r; t++) T(t,_,_) = nda::matmul(Fset.F_bars_refl(s_ix,l_ix,_,_), T(t,_,_)); 
+        }
+    } else {
+        if (backbone.get_vertex_dag(v_ix)) { // F has dagger
+            // for (int t = 0; t < r; t++) T(t,_,_) = nda::matmul(F_dags(s_ix,_,_), T(t,_,_));
+            for (int t = 0; t < r; t++) T(t,_,_) = nda::matmul(Fset.F_dags(s_ix,_,_), T(t,_,_));
+        } else {
+            // for (int t = 0; t < r; t++) T(t,_,_) = nda::matmul(Fs(s_ix,_,_), T(t,_,_));
+            for (int t = 0; t < r; t++) T(t,_,_) = nda::matmul(Fset.Fs(s_ix,_,_), T(t,_,_));
+        }
+    }
+
+    // K factor
+    int bv = backbone.get_vertex_Ksign(v_ix); // sign on K
+    double pole = dlr_rf(l_ix); 
+    if (bv != 0) {
+        for (int t = 0; t < r; t++) {
+            T(t,_,_) = k_it(dlr_it(t), bv * pole) * T(t,_,_);
+        }
+    }
+}
+
 void compute_edge_dense(
     BackboneSignature& backbone, 
     nda::vector_const_view<double> dlr_it, 
@@ -344,6 +370,21 @@ void compute_edge_dense(
             }
         }
     }
+}
+
+void compose_with_edge_dense(
+    BackboneSignature& backbone, 
+    imtime_ops& itops, 
+    nda::vector_const_view<double> dlr_it, 
+    nda::vector_const_view<double> dlr_rf, 
+    double beta, 
+    nda::array_const_view<dcomplex,3> Gt, 
+    int e_ix, // edge index
+    nda::array_view<dcomplex,3> T, 
+    nda::array_view<dcomplex,3> GKt
+) {
+    compute_edge_dense(backbone, dlr_it, dlr_rf, Gt, e_ix, GKt); 
+    T = itops.convolve(beta, Fermion, itops.vals2coefs(GKt), itops.vals2coefs(T), TIME_ORDERED); 
 }
 
 void hyb_vertex(
@@ -455,7 +496,6 @@ nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone,
                     // state indices on vertices connected by a line are the same
                     s0 = s0 / n; 
                 }
-                // TODO: set_states routine, remove states argument from multiply_vertex_dense, etc. 
                 backbone.set_states(states); 
 
                 // 1. Starting from tau_1, proceed right to left, performing 
@@ -465,13 +505,9 @@ nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone,
                 T = Gt; // T stores the result as a move right to left
                 // T is initialized with Gt, which is always the function at the rightmost edge
                 for (int v = 1; v < backbone.get_topology(0,1); v++) { // loop from the first vertex to before the special vertex
-                    // compute vertex (multiply)
                     // TODO: struct/class for Fs
-                    multiply_vertex_dense(backbone, dlr_it, dlr_rf, Fs, F_dags, Fdagbars, Fbarsrefl, v, T); 
-                    compute_edge_dense(backbone, dlr_it, dlr_rf, Gt, v, GKt); 
-                    // convolve with edge
-                    T = itops.convolve(beta, Fermion, itops.vals2coefs(GKt), itops.vals2coefs(T), TIME_ORDERED); 
-                    // TODO: combine compute_edge... and convolve into one routine called compose_with_edge...
+                    multiply_vertex_dense(backbone, dlr_it, dlr_rf, Fs, F_dags, Fdagbars, Fbarsrefl, v, T);
+                    compose_with_edge_dense(backbone, itops, dlr_it, dlr_rf, beta, Gt, v, T, GKt); 
                 } 
 
                 // 2. For each kappa, multiply by F_kappa(^dag). Then for each 
@@ -487,9 +523,126 @@ nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone,
                 // 3. Continue right to left until the final vertex 
                 //    multiplication is complete.
                 for (int v = backbone.get_topology(0,1) + 1; v < 2*m; v++) { // loop from the next edge to the final vertex
-                    compute_edge_dense(backbone, dlr_it, dlr_rf, Gt, v-1, GKt);
-                    T = itops.convolve(beta, Fermion, itops.vals2coefs(GKt), itops.vals2coefs(T), TIME_ORDERED); 
+                    compose_with_edge_dense(backbone, itops, dlr_it, dlr_rf, beta, Gt, v-1, T, GKt); 
                     multiply_vertex_dense(backbone, dlr_it, dlr_rf, Fs, F_dags, Fdagbars, Fbarsrefl, v, T); 
+                }
+                Sigma_L += T; 
+                backbone.reset_states(); 
+            } // sum over states
+
+            // 4. Multiply by prefactor
+            for (int p = 0; p < m-1; p++) { // loop over pole indices
+                int exp = backbone.get_prefactor_Kexp(p); // exponent on K for this pole index
+                if (exp != 0) { 
+                    int Ksign = backbone.get_prefactor_Ksign(p); 
+                    double om = dlr_rf(pole_inds(p)); 
+                    double k = k_it(0, Ksign*om); 
+                    for (int q = 0; q < exp; q++) Sigma_L = Sigma_L / k; 
+                }
+            }
+            Sigma += sign*backbone.prefactor_sign*Sigma_L; 
+            backbone.reset_pole_inds(); 
+        } // sum over poles
+        backbone.reset_directions(); 
+    } // sum over forward/backward lines
+
+    return Sigma;
+}
+
+nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone, 
+    double beta, 
+    imtime_ops &itops, 
+    nda::array_const_view<dcomplex, 3> hyb, 
+    nda::array_const_view<dcomplex, 3> Gt, 
+    DenseFSet& Fset
+) {
+
+    // index orders:
+    // Gt (time, N, N), where N = 2^n, n = number of orbital indices
+    // Fs (n, N, N)
+    // Fbars (n, r, N, N)
+
+    nda::vector_const_view<double> dlr_rf = itops.get_rfnodes();
+    nda::vector_const_view<double> dlr_it = itops.get_itnodes();
+    // number of imaginary time nodes
+    int r = dlr_it.extent(0);
+    int N = Gt.extent(1);
+    int m = backbone.m;
+    int n = hyb.extent(1);
+    auto hyb_refl = nda::make_regular(-itops.reflect(hyb));
+
+    // initialize self-energy
+    nda::array<dcomplex,3> Sigma(r,N,N);
+
+    // preallocate intermediate arrays
+    nda::array<dcomplex, 3> Sigma_L(r, N, N), T(r, N, N), Tmu(r, N, N), GKt(r, N, N); // TODO: T --> temp_result? for b-s version, initialize largest 
+    // needed array and write into top-left corner
+    nda::array<dcomplex, 4> Tkaps(n, r, N, N);
+    // Sigma_l = term of self-energy assoc'd with pole l, rest are placeholders
+    // loop over hybridization lines
+
+    nda::vector<int> fb_vec(m), states(2*m);
+    auto pole_inds = nda::zeros<int>(m-1);
+
+    for (int fb = 0; fb < pow(2,m); fb++) { // loop over 2^m combos of for/backward lines
+        int fb0 = fb;
+        // turn (int) fb into a vector of 1s and 0s corresp. to forward, backward lines, resp. 
+        for (int i = 0; i < m; i++) {fb_vec(i) = fb0 % 2; fb0 = fb0 / 2;}
+        backbone.set_directions(fb_vec); // give line directions to backbone object
+        int sign = (fb==2 || fb==0) ? 1 : -1;  // (fb_vec(0)^fb_vec(1)) ? -1 : 1; // TODO: figure this out
+
+        // L = pole multiindex
+        for (int L = 0; L < pow(r,m-1); L++) { // loop over all combinations of pole indices
+            Sigma_L = 0; 
+
+            int L0 = L;
+            // turn (int) L into a vector of pole indices
+            for (int i = 0; i < m-1; i++) {pole_inds(i) = L0 % r; L0 = L0 / r;}
+            backbone.set_pole_inds(pole_inds, dlr_rf); // give pole indices to backbone object
+
+            // print a negative and positive pole diagram for each set of line directions
+            if (L == 0) std::cout << "fb = " << fb << " " << backbone << std::endl;
+            if (L == r-1) std::cout << "fb = " << fb << " " << backbone << std::endl;
+
+            // set up state (Greek) indices that are explicity summed over
+            for (int s = 0; s < pow(n, m-1); s++) { // loop over all combos of states
+                int s0 = s;
+                // turn (int) s into a vector of state indices
+                for (int i = 1; i < m; i++) { // loop over lines, skipping the one connected to zero
+                    states(backbone.get_topology(i, 0)) = s0 % n;
+                    states(backbone.get_topology(i, 1)) = s0 % n;
+                    // state indices on vertices connected by a line are the same
+                    s0 = s0 / n; 
+                }
+                backbone.set_states(states); 
+
+                // 1. Starting from tau_1, proceed right to left, performing 
+                //    multiplications at vertices and convolutions at edges, 
+                //    until reaching the vertex containing the undecomposed 
+                //    hybridization line Delta_{mu kappa}
+                T = Gt; // T stores the result as a move right to left
+                // T is initialized with Gt, which is always the function at the rightmost edge
+                for (int v = 1; v < backbone.get_topology(0,1); v++) { // loop from the first vertex to before the special vertex
+                    // TODO: struct/class for Fs
+                    multiply_vertex_dense(backbone, dlr_it, dlr_rf, Fset, v, T);
+                    compose_with_edge_dense(backbone, itops, dlr_it, dlr_rf, beta, Gt, v, T, GKt); 
+                } 
+
+                // 2. For each kappa, multiply by F_kappa(^dag). Then for each 
+                //    mu, kappa, multiply by Delta_{mu kappa}, and sum over 
+                //    kappa. Finally for each mu, multiply F_mu[^dag] and sum 
+                //    over mu. 
+                if (not backbone.get_vertex_dag(0)) { // line connected to zero is forward
+                    hyb_vertex(backbone, hyb, Fset.Fs, Fset.F_dags, Tkaps, Tmu, T); 
+                } else { // line connected to zero is backward
+                    hyb_vertex(backbone, hyb_refl, Fset.F_dags, Fset.Fs, Tkaps, Tmu, T); 
+                }
+
+                // 3. Continue right to left until the final vertex 
+                //    multiplication is complete.
+                for (int v = backbone.get_topology(0,1) + 1; v < 2*m; v++) { // loop from the next edge to the final vertex
+                    compose_with_edge_dense(backbone, itops, dlr_it, dlr_rf, beta, Gt, v-1, T, GKt); 
+                    multiply_vertex_dense(backbone, dlr_it, dlr_rf, Fset, v, T); 
                 }
                 Sigma_L += T; 
                 backbone.reset_states(); 
