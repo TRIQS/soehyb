@@ -69,6 +69,14 @@ int BlockDiagOpFun::get_block_size(int i) const {
     return blocks[i].shape(1);
 }
 
+int BlockDiagOpFun::get_max_block_size() const {
+    int max_block_size = 0; 
+    for (int i = 0; i < num_block_cols; i++) {
+        max_block_size = std::max(max_block_size, (int) blocks[i].extent(1)); 
+    }
+    return max_block_size; 
+}
+
 int BlockDiagOpFun::get_num_block_cols() const {
     return num_block_cols;
 }
@@ -349,7 +357,7 @@ nda::array_const_view<dcomplex,3> BlockOpFun::get_block_dlr_coeffs(int i) const 
 }
 
 int BlockOpFun::get_num_time_nodes() const {
-    for (int i; i < num_block_cols; i++) {
+    for (int i = 0; i < num_block_cols; i++) {
         if (block_indices(i) != -1) {
             return blocks[i].shape(0);
         }

@@ -35,6 +35,7 @@ class BlockDiagOpFun {
         nda::array_const_view<dcomplex,3> get_block(int i) const;
         nda::vector<int> get_block_sizes() const;
         int get_block_size(int i) const;
+        int get_max_block_size() const; 
         int get_num_block_cols() const;
         int get_zero_block_index(int i) const;
         void set_blocks_dlr_coeffs(imtime_ops &itops);
