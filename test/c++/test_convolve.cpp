@@ -18,13 +18,13 @@ TEST(test_dlr, test_dlr_convolve) {
     auto const &dlr_it = itops.get_itnodes();
     int r = itops.rank();
 
-    double alpha_1 = 0.1;
-    double alpha_2 = 0.2;
     auto f                  = nda::vector<dcomplex>(r);
     auto g                  = nda::vector<dcomplex>(r);
+
     for (int i = 0; i < r; ++i) { 
         if (dlr_it(i)>0) f(i) =  exp(-0.1*dlr_it(i)) ; else  f(i) =  exp(-0.1*(1+dlr_it(i)));
         };
+
     //for (int i = 0; i < r; ++i) { g(i) =   exp(-0.1*dlr_it(i)) ;};
     g=f;
 

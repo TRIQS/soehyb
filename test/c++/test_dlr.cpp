@@ -22,7 +22,6 @@ TEST(strong_coupling, exponential_functions) {
     // Set problem parameters
     double beta = 2; // Inverse temperature
     const int N = 2;     // Dimension of Greens function. Do not change, or you'll have to rewrite G(t)
-    int Num = 128;   // Size of equidist grid
     const int dim = 3; //Dimension of hybridization. One can change dim as they want.
    
     // Set DLR parameters
@@ -67,8 +66,8 @@ TEST(strong_coupling, exponential_functions) {
     hyb_F Delta_F(N, r, dim);
     hyb_F Delta_F_reflect(N, r, dim);
     
-    Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, F, F_dag);
-    Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);
+    Delta_F.update_inplace(Delta_decomp, dlr_it, F, F_dag);
+    Delta_F_reflect.update_inplace(Delta_decomp_reflect, dlr_it, F_dag, F);
     
     bool backward = false;
     auto fb2 =  nda::vector<int>(2); fb2=0;
@@ -269,7 +268,6 @@ TEST(strong_coupling, G_diagrams) {
     // Set problem parameters
     double beta = 1; // Inverse temperature
     const int N = 1;     // Dimension of Greens function. Do not change, or you'll have to rewrite G(t)
-    int Num = 128;   // Size of equidist grid
     const int dim = 1; //Dimension of hybridization. One can change dim as they want.
         
     // Set DLR parameters
@@ -323,20 +321,18 @@ TEST(strong_coupling, G_diagrams) {
 
     auto Delta_decomp_simple = hyb_decomp(A,pol);
     Delta_decomp_simple.check_accuracy(Deltat, dlr_it);
-    bool backward = false;
     auto fb2 =  nda::vector<int>(2); fb2=0;
     auto fb3 =  nda::vector<int>(3); fb3=0;
 
     hyb_F Delta_F_simple(N, r, dim);
-    Delta_F_simple.update_inplace(Delta_decomp_simple, dlr_rf, dlr_it, F, F);
+    Delta_F_simple.update_inplace(Delta_decomp_simple, dlr_it, F, F);
 
     //calculating diagrams
-    auto G_OCAdiagram_simple = G_Diagram_calc(Delta_F_simple,Delta_F_simple,D2,Deltat,Deltat, Gt,itops,beta, F,  F, fb2);
-   // auto G_OCAdiagram_simple = G_OCA_calc(Delta_F_simple,Delta_F_simple,Deltat,Deltat, Gt,itops,beta, F,  F, fb2);
+    auto G_OCAdiagram_simple = G_Diagram_calc(Delta_F_simple,Delta_F_simple,D2, Gt,itops,beta, F,  F, fb2);
     std::cout<<G_OCAdiagram_simple(0,_,_);
 
     std::cout<<max_element(abs(G_OCAdiagram_simple(_,0,0)-G_OCA_true_00(_,0,0)));
-    auto G_OCAdiagram_simple_all = G_Diagram_calc_sum_all(Delta_F_simple,Delta_F_simple,D2,Deltat,Deltat, Gt,itops,beta, F,  F);
+    auto G_OCAdiagram_simple_all = G_Diagram_calc_sum_all(Delta_F_simple,Delta_F_simple,D2,Gt,itops,beta, F,  F);
     
 }
 

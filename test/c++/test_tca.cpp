@@ -33,7 +33,6 @@ TEST(strong_coupling, dimer) {
     //preparing itops
     auto dlr_rf = build_dlr_rf(lambda, eps); // Get DLR frequencies
     auto itops = imtime_ops(lambda, dlr_rf); // Get DLR imaginary time object
-    auto const & dlr_it = itops.get_itnodes();
     int r = itops.rank();
 
     std::cout<<"rank is "<<r<<std::endl;
@@ -61,10 +60,6 @@ TEST(strong_coupling, dimer) {
     H_S = H_S - mu*(matmul(c0_S_dag,c0_S)+matmul(c1_S_dag,c1_S));
 
     auto G0_S_tau = free_gf(beta, itops, H_S,0.0,true);
-    int N = G0_S_tau.shape(1);
-
-
-
 
     //preparing impurity solver (hyb decomposition)
     auto impsol = fastdiagram(beta,lambda,itops,F,F_dag);

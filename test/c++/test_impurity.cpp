@@ -82,7 +82,6 @@ TEST(strong_coupling, dimer) {
     double beta = 8;
     nda::vector<double> exp_eval = exp(-beta*(eval-min_element(eval)));
     exp_eval = exp_eval/sum(exp_eval); 
-    double Z = sum(exp(-beta*eval));
    // std::cout<<((eval));
     double lambda = 640;
     double eps = 1.0e-9;
@@ -98,8 +97,6 @@ TEST(strong_coupling, dimer) {
     // }
     // tau_actual = tau_actual*beta;
     
-    int n_all=6;
-
     int N_t = 100;
     auto t_relative = nda::vector<double>(N_t);
     for (int i=0;i<N_t;++i) {t_relative(i) = (i+0.0)/N_t; if (t_relative(i)>0.5) {t_relative(i) -= 1;};}

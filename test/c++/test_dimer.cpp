@@ -79,7 +79,6 @@ TEST(strong_coupling, dimer) {
     double beta = 8;
     nda::vector<double> exp_eval = exp(-beta*(eval-min_element(eval)));
     exp_eval = exp_eval/sum(exp_eval); 
-    double Z = sum(exp(-beta*eval));
    // std::cout<<((eval));
     double lambda = 640;
     double eps = 1.0e-12;
@@ -94,8 +93,6 @@ TEST(strong_coupling, dimer) {
     }
     tau_actual = tau_actual*beta;
     
-    int n_all=6;
-
     int N_t = 50;
     auto t_relative = nda::vector<double>(N_t);
     for (int i=0;i<N_t;++i) {t_relative(i) = (i+0.0)/(N_t); if (t_relative(i)>0.5) {t_relative(i) -= 1;};}
@@ -187,8 +184,8 @@ TEST(strong_coupling, dimer) {
     hyb_F Delta_F(N, r, dim);
     hyb_F Delta_F_reflect(N, r, dim);
     
-    Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, F, F_dag);
-    Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf, dlr_it, F_dag, F);
+    Delta_F.update_inplace(Delta_decomp, dlr_it, F, F_dag);
+    Delta_F_reflect.update_inplace(Delta_decomp_reflect, dlr_it, F_dag, F);
 
     double eta;
     double Z_S;
@@ -246,17 +243,17 @@ TEST(strong_coupling, dimer) {
         
     }
     auto G_S_dlr = itops.vals2coefs(G_S_tau);
-    auto g_S_NCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D_NCA,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag);
+    auto g_S_NCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D_NCA, G_S_tau,itops,beta, F,  F_dag);
     auto g_S_NCA_dlr = itops.vals2coefs(make_regular(g_S_NCA));
    
-    auto g_S_OCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D2,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag);
+    auto g_S_OCA = -G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D2, G_S_tau,itops,beta, F,  F_dag);
     auto g_S_OCA_dlr = itops.vals2coefs(make_regular(g_S_OCA));
     auto g_S = make_regular(g_S_NCA+g_S_OCA); 
     if (do_tca==true){
-        auto g_S_TCA = G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,Dt1,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag)\
-                    + G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,Dt2,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag)\
-                    + G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,Dt3,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag)\
-                    - G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,Dt4,Deltat,Deltat_reflect, G_S_tau,itops,beta, F,  F_dag);  
+        auto g_S_TCA = G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,Dt1, G_S_tau,itops,beta, F,  F_dag)\
+                    + G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,Dt2, G_S_tau,itops,beta, F,  F_dag)\
+                    + G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,Dt3, G_S_tau,itops,beta, F,  F_dag)\
+                    - G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,Dt4, G_S_tau,itops,beta, F,  F_dag);  
         g_S = make_regular(g_S-g_S_TCA);
     }
    

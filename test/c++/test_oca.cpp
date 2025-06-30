@@ -65,11 +65,11 @@ TEST(OCA, G){
     hyb_F Delta_F(1, r, 1);
     hyb_F Delta_F_reflect(1, r, 1);
     
-    Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, F, F);
-    Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf, dlr_it, F, F);
+    Delta_F.update_inplace(Delta_decomp, dlr_it, F, F);
+    Delta_F_reflect.update_inplace(Delta_decomp_reflect, dlr_it, F, F);
 
     //calculating diagrams
-    auto G_OCAdiagram = G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D2,Deltat,Deltat_reflect, Gt,itops,beta, F,  F);
+    auto G_OCAdiagram = G_Diagram_calc_sum_all(Delta_F,Delta_F_reflect,D2, Gt,itops,beta, F,  F);
     std::cout<<G_OCAdiagram<<std::endl;
     if (abs(D)<1e-8){
         for (int i=0;i<r;++i) std::cout<<" "<<make_regular((exp(-g*beta) * beta*beta*(1-dlr_it_actual(i))*dlr_it_actual(i)));

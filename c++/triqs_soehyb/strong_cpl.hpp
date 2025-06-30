@@ -97,8 +97,8 @@ class hyb_F {
     * @param[in] F impurity operator in pseudo-particle space, of size n*N*N
     * @param[in] F_dag impurity operator in pseudo-particle space, of size n*N*N
     * */
-  void update_inplace(const hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_rf, nda::vector_const_view<double> dlr_it,
-                      nda::array_const_view<dcomplex, 3> F, nda::array_const_view<dcomplex, 3> F_dag);
+  void update_inplace(const hyb_decomp &hyb_decomp, nda::vector_const_view<double> dlr_it, nda::array_const_view<dcomplex, 3> F,
+                      nda::array_const_view<dcomplex, 3> F_dag);
 };
 
 /** 
@@ -127,7 +127,6 @@ nda::array<dcomplex, 3> Sigma_Diagram_calc(hyb_F &hyb_F_self, hyb_F &hyb_F_refle
 * @return impurity Green's function r*n*n
 * */
 nda::array<dcomplex, 3> G_Diagram_calc(hyb_F &hyb_F_self, hyb_F &hyb_F_reflect, nda::array_const_view<int, 2> D,
-                                       nda::array_const_view<dcomplex, 3> Deltat, nda::array_const_view<dcomplex, 3> Deltat_reflect,
                                        nda::array_const_view<dcomplex, 3> Gt, imtime_ops &itops, double beta, nda::array_const_view<dcomplex, 3> F,
                                        nda::array_const_view<dcomplex, 3> F_dag, nda::vector_const_view<int> fb);
 
@@ -145,7 +144,6 @@ nda::array<dcomplex, 3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self, hyb_F &hyb
 * @return impurity Green's function r*n*n
 * */
 nda::array<dcomplex, 3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self, hyb_F &hyb_F_reflect, nda::array_const_view<int, 2> D,
-                                               nda::array_const_view<dcomplex, 3> Deltat, nda::array_const_view<dcomplex, 3> Deltat_reflect,
                                                nda::array_const_view<dcomplex, 3> Gt, imtime_ops &itops, double beta,
                                                nda::array_const_view<dcomplex, 3> F, nda::array_const_view<dcomplex, 3> F_dag);
 
@@ -161,10 +159,8 @@ nda::array<dcomplex, 3> Sigma_OCA_calc(hyb_F &hyb_F, nda::array_const_view<dcomp
 * @brief Evaluating OCA impurity Green's function diagram with given topology and forward/backward flag. Input arguments are the same as Sigma_Diagram_calc
 * @return impurity Green's function r*n*n
 * */
-nda::array<dcomplex, 3> G_OCA_calc(hyb_F &hyb_F_self, hyb_F &hyb_F_reflect, nda::array_const_view<dcomplex, 3> Deltat,
-                                   nda::array_const_view<dcomplex, 3> Deltat_reflect, nda::array_const_view<dcomplex, 3> Gt, imtime_ops &itops,
-                                   double beta, nda::array_const_view<dcomplex, 3> F, nda::array_const_view<dcomplex, 3> F_dag,
-                                   nda::vector_const_view<int> fb);
+nda::array<dcomplex, 3> G_OCA_calc(hyb_F &hyb_F_self, hyb_F &hyb_F_reflect, nda::array_const_view<dcomplex, 3> Gt, imtime_ops &itops, double beta,
+                                   nda::array_const_view<dcomplex, 3> F, nda::array_const_view<dcomplex, 3> F_dag, nda::vector_const_view<int> fb);
 
 /** 
 * @brief Gt(k,_,_) = matmul(Ft(k,_,_), Gt(k,_,_))
@@ -203,7 +199,6 @@ nda::array<dcomplex, 3> evaluate_one_diagram(hyb_F &hyb_F_self, hyb_F &hyb_F_ref
                                              nda::vector_const_view<int> fb, bool backward, int num0, int m, int n, int r, int N, int P);
 
 nda::array<dcomplex, 3> eval_one_diagram_G(hyb_F &hyb_F_self, hyb_F &hyb_F_reflect, nda::array_const_view<int, 2> D,
-                                           nda::array_const_view<dcomplex, 3> Deltat, nda::array_const_view<dcomplex, 3> Deltat_reflect,
                                            nda::array_const_view<dcomplex, 3> Gt, nda::array_const_view<dcomplex, 3> Gt_reflect, imtime_ops &itops,
                                            double beta, nda::array_const_view<dcomplex, 3> F, nda::array_const_view<dcomplex, 3> F_dag,
                                            nda::vector_const_view<int> fb, int num0, int m, int n, int r, int N, int P);
