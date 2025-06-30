@@ -1,6 +1,6 @@
 ################################################################################
 #
-# triqs_soehyb - Sum-Of-Exponentials bold HYBridization expansion impurity solver
+# triqs_soehyb: Sum-Of-Exponentials bold HYBridization expansion impurity solver
 #
 # Copyright (C) 2023 by H. U.R. Strand
 #
@@ -15,7 +15,7 @@
 # details.
 #
 # You should have received a copy of the GNU General Public License along with
-# TRIQS. If not, see <http://www.gnu.org/licenses/>.
+# triqs_soehyb. If not, see <http://www.gnu.org/licenses/>.
 #
 ################################################################################
 
