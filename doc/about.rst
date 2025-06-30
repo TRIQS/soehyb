@@ -1,8 +1,8 @@
 .. _about:
 
 About triqs_soehyb
-***************
+******************
 
-An example application using ``cpp2py`` and TRIQS.
+The TRIQS Sum-Of-Exponentials bold HYBridization expansion impurity solver.
 
-Written and maintained by N. Wentzell with contributions from H. U.R. Strand.
+Written by Z. Huang, J. Kaye, and H. U.R. Strand.

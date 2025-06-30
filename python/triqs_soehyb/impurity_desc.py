@@ -1,5 +1,26 @@
-# Generated automatically using the command :
-# c++2py --target_file_only --cxxflags="-std=c++20" -C nda_py impurity.hpp
+################################################################################
+#
+# triqs_soehyb - Sum-Of-Exponentials bold HYBridization expansion impurity solver
+#
+# Copyright (C) 2025 by H. U.R. Strand
+#
+# triqs_soehyb is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# triqs_soehyb is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# TRIQS. If not, see <http://www.gnu.org/licenses/>.
+#
+################################################################################
+
+# Manually wrapped methods
+
 from cpp2py.wrap_generator import *
 
 # The module

@@ -1,6 +1,31 @@
-# This is a python implementation for analytic continuation of Fermionic Green's functions/self energy
-# using PES (ES) method
-# Reference: PhysRevB.107.075151
+################################################################################
+#
+# triqs_soehyb - Sum-Of-Exponentials bold HYBridization expansion impurity solver
+#
+# Copyright (C) 2025 by Z. Huang
+#
+# triqs_soehyb is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# triqs_soehyb is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# TRIQS. If not, see <http://www.gnu.org/licenses/>.
+#
+################################################################################
+
+"""
+Implementation of analytic continuation for Fermionic Green's functions and self-energies
+using the projection-estimation-semidefinite relaxation PES (ES) method.
+
+Z. Huang, E. Gull, L. Lin, Phys. Rev. B 107, 075151 (2023) https://doi.org/10.1103/PhysRevB.107.075151
+"""
+
 import numpy as np 
 import scipy
 import scipy.optimize
