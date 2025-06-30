@@ -48,9 +48,14 @@ namespace cppdlr {
     * or a real scalar.
     */
     dyson_it_ppsc(double beta, imtime_ops itops, Ht const &h) :
-      beta(beta), itops_ptr(std::make_shared<imtime_ops>(itops)), time_order(true),
-      r(itops.rank()), norb( std::floating_point<Ht> ? 1 : h.shape(0) ),
-      g0(r, norb, norb), g0c(r, norb, norb), sysmat(r*norb, r*norb) {
+      beta(beta),
+      itops_ptr(std::make_shared<imtime_ops>(itops)),
+      r(itops.rank()),
+      norb( std::floating_point<Ht> ? 1 : h.shape(0) ),
+      time_order(true),
+      g0(r, norb, norb),
+      g0c(r, norb, norb),
+      sysmat(r*norb, r*norb) {
 
       // dyson_it_ppsc object contains a shared pointer to the imtime_ops object
       // itops. This is done to avoid making a copy of itops, which is meant to
