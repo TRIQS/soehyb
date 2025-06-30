@@ -569,7 +569,7 @@ TEST(BlockSparseOCA, two_band_discrete_bath_bs) {
 TEST(BlockSparseOCA, two_band_discrete_bath_dense) {
     // DLR parameters
     double beta = 2.0;
-    double Lambda = 1000*beta;
+    double Lambda = 100.0*beta;
     double eps = 1.0e-10;
     // DLR generation
     auto dlr_rf = build_dlr_rf(Lambda, eps);
@@ -781,6 +781,63 @@ TEST(Backbone, OCA) {
 
     // ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_result_2)), 1e-12); 
     ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_dense_result)), 1e-12); 
+}
+
+TEST(Backbone, third_order_manual) {
+    int n = 4, N = 16; 
+    double beta = 2.0; 
+    double Lambda = 10.0*beta; // 1000.0*beta; 
+    double eps = 1.0e-10; 
+    auto [num_blocks, 
+        Deltat, 
+        Deltat_refl, 
+        Gt, 
+        Fs, 
+        Gt_dense, 
+        Fs_dense, 
+        F_dags_dense, 
+        subspaces, 
+        fock_state_order] = two_band_discrete_bath_helper(beta, Lambda, eps);
+    // DLR generation
+    auto dlr_rf = build_dlr_rf(Lambda, eps);
+    auto itops = imtime_ops(Lambda, dlr_rf);
+    auto const & dlr_it = itops.get_itnodes();
+    auto dlr_it_abs = cppdlr::rel2abs(dlr_it);
+    int r = itops.rank();
+
+    auto hyb = Deltat; 
+    auto hyb_coeffs = itops.vals2coefs(hyb); // hybridization DLR coeffs
+    auto hyb_refl = nda::make_regular(-itops.reflect(hyb));
+    auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
+
+    // compute Fbars and Fdagbars
+    auto Fdagbars = nda::array<dcomplex, 4>(n, r, N, N);
+    auto Fbarsrefl = nda::array<dcomplex, 4>(n, r, N, N);
+    for (int lam = 0; lam < n; lam++) {
+        for (int l = 0; l < r; l++) {
+            for (int nu = 0; nu < n; nu++) {
+                Fdagbars(lam,l,_,_) += hyb_coeffs(l,nu,lam)*F_dags_dense(nu,_,_);
+                Fbarsrefl(nu,l,_,_) += hyb_refl_coeffs(l,nu,lam)*Fs_dense(lam,_,_);
+            }
+        }
+    }
+
+    auto Sigma_manual = third_order_dense_partial(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense); 
+    nda::array<int,2> topology = {{0, 2}, {1, 4}, {3, 5}}; 
+    auto B = BackboneSignature(topology, n); 
+    nda::vector<int> fb{1,1,1}, pole_inds{7,9}; 
+    B.set_directions(fb); 
+    B.set_pole_inds(pole_inds, dlr_rf);
+    // std::cout << dlr_rf << std::endl;
+
+    nda::array<dcomplex,3> T(r,N,N), GKt(r,N,N), Tmu(r,N,N), Sigma_generic(r,N,N);
+    nda::array<dcomplex,4> Tkaps(n,r,N,N);
+    nda::vector<int> states(6); 
+    eval_backbone_p_d_dense(B, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense, Fdagbars, Fbarsrefl, dlr_it, dlr_rf, T, GKt, Tkaps, Tmu, Deltat_refl, states, Sigma_generic);
+
+    std::cout << Sigma_manual(10,_,_) << std::endl;
+    std::cout << Sigma_generic(10,_,_) << std::endl;
+    std::cout << nda::make_regular(Sigma_manual(10,_,_) - Sigma_generic(10,_,_)) << std::endl;
 }
 
 TEST(Backbone, third_order) {

@@ -1,5 +1,6 @@
 #include "triqs_soehyb/strong_cpl.hpp"
 #include <cppdlr/dlr_imfreq.hpp>
+#include <cppdlr/dlr_imtime.hpp>
 #include <cppdlr/dlr_kernels.hpp>
 #include <h5/complex.hpp>
 #include <h5/object.hpp>
@@ -165,7 +166,7 @@ std::tuple<int,
     return std::make_tuple(num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order);
 }
 
-nda::array<dcomplex, 4> third_order_02_ppsc(
+nda::array<dcomplex, 4> OCA_ppsc(
     nda::array<dcomplex,3> Deltat, 
     nda::array<dcomplex,3> Deltat_refl, 
     imtime_ops& itops, 
@@ -178,53 +179,59 @@ nda::array<dcomplex, 4> third_order_02_ppsc(
     nda::array<dcomplex, 3> F_dags_dense
 ) {
     int r = itops.rank(); 
+    std::size_t N = Gt_dense.extent(1); 
+    nda::array<int,2> D2 = {{0, 2}, {1, 3}}; 
     auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)     
     nda::vector<double> dlr_rf_reflect = -dlr_rf;
     nda::array<dcomplex,3> Deltadlr_reflect = Deltadlr*1.0;
     for (int i = 0; i < Deltadlr.shape(0); ++i) Deltadlr_reflect(i,_,_) = transpose(Deltadlr(i,_,_));
     auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf,eps); //decomposition of Delta(t) using DLR coefficient
     auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf_reflect,eps); // decomposition of Delta(-t) using DLR coefficient
-    int dim = static_cast<int>(Deltat.shape(1));
+    int dim = Deltat.shape(1);
     hyb_F Delta_F(16, r, dim);
     hyb_F Delta_F_reflect(16, r, dim);
     Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, Fs_dense, F_dags_dense); // Compression of Delta(t) and F, F_dag matrices
     Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf_reflect, dlr_it, F_dags_dense, Fs_dense);
+    auto fb = nda::vector<int>(2); fb(1) = 0;
 
-    nda::array<int,2> D_02 = {{0,2},{1,4},{3,5}}; 
+    // this is both hybridization are forward
+    auto OCA_forward_forward = Sigma_OCA_calc(Delta_F,   Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense,  false);
+    OCA_forward_forward = nda::make_regular(-1 * OCA_forward_forward); 
 
-    auto fb_zhen = nda::vector<int>(3);
-    fb_zhen = 0; 
-    auto third_ffx = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D_02, Deltat, Deltat_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb_zhen, true); 
-    auto third_fff = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D_02, Deltat, Deltat_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb_zhen, false); 
-    auto third_ffb = -third_ffx + third_fff; 
+    //this is result of Delta(t-t1) forward, which is the sum of Delta(t2,t0) being forward and backward
+    auto OCA_forward  = Sigma_OCA_calc(Delta_F,Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense, true);
+    // another way to calculate the same thing
+    auto OCA_forward2 = Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense,  fb, true);
 
-    fb_zhen(2) = 1; // middle line backward
-    auto third_fbx = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D_02, Deltat, Deltat_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb_zhen, true); 
-    auto third_fbf = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D_02, Deltat, Deltat_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb_zhen, false); 
-    auto third_fbb = -third_ffx + third_fff;     
+    //Get Delta(t-t1) forward Delta(t2,t0) backward result via subtraction:
+    auto OCA_forward_backward = -OCA_forward - OCA_forward_forward; 
+    // auto OCA_forward_backward = -OCA_forward + OCA_forward_forward; 
 
-    std::size_t N = Gt_dense.extent(1); 
-    nda::array<dcomplex,4> third_all(6,r,N,N); 
-    third_all(0,_,_,_) = third_fff; 
-    third_all(1,_,_,_) = third_ffb; 
-    third_all(2,_,_,_) = third_ffx; 
-    third_all(3,_,_,_) = third_fbf; 
-    third_all(4,_,_,_) = third_fbb; 
-    third_all(5,_,_,_) = third_fbx; 
+    // Get Delta(t-t1) backward Delta(t2,t0) forward
+    auto fb2 = nda::vector<int>(2); fb2(1) = 1;
+    auto OCA_backward_forward = Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense,  fb2, false);
+    OCA_backward_forward = nda::make_regular(-1 * OCA_backward_forward); 
 
-    return third_all; 
+    //Get Delta(t-t1) backward Delta(t2,t0) backward, from subtraction
+    auto OCA_backward = Sigma_Diagram_calc(Delta_F,Delta_F_reflect, D2,  Deltat,  Deltat_refl, Gt_dense, itops, beta,  Fs_dense,  F_dags_dense,  fb2, true);
+    auto OCA_backward_backward = -OCA_backward - OCA_backward_forward;
+    // auto OCA_backward_backward = -OCA_backward + OCA_backward_forward;
+
+    nda::array<dcomplex,4> OCA_ff_fb_bf_bb_f_b(6,r,N,N); 
+    OCA_ff_fb_bf_bb_f_b(0,_,_,_) = OCA_forward_forward; 
+    OCA_ff_fb_bf_bb_f_b(1,_,_,_) = OCA_forward_backward; 
+    OCA_ff_fb_bf_bb_f_b(2,_,_,_) = OCA_backward_forward; 
+    OCA_ff_fb_bf_bb_f_b(3,_,_,_) = OCA_backward_backward; 
+    OCA_ff_fb_bf_bb_f_b(4,_,_,_) = OCA_forward; 
+    OCA_ff_fb_bf_bb_f_b(5,_,_,_) = OCA_backward; 
+
+    return OCA_ff_fb_bf_bb_f_b; 
 }
 
 int main() {
-    nda::array<int,3> topologies = {{{0,2},{1,4},{3,5}}, 
-                                    {{0,3},{1,5},{2,4}}, 
-                                    {{0,4},{1,3},{2,5}}, 
-                                    {{0,3},{1,4},{2,5}}}; 
-
-    nda::array<int,2> topology = {{0, 2}, {1, 3}}; 
     int n = 4, N = 16; 
     double beta = 2.0; 
-    double Lambda = 10.0*beta; // 1000.0*beta; 
+    double Lambda = 100.0*beta; // 1000.0*beta; 
     double eps = 1.0e-10; 
     auto [num_blocks, 
         Deltat, 
@@ -248,116 +255,69 @@ int main() {
 
     // compute Fbars and Fdagbars
     auto hyb_coeffs = itops.vals2coefs(Deltat); // hybridization DLR coeffs
-    auto hyb_refl = nda::make_regular(-itops.reflect(Deltat));
+    auto hyb_refl = itops.reflect(Deltat); // nda::make_regular(-itops.reflect(Deltat));
     auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
     auto Fset = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs); 
 
-    // auto third_order_result = nda::zeros<dcomplex>(r,N,N); 
-    auto NCA_result = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense); 
+    // compute NCA and OCA manually and OCA using generic backbone evaluator
     nda::array<int,2> T_OCA = {{0, 2}, {1, 3}}; 
     auto B_OCA = BackboneSignature(T_OCA, n); 
-    auto OCA_result = eval_backbone_dense(B_OCA, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense); 
-    auto third_order_result = nda::zeros<dcomplex>(r,N,N); 
-    auto third_order_02_result = nda::zeros<dcomplex>(r,N,N); 
-    auto third_order_0314_result = nda::zeros<dcomplex>(r,N,N); 
-    auto third_order_0315_result = nda::zeros<dcomplex>(r,N,N); 
-    auto third_order_04_result = nda::zeros<dcomplex>(r,N,N); 
-
-    // Zhen
-    auto third_Zhen_dir = third_order_02_ppsc(Deltat, Deltat_refl, itops, dlr_it, dlr_rf, beta, eps, Gt_dense, Fs_dense, F_dags_dense); 
-    
-    /*for (int i = 0; i < 1; i++) {
-        auto B = BackboneSignature(topologies(i,_,_), n); 
-        auto eval = eval_backbone_dense(B, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense); 
-        third_order_result += eval;
-        if (i == 0) third_order_02_result = eval; 
-        else if (i == 1) third_order_0314_result = eval; 
-        else if (i == 2) third_order_0315_result = eval; 
-        else third_order_04_result = eval; 
-    }*/
-
-    //// lifted from eval_backbone_dense()
-    // initialize self-energy
-    nda::array<dcomplex,3> Sigma(r,N,N), Sigma_temp(r,N,N);
+    auto OCA_result_generic = eval_backbone_dense(B_OCA, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense); 
+    auto NCA_result = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense); 
+    auto OCA_result_manual = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
 
     // preallocate intermediate arrays
-    nda::array<dcomplex, 3> Sigma_L(r, N, N), Tmu(r, N, N), GKt(r, N, N);
-    nda::array<dcomplex, 4> Tkaps(n, r, N, N);
+    nda::array<dcomplex, 3> Sigma_L_OCA(r, N, N), Tmu_OCA(r, N, N), GKt_OCA(r, N, N);
+    nda::array<dcomplex, 3> OCA_result_generic_ff(r, N, N), OCA_result_generic_fb(r, N, N), OCA_result_generic_bf(r, N, N), OCA_result_generic_bb(r, N, N);
+    nda::array<dcomplex, 4> Tkaps_OCA(n, r, N, N);
+    nda::vector<int> states_OCA(4), pole_inds_OCA(1); 
 
-    int m = 3; // third-order
-    nda::vector<int> fb_vec(m), states(2*m);
-    auto pole_inds = nda::zeros<int>(m-1);
+    auto B_OCA_2 = BackboneSignature(T_OCA, n); 
+    nda::vector<int> fb_OCA_vec{1,1}; 
+    B_OCA_2.set_directions(fb_OCA_vec); 
+    int sign = -1;  
+    eval_backbone_d_dense(
+        B_OCA_2, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
+        dlr_it, dlr_rf, T, GKt_OCA, Tkaps_OCA, Tmu_OCA, Deltat_refl, states_OCA, Sigma_L_OCA, 
+        pole_inds_OCA, sign, OCA_result_generic_ff);
+    fb_OCA_vec(0) = 0; 
+    B_OCA_2.set_directions(fb_OCA_vec); 
+    sign = -1; 
+    eval_backbone_d_dense(
+        B_OCA_2, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
+        dlr_it, dlr_rf, T, GKt_OCA, Tkaps_OCA, Tmu_OCA, Deltat_refl, states_OCA, Sigma_L_OCA, 
+        pole_inds_OCA, sign, OCA_result_generic_fb);
+    fb_OCA_vec(1) = 0; 
+    B_OCA_2.set_directions(fb_OCA_vec); 
+    sign = 1; 
+    eval_backbone_d_dense(
+        B_OCA_2, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
+        dlr_it, dlr_rf, T, GKt_OCA, Tkaps_OCA, Tmu_OCA, Deltat_refl, states_OCA, Sigma_L_OCA, 
+        pole_inds_OCA, sign, OCA_result_generic_bb);
+    fb_OCA_vec(0) = 1; 
+    B_OCA_2.set_directions(fb_OCA_vec); 
+    sign = 1; 
+    eval_backbone_d_dense(
+        B_OCA_2, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
+        dlr_it, dlr_rf, T, GKt_OCA, Tkaps_OCA, Tmu_OCA, Deltat_refl, states_OCA, Sigma_L_OCA, 
+        pole_inds_OCA, sign, OCA_result_generic_bf);
 
-    auto B_02 = BackboneSignature(topologies(0,_,_), n); 
-    nda::vector<int> fbs = {6, 7}; 
-    for (int fb : fbs) {
-        int fb0 = fb; 
-        // turn (int) fb into a vector of 1s and 0s corresp. to forward, backward lines, resp. 
-        for (int i = 0; i < m; i++) {fb_vec(i) = fb0 % 2; fb0 = fb0 / 2;}
-        B_02.set_directions(fb_vec); // give line directions to backbone object
-        int sign = 1; // (fb % 2 == 0) ? -1 : 1;  // (fb_vec(0)^fb_vec(1)) ? -1 : 1; // TODO: figure this out
-        std::cout << "\nDiagrams, fb = " << fb << std::endl;
-        eval_backbone_d_dense(
-            B_02, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
-            dlr_it, dlr_rf, T, GKt, Tkaps, Tmu, Deltat_refl, states, Sigma_L, 
-            pole_inds, sign, Sigma); 
-        B_02.reset_directions(); 
-    }
+    // compute OCA using Zhen's code
+    auto OCA_Zhen_dir = OCA_ppsc(Deltat, Deltat_refl, itops, dlr_it, dlr_rf, beta, eps, Gt_dense, Fs_dense, F_dags_dense); 
+    auto OCA_Zhen = nda::make_regular(OCA_Zhen_dir(0,_,_,_) + OCA_Zhen_dir(1,_,_,_) + OCA_Zhen_dir(2,_,_,_) + OCA_Zhen_dir(3,_,_,_)); 
 
-    std::cout << "generic third-order, ffx: " << Sigma(10,_,_) << std::endl;
-    std::cout << "Zhen, fff: " << third_Zhen_dir(0,10,_,_) << std::endl;
-    std::cout << "Zhen, ffb: " << third_Zhen_dir(1,10,_,_) << std::endl;
-    std::cout << "Zhen, ffx: " << third_Zhen_dir(2,10,_,_) << std::endl;
-    
-    // PYTHON COMPARISON
-    /*
-    h5::file hfile("/home/paco/feynman/soehyb/test/c++/h5/two_band_py_Lambda10.h5", 'r');
-    h5::group hgroup(hfile);
-    nda::array<dcomplex,3> NCA_py(r,N,N), OCA_py(r,N,N);
-    nda::array<dcomplex,3> third_order_py(r,N,N);
-    nda::array<dcomplex,3> third_order_py_02(r,N,N);
-    nda::array<dcomplex,3> third_order_py_0314(r,N,N);
-    nda::array<dcomplex,3> third_order_py_0315(r,N,N);
-    nda::array<dcomplex,3> third_order_py_04(r,N,N);
-    h5::read(hgroup, "NCA", NCA_py); 
-    h5::read(hgroup, "OCA", OCA_py); 
-    OCA_py = OCA_py - NCA_py; 
-    h5::read(hgroup, "third_order", third_order_py);
-    third_order_py = third_order_py - OCA_py; 
-    h5::read(hgroup, "third_order_[(0, 2), (1, 4), (3, 5)]", third_order_py_02); 
-    third_order_py_02 = third_order_py_02 - OCA_py; 
-    h5::read(hgroup, "third_order_[(0, 3), (1, 4), (2, 5)]", third_order_py_0314); 
-    third_order_py_0314 = third_order_py_0314 - OCA_py; 
-    h5::read(hgroup, "third_order_[(0, 3), (1, 5), (2, 4)]", third_order_py_0315); 
-    third_order_py_0315 = third_order_py_0315 - OCA_py; 
-    h5::read(hgroup, "third_order_[(0, 4), (1, 3), (2, 5)]", third_order_py_04); 
-    third_order_py_04 = third_order_py_04 - OCA_py; 
+    std::cout << "manual = " << OCA_result_manual(10,_,_) << std::endl;
+    // std::cout << "generic = " << OCA_result_generic(10,_,_) << std::endl;
+    std::cout << "generic ff" << OCA_result_generic_ff(10,_,_) << std::endl;
+    std::cout << "generic fb" << OCA_result_generic_fb(10,_,_) << std::endl;
+    std::cout << "generic bf" << OCA_result_generic_bf(10,_,_) << std::endl;
+    std::cout << "generic bb" << OCA_result_generic_bb(10,_,_) << std::endl;
+    std::cout << "Zhen ff = " << OCA_Zhen_dir(0,10,_,_) << std::endl;
+    std::cout << "Zhen fb = " << OCA_Zhen_dir(1,10,_,_) << std::endl;
+    std::cout << "Zhen bf = " << OCA_Zhen_dir(2,10,_,_) << std::endl;
+    std::cout << "Zhen bb = " << OCA_Zhen_dir(3,10,_,_) << std::endl;
+    std::cout << "Zhen f = " << OCA_Zhen_dir(4,10,_,_) << std::endl;
+    std::cout << "Zhen b = " << OCA_Zhen_dir(5,10,_,_) << std::endl;
 
-    // permute twoband.py results to match block structure from atom_diag
-    auto NCA_py_perm = nda::zeros<dcomplex>(r,16,16);
-    auto OCA_py_perm = nda::zeros<dcomplex>(r,16,16);
-    auto third_order_py_perm = nda::zeros<dcomplex>(r,16,16); 
-    auto third_order_py_02_perm = nda::zeros<dcomplex>(r,16,16); 
-    auto third_order_py_0314_perm = nda::zeros<dcomplex>(r,16,16); 
-    auto third_order_py_0315_perm = nda::zeros<dcomplex>(r,16,16); 
-    auto third_order_py_04_perm = nda::zeros<dcomplex>(r,16,16); 
-    for (int t = 0; t < r; t++) {
-        for (int i = 0; i < 16; i++) {
-            for (int j = 0; j < 16; j++) {
-                NCA_py_perm(t,i,j) = NCA_py(t,fock_state_order[i],fock_state_order[j]);
-                OCA_py_perm(t,i,j) = OCA_py(t,fock_state_order[i],fock_state_order[j]);
-                third_order_py_perm(t,i,j) = third_order_py(t,fock_state_order[i],fock_state_order[j]);
-                third_order_py_02_perm(t,i,j) = third_order_py_02(t,fock_state_order[i],fock_state_order[j]);
-                third_order_py_0314_perm(t,i,j) = third_order_py_0314(t,fock_state_order[i],fock_state_order[j]);
-                third_order_py_0315_perm(t,i,j) = third_order_py_0315(t,fock_state_order[i],fock_state_order[j]);
-                third_order_py_04_perm(t,i,j) = third_order_py_04(t,fock_state_order[i],fock_state_order[j]);
-            }
-        }
-    }
-
-    // std::cout << "third_order_02_result " << third_order_02_result(10,_,_) << std::endl;
-    // std::cout << "third_order_py_02_perm " << third_order_py_02_perm(10,_,_) << std::endl;
-
-    */
     return 0; 
 }

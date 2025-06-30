@@ -90,3 +90,12 @@ nda::array<dcomplex,3> OCA_tpz(
     nda::array_const_view<dcomplex, 3> Gt, 
     nda::array_const_view<dcomplex, 3> Fs, 
     int n_quad);
+
+nda::array<dcomplex,3> third_order_dense_partial(
+    nda::array_const_view<dcomplex,3> hyb,
+    imtime_ops &itops, 
+    double beta, 
+    nda::array_const_view<dcomplex, 3> Gt, 
+    nda::array_const_view<dcomplex, 3> Fs, 
+    nda::array_const_view<dcomplex, 3> F_dags
+); 
