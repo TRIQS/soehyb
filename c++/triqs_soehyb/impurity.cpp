@@ -34,8 +34,8 @@ fastdiagram::fastdiagram(double beta, double lambda, imtime_ops itops, nda::arra
      itops(itops),
      F(F),
      F_dag(F_dag),
-     r(itops.rank()),
      n(F.shape(0)),
+     r(itops.rank()),
      N(F.shape(1)),
      dlr_rf(itops.get_rfnodes()),
      dlr_it(itops.get_itnodes()),
@@ -141,7 +141,7 @@ nda::array<dcomplex, 3> fastdiagram::Sigma_calc_group(nda::array<dcomplex, 3> Gt
 
     auto fb  = nda::vector<int>(m); //utility for iteration
     int num  = diagramindex(id);
-    int num0 = std::floor(num / num_diagram_per_fb);
+    int num0 = num / num_diagram_per_fb;
     int num2 = num % num_diagram_per_fb;
 
     for (int v = 1; v < m; ++v) {
@@ -208,7 +208,7 @@ nda::array<dcomplex, 3> fastdiagram::G_calc_group(nda::array<dcomplex, 3> Gt, nd
   for (int id = 0; id < Nd; ++id) {
     auto fb  = nda::vector<int>(m); //utility for iteration
     int num  = diagramindex(id);
-    int num0 = std::floor(num / num_diagram_per_fb);
+    int num0 = num / num_diagram_per_fb;
     int num2 = num % num_diagram_per_fb;
 
     for (int v = 1; v < m; ++v) {
