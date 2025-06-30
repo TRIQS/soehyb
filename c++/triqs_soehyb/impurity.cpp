@@ -19,6 +19,7 @@
  *
  ******************************************************************************/
 
+#include "utils.hpp"
 #include "strong_cpl.hpp"
 #include "impurity.hpp"
 #include "dlr_dyson_ppsc.hpp"
@@ -126,14 +127,14 @@ void fastdiagram::hyb_decomposition(bool poledlrflag, double eps) {
   P = Delta_F.P;
 }
 
-int fastdiagram::number_of_diagrams(int m) { return pow(P, m - 1) * pow(2, m - 1); }
+int fastdiagram::number_of_diagrams(int m) { return pown(P, m - 1) * pown(2, m - 1); }
 
 nda::array<dcomplex, 3> fastdiagram::Sigma_calc_group(nda::array<dcomplex, 3> Gt, nda::array<int, 2> D, nda::array<int, 1> diagramindex) {
 
   int N                  = Gt.shape(1);
   int Nd                 = diagramindex.shape(0);
   int m                  = D.shape(0);
-  int num_diagram_per_fb = pow(P, m - 1);
+  int num_diagram_per_fb = pown(P, m - 1);
   auto Diagram           = nda::array<dcomplex, 3>::zeros({r, N, N});
 
   for (int id = 0; id < Nd; ++id) {
@@ -199,7 +200,7 @@ nda::array<dcomplex, 3> fastdiagram::G_calc_group(nda::array<dcomplex, 3> Gt, nd
   int Nd                 = diagramindex.shape(0);
   int m                  = D.shape(0);
   auto Diagram           = nda::array<dcomplex, 3>::zeros({r, n, n});
-  int num_diagram_per_fb = pow(P, m - 1);
+  int num_diagram_per_fb = pown(P, m - 1);
   auto Gt_reflect        = itops.reflect(Gt);
 
   // for (int i=0; i<r; ++i) Gt_reflect(i,_,_) = transpose(Gt_reflect(i,_,_));
