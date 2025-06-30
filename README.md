@@ -24,4 +24,4 @@ PARTICULAR PURPOSE. See the GNU General Public License for more details.
   <img alt="Flatiron Center for Computational Quantum Physics logo." width="20%" src="doc/_static/CCQ.png">
 </picture>
 
-TRIQS/cthyb is supported by the Flatiron Institute, a division of the Simons Foundation.
+TRIQS/soehyb is supported by the Flatiron Institute, a division of the Simons Foundation.
