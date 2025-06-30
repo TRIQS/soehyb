@@ -28,8 +28,7 @@
 
 #include <mpi/mpi.hpp>
 
-#include "timer.hpp"
-#include "timestamp.hpp"
+#include <triqs/utility/timer.hpp>
 
 using namespace cppdlr;
 using namespace nda;
@@ -182,7 +181,7 @@ nda::array<dcomplex,3> G_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F_ref
     int num_diagram_per_fb = pow(P, m-1); //number of diagrams per fb
     int total_num_diagram = num_diagram_per_fb * total_num_fb_diagram; 
     std::cout << "total_num_diagram = " << num_diagram_per_fb*total_num_fb_diagram << "\n";
-    utility::timer timer_run;
+    triqs::utility::timer timer_run;
     timer_run.start();
     //#pragma omp parallel
     //{
@@ -484,7 +483,7 @@ nda::array<dcomplex,3> Sigma_Diagram_calc(hyb_F &hyb_F_self,hyb_F &hyb_F_reflect
     int total_num_diagram = pow(P, m-1); //number of total diagrams
 
     std::cout << "total_num_diagram = " << total_num_diagram << "\n";
-    utility::timer timer_run;
+    triqs::utility::timer timer_run;
     timer_run.start();
     double next_info_time = 0.1;
     
@@ -520,7 +519,7 @@ nda::array<dcomplex,3> Sigma_Diagram_calc_sum_all(hyb_F &hyb_F_self,hyb_F &hyb_F
     int num_diagram_per_fb = pow(P, m-1); //number of diagrams per fb
     int total_num_diagram = num_diagram_per_fb * total_num_fb_diagram; 
     std::cout << "total_num_diagram = " << num_diagram_per_fb*total_num_fb_diagram << "\n";
-    utility::timer timer_run;
+    triqs::utility::timer timer_run;
     timer_run.start();
 
     //#pragma omp parallel
