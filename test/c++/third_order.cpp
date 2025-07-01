@@ -198,19 +198,38 @@ nda::array<dcomplex, 4> third_order_02_ppsc(
     auto third_fff = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D_02, Deltat, Deltat_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb_zhen, false); 
     auto third_ffb = -third_ffx + third_fff; 
 
-    fb_zhen(2) = 1; // middle line backward
+    fb_zhen(1) = 1; // middle line backward
     auto third_fbx = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D_02, Deltat, Deltat_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb_zhen, true); 
     auto third_fbf = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D_02, Deltat, Deltat_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb_zhen, false); 
-    auto third_fbb = -third_ffx + third_fff;     
+    auto third_fbb = -third_fbx + third_fbf;
+
+    fb_zhen(2) = 1; // both lines backward
+    auto third_bbx = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D_02, Deltat, Deltat_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb_zhen, true); 
+    auto third_bbf = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D_02, Deltat, Deltat_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb_zhen, false); 
+    auto third_bbb = -third_bbx + third_bbf;  
+
+    fb_zhen(1) = 0; // middle line forward
+    auto third_bfx = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D_02, Deltat, Deltat_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb_zhen, true); 
+    auto third_bff = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D_02, Deltat, Deltat_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb_zhen, false); 
+    auto third_bfb = -third_bfx + third_bff; 
 
     std::size_t N = Gt_dense.extent(1); 
-    nda::array<dcomplex,4> third_all(6,r,N,N); 
+    nda::array<dcomplex,4> third_all(13,r,N,N); 
     third_all(0,_,_,_) = third_fff; 
     third_all(1,_,_,_) = third_ffb; 
     third_all(2,_,_,_) = third_ffx; 
     third_all(3,_,_,_) = third_fbf; 
     third_all(4,_,_,_) = third_fbb; 
     third_all(5,_,_,_) = third_fbx; 
+    third_all(6,_,_,_) = third_bff; 
+    third_all(7,_,_,_) = third_bfb; 
+    third_all(8,_,_,_) = third_bfx; 
+    third_all(9,_,_,_) = third_bbf; 
+    third_all(10,_,_,_) = third_bbb; 
+    third_all(11,_,_,_) = third_bbx; 
+    third_all(12,_,_,_) = 0; 
+    nda::vector<int> pref = {-1, 1, 1, -1}; 
+    for (int i = 0; i < 4; i++) third_all(12,_,_,_) += pref(i) * third_all(3*i+2,_,_,_); 
 
     return third_all; 
 }
@@ -279,6 +298,7 @@ int main() {
     //// lifted from eval_backbone_dense()
     // initialize self-energy
     nda::array<dcomplex,3> Sigma(r,N,N), Sigma_temp(r,N,N);
+    Sigma = 0; 
 
     // preallocate intermediate arrays
     nda::array<dcomplex, 3> Sigma_L(r, N, N), Tmu(r, N, N), GKt(r, N, N);
@@ -289,25 +309,29 @@ int main() {
     auto pole_inds = nda::zeros<int>(m-1);
 
     auto B_02 = BackboneSignature(topologies(0,_,_), n); 
-    nda::vector<int> fbs = {6, 7}; 
+    nda::vector<int> fbs = {0, 1, 2, 3, 4, 5, 6, 7}; 
     for (int fb : fbs) {
         int fb0 = fb; 
         // turn (int) fb into a vector of 1s and 0s corresp. to forward, backward lines, resp. 
         for (int i = 0; i < m; i++) {fb_vec(i) = fb0 % 2; fb0 = fb0 / 2;}
         B_02.set_directions(fb_vec); // give line directions to backbone object
-        int sign = 1; // (fb % 2 == 0) ? -1 : 1;  // (fb_vec(0)^fb_vec(1)) ? -1 : 1; // TODO: figure this out
+        int sign = ((fb + m) % 2 == 0) ? 1 : -1; // TODO: figure this out
         std::cout << "\nDiagrams, fb = " << fb << std::endl;
+        Sigma_temp = Sigma; 
         eval_backbone_d_dense(
             B_02, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
             dlr_it, dlr_rf, T, GKt, Tkaps, Tmu, Deltat_refl, states, Sigma_L, 
             pole_inds, sign, Sigma); 
         B_02.reset_directions(); 
+        std::cout << "generic third-order: " << nda::make_regular(Sigma(10,_,_) - Sigma_temp(10,_,_)) << std::endl;
+        // std::cout << "generic third-order: " << Sigma(10,_,_) << std::endl;
     }
 
-    std::cout << "generic third-order, ffx: " << Sigma(10,_,_) << std::endl;
-    std::cout << "Zhen, fff: " << third_Zhen_dir(0,10,_,_) << std::endl;
-    std::cout << "Zhen, ffb: " << third_Zhen_dir(1,10,_,_) << std::endl;
-    std::cout << "Zhen, ffx: " << third_Zhen_dir(2,10,_,_) << std::endl;
+    // std::cout << "generic third-order: " << Sigma(10,_,_) << std::endl;
+    // std::cout << "Zhen, bbf: " << third_Zhen_dir(9,10,_,_) << std::endl;
+    // std::cout << "Zhen, bbb: " << third_Zhen_dir(10,10,_,_) << std::endl;
+    // std::cout << "Zhen, bbx: " << third_Zhen_dir(11,10,_,_) << std::endl;
+    for (int i = 0; i < 13; i++) std::cout << "Zhen: " << third_Zhen_dir(i,10,_,_) << std::endl;
     
     // PYTHON COMPARISON
     /*

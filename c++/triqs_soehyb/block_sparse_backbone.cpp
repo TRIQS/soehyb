@@ -98,7 +98,7 @@ void BackboneSignature::set_pole_inds(
 
     this->pole_inds = pole_inds;
     for (int i = 1; i < m; i++) {
-        if (fb(i) == 1) {
+        if (fb(i) == 1) { // line i is forward
             if (dlr_rf(pole_inds(i-1)) <= 0) {
                 // step 4(a)
                 // place K^-_l F_nu at the right vertex
@@ -121,7 +121,7 @@ void BackboneSignature::set_pole_inds(
                 prefactor_Kexps(i-1) = topology(i,1) - topology(i,0) - 1; 
             }
         }
-        else {
+        else { // line i is backward
             if (dlr_rf(pole_inds(i-1)) >= 0) {
                 // step 4(a)
                 // place K^+_l F^dag_pi at the right vertex
@@ -140,8 +140,9 @@ void BackboneSignature::set_pole_inds(
                 vertex_which_pole_ind(topology(i,1)) = i-1; 
                 // place K^-_l on each edge between the two vertices
                 for (int j = topology(i,0); j < topology(i,1); j++) edges(j, i-1) = -1;
-                // divide by -(K^-_l(0))^(# edges between vertices - 1)
+                // divide by (-K^-_l(0))^(# edges between vertices - 1)
                 prefactor_sign *= -1; 
+                // if ((topology(i,1) - topology(i,0) - 1) % 2 == 1) prefactor_sign *= -1; 
                 prefactor_Ksigns(i-1) = -1; 
                 prefactor_Kexps(i-1) = topology(i,1) - topology(i,0) - 1; 
             }
@@ -638,7 +639,7 @@ nda::array<dcomplex, 3> eval_backbone_dense(
         // turn (int) fb into a vector of 1s and 0s corresp. to forward, backward lines, resp. 
         for (int i = 0; i < m; i++) {fb_vec(i) = fb0 % 2; fb0 = fb0 / 2;}
         backbone.set_directions(fb_vec); // give line directions to backbone object
-        int sign = (fb_vec(0)^fb_vec(1)) ? -1 : 1; // TODO: figure this out
+        int sign = (fb==0 || fb==1 || fb==6 || fb==7) ? 1 : -1; // ((fb + m) % 2 == 0) ? 1 : -1; // (fb_vec(0)^fb_vec(1)) ? -1 : 1; // TODO: figure this out
         std::cout << "\nDiagrams, fb = " << fb << std::endl;
         eval_backbone_d_dense(
             backbone, beta, itops, hyb, Gt, Fs, F_dags, Fdagbars, Fbarsrefl, 
@@ -646,8 +647,6 @@ nda::array<dcomplex, 3> eval_backbone_dense(
             pole_inds, sign, Sigma); 
         backbone.reset_directions(); 
     } // sum over forward/backward lines
-
-    // std::cout << "Sigma_temp = " << Sigma_temp(10,_,_) << std::endl;
 
     return Sigma;
 }

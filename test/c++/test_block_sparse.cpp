@@ -736,7 +736,7 @@ TEST(Backbone, OCA) {
     int n = 4, N = 16; 
     double beta = 2.0; 
     double Lambda = 100.0 * beta; // 1000.0*beta; 
-    double eps = 1.0e-6; 
+    double eps = 1.0e-10; // 1.0e-6; 
     auto [num_blocks, 
         Deltat, 
         Deltat_refl, 
@@ -779,6 +779,8 @@ TEST(Backbone, OCA) {
     // auto OCA_result_2 = eval_backbone_dense(BB, beta, itops, Deltat, Gt_dense, Fset); 
     auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
 
+    std::cout << "OCA generic result = " << OCA_result(10,_,_) << std::endl;
+    std::cout << "OCA dense result = " << OCA_dense_result(10,_,_) << std::endl;
     // ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_result_2)), 1e-12); 
     ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_dense_result)), 1e-12); 
 }
@@ -888,31 +890,15 @@ TEST(Backbone, third_order) {
     auto third_order_0315_result = nda::zeros<dcomplex>(r,N,N); 
     auto third_order_04_result = nda::zeros<dcomplex>(r,N,N); 
     
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < 4; i++) {
         auto B = BackboneSignature(topologies(i,_,_), n); 
         auto eval = eval_backbone_dense(B, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense); 
         third_order_result += eval;
         if (i == 0) third_order_02_result = eval; 
-        else if (i == 1) third_order_0314_result = eval; 
-        else if (i == 2) third_order_0315_result = eval; 
-        else third_order_04_result = eval; 
+        else if (i == 1) third_order_0315_result = eval; 
+        else if (i == 2) third_order_04_result = eval; 
+        else third_order_0314_result = eval; 
     }
-    
-    // Zhen
-    auto Deltadlr = itops.vals2coefs(Deltat);  //obtain dlr coefficient of Delta(t)     
-    nda::vector<double> dlr_rf_reflect = -dlr_rf;
-    nda::array<dcomplex,3> Deltadlr_reflect = Deltadlr*1.0;
-    for (int i = 0; i < Deltadlr.shape(0); ++i) Deltadlr_reflect(i,_,_) = transpose(Deltadlr(i,_,_));
-    auto Delta_decomp = hyb_decomp(Deltadlr,dlr_rf,eps); //decomposition of Delta(t) using DLR coefficient
-    auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect,dlr_rf_reflect,eps); // decomposition of Delta(-t) using DLR coefficient
-    int dim = Deltat.shape(1);
-    hyb_F Delta_F(16, r, dim);
-    hyb_F Delta_F_reflect(16, r, dim);
-    Delta_F.update_inplace(Delta_decomp,dlr_rf, dlr_it, Fs_dense, F_dags_dense); // Compression of Delta(t) and F, F_dag matrices
-    Delta_F_reflect.update_inplace(Delta_decomp_reflect,dlr_rf_reflect, dlr_it, F_dags_dense, Fs_dense);
-    auto fb = nda::vector<int>(3); fb = 0;
-    auto third_order_02_all_forward = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, topologies(0,_,_), Deltat, Deltat_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb, false); 
-    std::cout << "third_order_02_all_forward = " << third_order_02_all_forward(10,_,_) << std::endl;
 
     h5::file hfile("/home/paco/feynman/soehyb/test/c++/h5/two_band_py_Lambda10.h5", 'r');
     h5::group hgroup(hfile);
@@ -925,16 +911,13 @@ TEST(Backbone, third_order) {
     h5::read(hgroup, "NCA", NCA_py); 
     h5::read(hgroup, "OCA", OCA_py); 
     OCA_py = OCA_py - NCA_py; 
+    
     h5::read(hgroup, "third_order", third_order_py);
     third_order_py = third_order_py - OCA_py; 
     h5::read(hgroup, "third_order_[(0, 2), (1, 4), (3, 5)]", third_order_py_02); 
-    third_order_py_02 = third_order_py_02 - OCA_py; 
     h5::read(hgroup, "third_order_[(0, 3), (1, 4), (2, 5)]", third_order_py_0314); 
-    third_order_py_0314 = third_order_py_0314 - OCA_py; 
     h5::read(hgroup, "third_order_[(0, 3), (1, 5), (2, 4)]", third_order_py_0315); 
-    third_order_py_0315 = third_order_py_0315 - OCA_py; 
     h5::read(hgroup, "third_order_[(0, 4), (1, 3), (2, 5)]", third_order_py_04); 
-    third_order_py_04 = third_order_py_04 - OCA_py; 
 
     // permute twoband.py results to match block structure from atom_diag
     auto NCA_py_perm = nda::zeros<dcomplex>(r,16,16);
@@ -958,10 +941,18 @@ TEST(Backbone, third_order) {
         }
     }
 
-    // std::cout << third_order_02_result(10,_,_) << std::endl;
-    // std::cout << third_order_py_02_perm(10,_,_) << std::endl;
+    // std::cout << OCA_result(10,_,_) << std::endl;
+    // std::cout << OCA_py_perm(10,_,_) << std::endl;
+    std::cout << third_order_0315_result(10,_,_) << std::endl;
+    std::cout << third_order_py_0315_perm(10,_,_) << std::endl;
+    std::cout << third_order_04_result(10,_,_) << std::endl;
+    std::cout << third_order_py_04_perm(10,_,_) << std::endl;
+    std::cout << third_order_0314_result(10,_,_) << std::endl;
+    std::cout << third_order_py_0314_perm(10,_,_) << std::endl;
     ASSERT_LE(nda::max_element(nda::abs(NCA_result - NCA_py_perm)), eps);
     ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_py_perm)), eps);
-    // ASSERT_LE(nda::max_element(nda::abs(third_order_02_result - third_order_py_02_perm)), 1e-2);
-    // ASSERT_LE(nda::max_element(nda::abs(third_order_result - third_order_py_perm)), 1e-2);
+    ASSERT_LE(nda::max_element(nda::abs(third_order_02_result - third_order_py_02_perm)), 100*eps);
+    ASSERT_LE(nda::max_element(nda::abs(third_order_0314_result - third_order_py_0314_perm)), 100*eps);
+    ASSERT_LE(nda::max_element(nda::abs(third_order_0315_result - third_order_py_0315_perm)), 100*eps);
+    ASSERT_LE(nda::max_element(nda::abs(third_order_04_result - third_order_py_04_perm)), 100*eps);
 }

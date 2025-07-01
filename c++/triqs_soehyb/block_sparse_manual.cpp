@@ -1021,7 +1021,6 @@ nda::array<dcomplex,3> third_order_dense_partial(
 
             v = 5; 
             for (int t = 0; t < r; t++) T(t,_,_) = nda::matmul(Fdagbars(states(v),l(0),_,_), T(t,_,_));
-            std::cout << "middle of dense partial " << T(10,_,_) << std::endl;
             
             T = T / (k_it(0, poles(0)) * k_it(0, -1*poles(1)));
             Sigma += T; 
