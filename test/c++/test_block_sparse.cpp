@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cppdlr/dlr_imfreq.hpp>
 #include <cppdlr/dlr_kernels.hpp>
 #include <h5/complex.hpp>
@@ -890,6 +891,7 @@ TEST(Backbone, third_order) {
     auto third_order_0315_result = nda::zeros<dcomplex>(r,N,N); 
     auto third_order_04_result = nda::zeros<dcomplex>(r,N,N); 
     
+    auto start = std::chrono::high_resolution_clock::now(); 
     for (int i = 0; i < 4; i++) {
         auto B = BackboneSignature(topologies(i,_,_), n); 
         auto eval = eval_backbone_dense(B, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense); 
@@ -899,6 +901,9 @@ TEST(Backbone, third_order) {
         else if (i == 2) third_order_04_result = eval; 
         else third_order_0314_result = eval; 
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::seconds>(end-start);
+    std::cout << "Elapsed time for dense comp'n of 3rd order diags = " << duration << " seconds" << std::endl;
 
     h5::file hfile("/home/paco/feynman/soehyb/test/c++/h5/two_band_py_Lambda10.h5", 'r');
     h5::group hgroup(hfile);
