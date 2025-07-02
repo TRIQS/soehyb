@@ -5,8 +5,39 @@
 using namespace nda; 
 
 /**
+ * @class BackboneVertex
+ * @brief Abstract representation of a backbone vertex
+ */
+class BackboneVertex {
+    private:
+        bool bar; // true if the F on this vertex has a bar
+        bool dag; // true if the F on this vertex has a dagger 
+        int pole_prime; // which of l, l`, ... is associated with the K (and possibly F^bar) on this vertex, i.e., the number of primes on l
+        int Ksign; // 1 if K^+, -1 if K^-, 0 if no K
+        int orb; // value of orbital index on this vertex
+
+    public:
+        bool has_bar();
+        bool has_dag();
+        int get_pole_prime();
+        int get_Ksign();
+        int get_orb();
+
+        void set_bar(bool b); 
+        void set_dag(bool b);
+        void set_pole_prime(int i); 
+        void set_Ksign(int i);
+        void set_orb(int i);
+
+    /**
+     * @brief Constructor for BackboneVertex
+     */
+    BackboneVertex(); 
+};
+
+/**
  * @class BackboneSignature
- * @brief Identifier of a diagram with specific signs on poles
+ * @brief Abstract representation of a backbone diagram
  */
 class BackboneSignature {
     private:
@@ -14,14 +45,13 @@ class BackboneSignature {
 
         nda::vector<int> prefactor_Ksigns; 
         nda::vector<int> prefactor_Kexps; 
-
-        // nda::array<int,2> vertices;
+        /*
         nda::vector<bool> vertex_bars;
         nda::vector<bool> vertex_dags;
         nda::vector<int> vertex_which_pole_ind;
         nda::vector<int> vertex_Ksigns;
         nda::vector<int> vertex_states; 
-
+        */
         nda::array<int,2> edges;
         nda::vector<int> fb; 
         nda::vector<int> pole_inds; 
@@ -30,6 +60,8 @@ class BackboneSignature {
         int m; // order
         int n; // number of state variables
         int prefactor_sign; 
+        std::vector<BackboneVertex> vertices;
+
         void set_directions(nda::vector_const_view<int> fb);
         void reset_directions(); 
         void set_pole_inds(nda::vector_const_view<int> pole_inds, nda::vector_const_view<double> dlr_rf); 
@@ -40,11 +72,11 @@ class BackboneSignature {
         int get_prefactor_Ksign(int i); 
         int get_prefactor_Kexp(int i); 
 
-        bool get_vertex_bar(int i); 
-        bool get_vertex_dag(int i); 
-        int get_vertex_which_pole_ind(int i); 
+        bool has_vertex_bar(int i); 
+        bool has_vertex_dag(int i); 
+        int get_vertex_pole_prime(int i); 
         int get_vertex_Ksign(int i); 
-        int get_vertex_state(int i); 
+        int get_vertex_orb(int i); 
 
         int get_edge(int num, int pole_ind);
         int get_topology(int i, int j);
