@@ -706,10 +706,6 @@ nda::array<dcomplex,3> OCA_dense(
 
     // initialize self-energy
     nda::array<dcomplex,3> Sigma(r,N,N);
-    nda::array<dcomplex,3> Sigma_ff(r,N,N);
-    nda::array<dcomplex,3> Sigma_fb(r,N,N); // fb --> fb2 = 1, fb1 = 0, just OCA_dense_middle different
-    nda::array<dcomplex,3> Sigma_bf(r,N,N); // bf --> fb2 = 0, fb1 = 1
-    nda::array<dcomplex,3> Sigma_bb(r,N,N);
 
     // preallocate intermediate arrays
     nda::array<dcomplex, 3> Sigma_l(r, N, N), T(r, N, N), Tmu(r, N, N), GKt(r, N, N); 
@@ -763,20 +759,9 @@ nda::array<dcomplex,3> OCA_dense(
                     }
                 }
                 Sigma += sfM*Sigma_l;
-                if (fb1 == 1 && fb2 == 1) Sigma_ff += sfM*Sigma_l;
-                if (fb1 == 0 && fb2 == 1) Sigma_fb += sfM*Sigma_l;
-                if (fb1 == 1 && fb2 == 0) Sigma_bf += sfM*Sigma_l;
-                if (fb1 == 0 && fb2 == 0) Sigma_bb += sfM*Sigma_l;
             } // sum over l
         } // sum over fb2
     } // sum over fb1
-    std::cout << "dense ff" << Sigma_ff(10,_,_) << std::endl;
-    std::cout << "dense fb" << Sigma_fb(10,_,_) << std::endl;
-    std::cout << "dense bf" << Sigma_bf(10,_,_) << std::endl;
-    std::cout << "dense bb" << Sigma_bb(10,_,_) << std::endl;
-
-    std::cout << "dense f" << nda::make_regular(Sigma_ff(10,_,_) + Sigma_fb(10,_,_)) << std::endl;
-    std::cout << "dense b" << nda::make_regular(Sigma_bf(10,_,_) + Sigma_bb(10,_,_)) << std::endl;
     return Sigma;
 }
 
@@ -903,7 +888,6 @@ nda::array<dcomplex,3> third_order_dense_partial(
     // just {{0, 2}, {1, 4}, {3, 5}}, forward forward forward, omega_l,l` > 0 for now
     nda::vector<double> l{9,7}, poles(2); 
     for (int i = 0; i < 2; i++) poles(i) = dlr_rf(l(i)); 
-    std::cout << poles << std::endl;
     nda::array<int,2> topology{{0, 2}, {1, 4}, {3, 5}}; 
     int m = 3; 
     nda::vector<int> states(2*m); 

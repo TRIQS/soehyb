@@ -276,30 +276,30 @@ int main() {
     nda::vector<int> fb_OCA_vec{1,1}; 
     B_OCA_2.set_directions(fb_OCA_vec); 
     int sign = -1;  
-    eval_backbone_d_dense(
-        B_OCA_2, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
-        dlr_it, dlr_rf, T, GKt_OCA, Tkaps_OCA, Tmu_OCA, Deltat_refl, states_OCA, Sigma_L_OCA, 
+    eval_backbone_fixed_lines_dense(
+        B_OCA_2, beta, itops, Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
+        dlr_it, dlr_rf, T, GKt_OCA, Tkaps_OCA, Tmu_OCA, states_OCA, Sigma_L_OCA, 
         pole_inds_OCA, sign, OCA_result_generic_ff);
     fb_OCA_vec(0) = 0; 
     B_OCA_2.set_directions(fb_OCA_vec); 
     sign = -1; 
-    eval_backbone_d_dense(
-        B_OCA_2, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
-        dlr_it, dlr_rf, T, GKt_OCA, Tkaps_OCA, Tmu_OCA, Deltat_refl, states_OCA, Sigma_L_OCA, 
+    eval_backbone_fixed_lines_dense(
+        B_OCA_2, beta, itops, Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
+        dlr_it, dlr_rf, T, GKt_OCA, Tkaps_OCA, Tmu_OCA, states_OCA, Sigma_L_OCA, 
         pole_inds_OCA, sign, OCA_result_generic_fb);
     fb_OCA_vec(1) = 0; 
     B_OCA_2.set_directions(fb_OCA_vec); 
     sign = 1; 
-    eval_backbone_d_dense(
-        B_OCA_2, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
-        dlr_it, dlr_rf, T, GKt_OCA, Tkaps_OCA, Tmu_OCA, Deltat_refl, states_OCA, Sigma_L_OCA, 
+    eval_backbone_fixed_lines_dense(
+        B_OCA_2, beta, itops, Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
+        dlr_it, dlr_rf, T, GKt_OCA, Tkaps_OCA, Tmu_OCA, states_OCA, Sigma_L_OCA, 
         pole_inds_OCA, sign, OCA_result_generic_bb);
     fb_OCA_vec(0) = 1; 
     B_OCA_2.set_directions(fb_OCA_vec); 
     sign = 1; 
-    eval_backbone_d_dense(
-        B_OCA_2, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
-        dlr_it, dlr_rf, T, GKt_OCA, Tkaps_OCA, Tmu_OCA, Deltat_refl, states_OCA, Sigma_L_OCA, 
+    eval_backbone_fixed_lines_dense(
+        B_OCA_2, beta, itops, Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
+        dlr_it, dlr_rf, T, GKt_OCA, Tkaps_OCA, Tmu_OCA, states_OCA, Sigma_L_OCA, 
         pole_inds_OCA, sign, OCA_result_generic_bf);
 
     // compute OCA using Zhen's code

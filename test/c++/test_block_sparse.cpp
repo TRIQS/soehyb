@@ -646,18 +646,6 @@ TEST(BlockSparseOCA, two_band_discrete_bath_tpz) {
     }
 }
 
-TEST(Backbone, constructor) {
-    nda::array<int,2> topology = {{0, 2}, {1, 4}, {3, 5}}; 
-    int n = 4; 
-    auto BB = BackboneSignature(topology, n); 
-    nda::vector<int> fb = {1, 1, 1};
-    BB.set_directions(fb); 
-    nda::vector<double> poles = {-1.0, -1.0};
-    // BB.set_pole_inds(poles);
-
-    std::cout << BB << std::endl;
-}
-
 TEST(Backbone, one_vertex_and_edge) {
     nda::array<int,2> topology = {{0, 2}, {1, 4}, {3, 5}}; 
     int n = 4, N = 16; 
@@ -699,20 +687,25 @@ TEST(Backbone, one_vertex_and_edge) {
         }
     }
 
+    // initialize backbone
     auto BB = BackboneSignature(topology, n); 
     int fb1 = 0; 
     nda::vector<int> fb = {1, fb1, 0};
+    // set line directions
     BB.set_directions(fb); 
 
+    // set pole indices
     nda::vector<int> pole_inds = {0, r-1}; 
     BB.set_pole_inds(pole_inds, dlr_rf); 
 
+    // set orbital indices
     nda::vector<int> states = {1, 0, 2, 3, 4, 5}; 
     
-    // multiply_vertex_dense(BB, dlr_it, dlr_rf, Fs_dense, F_dags_dense, Fdagbars, Fbarsrefl, 1, 0, pole_inds(0), dlr_rf(pole_inds(0)), T); 
+    // multiply T by vertex 1
     multiply_vertex_dense(BB, dlr_it, dlr_rf, Fs_dense, F_dags_dense, Fdagbars, Fbarsrefl, 1, T); 
     std::cout << BB << std::endl;
 
+    // do the same mulplication manually
     nda::array<dcomplex,3> Tact(r,N,N); 
     if (fb1 == 1) {
         for (int t = 0; t < r; t++) Tact(t,_,_) = k_it(dlr_it(t), -dlr_rf(pole_inds(0))) * Fs_dense(0,_,_); 
@@ -721,6 +714,7 @@ TEST(Backbone, one_vertex_and_edge) {
     }
     ASSERT_LE(nda::max_element(nda::abs(T-Tact)), 1e-12); 
 
+    // check that function on first edge is correct
     nda::array<dcomplex,3> GKt(r,N,N); 
     compute_edge_dense(BB, dlr_it, dlr_rf, Gt_dense, 1, GKt); 
     if (fb1 == 1) {
@@ -777,12 +771,12 @@ TEST(Backbone, OCA) {
     auto BB = BackboneSignature(topology, n); 
     
     auto OCA_result = eval_backbone_dense(BB, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense); 
-    // auto OCA_result_2 = eval_backbone_dense(BB, beta, itops, Deltat, Gt_dense, Fset); 
+    auto OCA_result_2 = eval_backbone_dense(BB, beta, itops, Deltat, Gt_dense, Fset); 
     auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
 
     std::cout << "OCA generic result = " << OCA_result(10,_,_) << std::endl;
     std::cout << "OCA dense result = " << OCA_dense_result(10,_,_) << std::endl;
-    // ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_result_2)), 1e-12); 
+    ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_result_2)), 1e-12); 
     ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_dense_result)), 1e-12); 
 }
 
@@ -808,6 +802,7 @@ TEST(Backbone, third_order_manual) {
     auto dlr_it_abs = cppdlr::rel2abs(dlr_it);
     int r = itops.rank();
 
+    // compute hybridization function
     auto hyb = Deltat; 
     auto hyb_coeffs = itops.vals2coefs(hyb); // hybridization DLR coeffs
     auto hyb_refl = nda::make_regular(-itops.reflect(hyb));
@@ -825,22 +820,24 @@ TEST(Backbone, third_order_manual) {
         }
     }
 
+    // compute self-energy contribution of one third-order diagram topology, 
+    // with all forward hybridization lines and particular poles
     auto Sigma_manual = third_order_dense_partial(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense); 
     nda::array<int,2> topology = {{0, 2}, {1, 4}, {3, 5}}; 
     auto B = BackboneSignature(topology, n); 
     nda::vector<int> fb{1,1,1}, pole_inds{7,9}; 
     B.set_directions(fb); 
     B.set_pole_inds(pole_inds, dlr_rf);
-    // std::cout << dlr_rf << std::endl;
 
+    // perform the same calculation using the a routine called by eval_backbone_dense()
     nda::array<dcomplex,3> T(r,N,N), GKt(r,N,N), Tmu(r,N,N), Sigma_generic(r,N,N);
     nda::array<dcomplex,4> Tkaps(n,r,N,N);
     nda::vector<int> states(6); 
-    eval_backbone_p_d_dense(B, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense, Fdagbars, Fbarsrefl, dlr_it, dlr_rf, T, GKt, Tkaps, Tmu, Deltat_refl, states, Sigma_generic);
+    eval_backbone_fixed_poles_lines_dense(
+        B, beta, itops, Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense, Fdagbars, Fbarsrefl, 
+        dlr_it, dlr_rf, T, GKt, Tkaps, Tmu, states, Sigma_generic);
 
-    std::cout << Sigma_manual(10,_,_) << std::endl;
-    std::cout << Sigma_generic(10,_,_) << std::endl;
-    std::cout << nda::make_regular(Sigma_manual(10,_,_) - Sigma_generic(10,_,_)) << std::endl;
+    ASSERT_LE(nda::max_element(nda::abs(Sigma_manual(10,_,_) - Sigma_generic(10,_,_))), 1e-10);
 }
 
 TEST(Backbone, third_order) {
@@ -848,6 +845,7 @@ TEST(Backbone, third_order) {
                                     {{0,3},{1,5},{2,4}}, 
                                     {{0,4},{1,3},{2,5}}, 
                                     {{0,3},{1,4},{2,5}}}; 
+    nda::vector<int> topo_sign{1, 1, 1, -1}; // topo_sign(i) = (-1)^{# of line crossings in topology i}
 
     nda::array<int,2> topology = {{0, 2}, {1, 3}}; 
     int n = 4, N = 16; 
@@ -880,22 +878,26 @@ TEST(Backbone, third_order) {
     auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
     auto Fset = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs); 
 
-    // auto third_order_result = nda::zeros<dcomplex>(r,N,N); 
+    // compute NCA and OCA
     auto NCA_result = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense); 
     nda::array<int,2> T_OCA = {{0, 2}, {1, 3}}; 
     auto B_OCA = BackboneSignature(T_OCA, n); 
     auto OCA_result = eval_backbone_dense(B_OCA, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense); 
+
+    // arrays for storing results from third-order diagram computations
     auto third_order_result = nda::zeros<dcomplex>(r,N,N); 
+    auto third_order_result_Fset = nda::zeros<dcomplex>(r,N,N); 
     auto third_order_02_result = nda::zeros<dcomplex>(r,N,N); 
     auto third_order_0314_result = nda::zeros<dcomplex>(r,N,N); 
     auto third_order_0315_result = nda::zeros<dcomplex>(r,N,N); 
     auto third_order_04_result = nda::zeros<dcomplex>(r,N,N); 
     
+    // compute third-order diagrams using generic backbone evaluators
     auto start = std::chrono::high_resolution_clock::now(); 
     for (int i = 0; i < 4; i++) {
         auto B = BackboneSignature(topologies(i,_,_), n); 
         auto eval = eval_backbone_dense(B, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense); 
-        third_order_result += eval;
+        third_order_result += topo_sign(i) * eval;
         if (i == 0) third_order_02_result = eval; 
         else if (i == 1) third_order_0315_result = eval; 
         else if (i == 2) third_order_04_result = eval; 
@@ -905,6 +907,17 @@ TEST(Backbone, third_order) {
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(end-start);
     std::cout << "Elapsed time for dense comp'n of 3rd order diags = " << duration << " seconds" << std::endl;
 
+    start = std::chrono::high_resolution_clock::now(); 
+    for (int i = 0; i < 4; i++) {
+        auto B = BackboneSignature(topologies(i,_,_), n); 
+        auto eval = eval_backbone_dense(B, beta, itops, Deltat, Gt_dense, Fset); 
+        third_order_result_Fset += topo_sign(i) * eval;
+    }
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::seconds>(end-start);
+    std::cout << "with Fset = " << duration << " seconds" << std::endl;
+
+    // load results from a run of twoband.py
     h5::file hfile("/home/paco/feynman/soehyb/test/c++/h5/two_band_py_Lambda10.h5", 'r');
     h5::group hgroup(hfile);
     nda::array<dcomplex,3> NCA_py(r,N,N), OCA_py(r,N,N);
@@ -918,7 +931,7 @@ TEST(Backbone, third_order) {
     OCA_py = OCA_py - NCA_py; 
     
     h5::read(hgroup, "third_order", third_order_py);
-    third_order_py = third_order_py - OCA_py; 
+    third_order_py = -third_order_py + OCA_py + NCA_py; 
     h5::read(hgroup, "third_order_[(0, 2), (1, 4), (3, 5)]", third_order_py_02); 
     h5::read(hgroup, "third_order_[(0, 3), (1, 4), (2, 5)]", third_order_py_0314); 
     h5::read(hgroup, "third_order_[(0, 3), (1, 5), (2, 4)]", third_order_py_0315); 
@@ -946,18 +959,13 @@ TEST(Backbone, third_order) {
         }
     }
 
-    // std::cout << OCA_result(10,_,_) << std::endl;
-    // std::cout << OCA_py_perm(10,_,_) << std::endl;
-    std::cout << third_order_0315_result(10,_,_) << std::endl;
-    std::cout << third_order_py_0315_perm(10,_,_) << std::endl;
-    std::cout << third_order_04_result(10,_,_) << std::endl;
-    std::cout << third_order_py_04_perm(10,_,_) << std::endl;
-    std::cout << third_order_0314_result(10,_,_) << std::endl;
-    std::cout << third_order_py_0314_perm(10,_,_) << std::endl;
     ASSERT_LE(nda::max_element(nda::abs(NCA_result - NCA_py_perm)), eps);
     ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_py_perm)), eps);
     ASSERT_LE(nda::max_element(nda::abs(third_order_02_result - third_order_py_02_perm)), 100*eps);
     ASSERT_LE(nda::max_element(nda::abs(third_order_0314_result - third_order_py_0314_perm)), 100*eps);
     ASSERT_LE(nda::max_element(nda::abs(third_order_0315_result - third_order_py_0315_perm)), 100*eps);
     ASSERT_LE(nda::max_element(nda::abs(third_order_04_result - third_order_py_04_perm)), 100*eps);
+
+    ASSERT_LE(nda::max_element(nda::abs(third_order_result - third_order_py_perm)), 100*eps); 
+    ASSERT_LE(nda::max_element(nda::abs(third_order_result - third_order_result_Fset)), 100*eps); 
 }

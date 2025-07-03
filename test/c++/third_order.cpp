@@ -318,9 +318,9 @@ int main() {
         int sign = ((fb + m) % 2 == 0) ? 1 : -1; // TODO: figure this out
         std::cout << "\nDiagrams, fb = " << fb << std::endl;
         Sigma_temp = Sigma; 
-        eval_backbone_d_dense(
-            B_02, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
-            dlr_it, dlr_rf, T, GKt, Tkaps, Tmu, Deltat_refl, states, Sigma_L, 
+        eval_backbone_fixed_lines_dense(
+            B_02, beta, itops, Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense, Fset.F_dag_bars, Fset.F_bars_refl, 
+            dlr_it, dlr_rf, T, GKt, Tkaps, Tmu, states, Sigma_L, 
             pole_inds, sign, Sigma); 
         B_02.reset_directions(); 
         std::cout << "generic third-order: " << nda::make_regular(Sigma(10,_,_) - Sigma_temp(10,_,_)) << std::endl;
