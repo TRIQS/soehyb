@@ -905,7 +905,7 @@ TEST(Backbone, third_order) {
     }
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(end-start);
-    std::cout << "Elapsed time for dense comp'n of 3rd order diags = " << duration << " seconds" << std::endl;
+    std::cout << "Elapsed time for dense comp'n of 3rd order diags = " << duration.count() << " seconds" << std::endl;
 
     start = std::chrono::high_resolution_clock::now(); 
     for (int i = 0; i < 4; i++) {
@@ -915,7 +915,7 @@ TEST(Backbone, third_order) {
     }
     end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::seconds>(end-start);
-    std::cout << "with Fset = " << duration << " seconds" << std::endl;
+    std::cout << "with Fset = " << duration.count() << " seconds" << std::endl;
 
     // load results from a run of twoband.py
     h5::file hfile("/home/paco/feynman/soehyb/test/c++/h5/two_band_py_Lambda10.h5", 'r');
