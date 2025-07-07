@@ -1,7 +1,7 @@
 #include "nda/nda.hpp"
 #include "block_sparse.hpp"
 
-using namespace nda; 
+using namespace nda;
 
 /**
  * @brief Evaluate NCA self-energy term using block-sparse storage
@@ -11,10 +11,8 @@ using namespace nda;
  * @param[in] Fs vector of annihilation operators
  * @return NCA term of self-energy
  */
-BlockDiagOpFun NCA_bs(nda::array_const_view<dcomplex,3> hyb, 
-    nda::array_const_view<dcomplex,3> hyb_refl, 
-    const BlockDiagOpFun &Gt, 
-    const std::vector<BlockOp> &Fs);
+BlockDiagOpFun NCA_bs(nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl, const BlockDiagOpFun &Gt,
+                      const std::vector<BlockOp> &Fs);
 
 /**
  * @brief Evaluate NCA self-energy term using dense storage
@@ -24,12 +22,9 @@ BlockDiagOpFun NCA_bs(nda::array_const_view<dcomplex,3> hyb,
  * @param[in] Fs vector of annihilation operators
  * @param[in] F_dags vector of creation operators
  */
-nda::array<dcomplex,3> NCA_dense(
-    nda::array_const_view<dcomplex,3> hyb, 
-    nda::array_const_view<dcomplex,3> hyb_refl, 
-    nda::array_const_view<dcomplex,3> Gt, 
-    nda::array_const_view<dcomplex,3> Fs,
-    nda::array_const_view<dcomplex,3> F_dags);
+nda::array<dcomplex, 3> NCA_dense(nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl,
+                                  nda::array_const_view<dcomplex, 3> Gt, nda::array_const_view<dcomplex, 3> Fs,
+                                  nda::array_const_view<dcomplex, 3> F_dags);
 
 /**
  * @brief Build matrix of evaluations of K at imag times and real freqs
@@ -37,8 +32,7 @@ nda::array<dcomplex,3> NCA_dense(
  * @param[in] dlr_rf DLR real frequencies
  * @return matrix of K evalutions
  */
-nda::array<double,2> K_mat(nda::vector_const_view<double> dlr_it,
-    nda::vector_const_view<double> dlr_rf, double beta);
+nda::array<double, 2> K_mat(nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf, double beta);
 
 /**
  * @brief Evaluate OCA using block-sparse storage
@@ -49,13 +43,10 @@ nda::array<double,2> K_mat(nda::vector_const_view<double> dlr_it,
  * @param[in] Fs F operator
  * @return OCA term of self-energy
  */
-BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex,3> hyb,
-    imtime_ops &itops, 
-    double beta, 
-    const BlockDiagOpFun &Gt, 
-    const std::vector<BlockOp> &Fs);
+BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex, 3> hyb, imtime_ops &itops, double beta, const BlockDiagOpFun &Gt,
+                      const std::vector<BlockOp> &Fs);
 
-nda::array<dcomplex,3> eval_eq(imtime_ops &itops, nda::array_const_view<dcomplex, 3> f, int n_quad);
+nda::array<dcomplex, 3> eval_eq(imtime_ops &itops, nda::array_const_view<dcomplex, 3> f, int n_quad);
 
 /**
  * @brief Evaluate OCA using dense storage
@@ -66,12 +57,8 @@ nda::array<dcomplex,3> eval_eq(imtime_ops &itops, nda::array_const_view<dcomplex
  * @param[in] Fs F operator
  * @return OCA term of self-energy
  */
-nda::array<dcomplex,3> OCA_dense(nda::array_const_view<dcomplex,3> hyb,
-    imtime_ops &itops, 
-    double beta, 
-    nda::array_const_view<dcomplex,3> Gt, 
-    nda::array_const_view<dcomplex,3> Fs, 
-    nda::array_const_view<dcomplex,3> F_dags);
+nda::array<dcomplex, 3> OCA_dense(nda::array_const_view<dcomplex, 3> hyb, imtime_ops &itops, double beta, nda::array_const_view<dcomplex, 3> Gt,
+                                  nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags);
 
 /**
  * @brief Evaluate OCA directly using trapezoidal quadrature
@@ -83,19 +70,9 @@ nda::array<dcomplex,3> OCA_dense(nda::array_const_view<dcomplex,3> hyb,
  * @param[in] n_quad number of quadrature nodes
  * @return OCA term of self-energy
  */
-nda::array<dcomplex,3> OCA_tpz(
-    nda::array_const_view<dcomplex,3> hyb,
-    imtime_ops &itops, 
-    double beta, 
-    nda::array_const_view<dcomplex, 3> Gt, 
-    nda::array_const_view<dcomplex, 3> Fs, 
-    int n_quad);
+nda::array<dcomplex, 3> OCA_tpz(nda::array_const_view<dcomplex, 3> hyb, imtime_ops &itops, double beta, nda::array_const_view<dcomplex, 3> Gt,
+                                nda::array_const_view<dcomplex, 3> Fs, int n_quad);
 
-nda::array<dcomplex,3> third_order_dense_partial(
-    nda::array_const_view<dcomplex,3> hyb,
-    imtime_ops &itops, 
-    double beta, 
-    nda::array_const_view<dcomplex, 3> Gt, 
-    nda::array_const_view<dcomplex, 3> Fs, 
-    nda::array_const_view<dcomplex, 3> F_dags
-); 
+nda::array<dcomplex, 3> third_order_dense_partial(nda::array_const_view<dcomplex, 3> hyb, imtime_ops &itops, double beta,
+                                                  nda::array_const_view<dcomplex, 3> Gt, nda::array_const_view<dcomplex, 3> Fs,
+                                                  nda::array_const_view<dcomplex, 3> F_dags);

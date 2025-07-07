@@ -2,37 +2,37 @@
 #include <triqs_soehyb/block_sparse.hpp>
 #include <nda/nda.hpp>
 
-using namespace nda; 
+using namespace nda;
 
 /**
  * @class BackboneVertex
  * @brief Abstract representation of a backbone vertex
  */
 class BackboneVertex {
-    private:
-        bool bar; // true if the F on this vertex has a bar
-        bool dag; // true if the F on this vertex has a dagger 
-        int pole_prime; // which of l, l`, ... is associated with the K (and possibly F^bar) on this vertex, i.e., the number of primes on l
-        int Ksign; // 1 if K^+, -1 if K^-, 0 if no K
-        int orb; // value of orbital index on this vertex
+  private:
+  bool bar;       // true if the F on this vertex has a bar
+  bool dag;       // true if the F on this vertex has a dagger
+  int pole_prime; // which of l, l`, ... is associated with the K (and possibly F^bar) on this vertex, i.e., the number of primes on l
+  int Ksign;      // 1 if K^+, -1 if K^-, 0 if no K
+  int orb;        // value of orbital index on this vertex
 
-    public:
-        bool has_bar();
-        bool has_dag();
-        int get_pole_prime();
-        int get_Ksign();
-        int get_orb();
+  public:
+  bool has_bar();
+  bool has_dag();
+  int get_pole_prime();
+  int get_Ksign();
+  int get_orb();
 
-        void set_bar(bool b); 
-        void set_dag(bool b);
-        void set_pole_prime(int i); 
-        void set_Ksign(int i);
-        void set_orb(int i);
+  void set_bar(bool b);
+  void set_dag(bool b);
+  void set_pole_prime(int i);
+  void set_Ksign(int i);
+  void set_orb(int i);
 
-    /**
+  /**
      * @brief Constructor for BackboneVertex
      */
-    BackboneVertex(); 
+  BackboneVertex();
 };
 
 /**
@@ -40,48 +40,48 @@ class BackboneVertex {
  * @brief Abstract representation of a backbone diagram
  */
 class BackboneSignature {
-    private:
-        nda::array<int,2> topology; 
+  private:
+  nda::array<int, 2> topology;
 
-        nda::vector<int> prefactor_Ksigns; 
-        nda::vector<int> prefactor_Kexps; 
-        nda::array<int,2> edges;
-        nda::vector<int> fb; 
-        nda::vector<int> pole_inds; 
+  nda::vector<int> prefactor_Ksigns;
+  nda::vector<int> prefactor_Kexps;
+  nda::array<int, 2> edges;
+  nda::vector<int> fb;
+  nda::vector<int> pole_inds;
 
-    public:
-        int m; // order
-        int n; // number of orbital indices
-        int prefactor_sign; 
-        std::vector<BackboneVertex> vertices;
+  public:
+  int m; // order
+  int n; // number of orbital indices
+  int prefactor_sign;
+  std::vector<BackboneVertex> vertices;
 
-        void set_directions(nda::vector_const_view<int> fb);
-        void reset_directions(); 
-        void set_pole_inds(nda::vector_const_view<int> pole_inds, nda::vector_const_view<double> dlr_rf); 
-        void reset_pole_inds(); 
-        void set_orb_inds(nda::vector_const_view<int> orb_inds);
-        void reset_orb_inds(); 
+  void set_directions(nda::vector_const_view<int> fb);
+  void reset_directions();
+  void set_pole_inds(nda::vector_const_view<int> pole_inds, nda::vector_const_view<double> dlr_rf);
+  void reset_pole_inds();
+  void set_orb_inds(nda::vector_const_view<int> orb_inds);
+  void reset_orb_inds();
 
-        int get_prefactor_Ksign(int i); 
-        int get_prefactor_Kexp(int i); 
+  int get_prefactor_Ksign(int i);
+  int get_prefactor_Kexp(int i);
 
-        bool has_vertex_bar(int i); 
-        bool has_vertex_dag(int i); 
-        int get_vertex_pole_prime(int i); 
-        int get_vertex_Ksign(int i); 
-        int get_vertex_orb(int i); 
+  bool has_vertex_bar(int i);
+  bool has_vertex_dag(int i);
+  int get_vertex_pole_prime(int i);
+  int get_vertex_Ksign(int i);
+  int get_vertex_orb(int i);
 
-        int get_edge(int num, int pole_ind);
-        int get_topology(int i, int j);
-        int get_pole_ind(int i); 
+  int get_edge(int num, int pole_ind);
+  int get_topology(int i, int j);
+  int get_pole_ind(int i);
 
-    /**
+  /**
      * @brief Constructor for BackboneSignature
      * 
      * @param[in] topology list of vertices connected by a hybridization line
      * @param[in] n number of orbital indices
      */
-    BackboneSignature(nda::array<int,2> topology, int n);
+  BackboneSignature(nda::array<int, 2> topology, int n);
 };
 
 /**
@@ -89,7 +89,7 @@ class BackboneSignature {
  * @param[in] os output stream
  * @param[in] B BackboneSignature
  */
-std::ostream& operator<<(std::ostream& os, BackboneSignature &B);
+std::ostream &operator<<(std::ostream &os, BackboneSignature &B);
 
 /**
  * @brief Multiply by a single vertex in a backbone diagram using dense storage
@@ -103,16 +103,10 @@ std::ostream& operator<<(std::ostream& os, BackboneSignature &B);
  * @param[in] v_ix vertex index to multiply
  * @param[in] T array on which to left-multiply vertex
  */
-void multiply_vertex_dense(
-    BackboneSignature& backbone, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    nda::array_const_view<dcomplex,3> Fs, 
-    nda::array_const_view<dcomplex,3> F_dags, 
-    nda::array_const_view<dcomplex,4> Fdagbars, 
-    nda::array_const_view<dcomplex,4> Fbarsrefl, 
-    int v_ix, 
-    nda::array_view<dcomplex,3> T); 
+void multiply_vertex_dense(BackboneSignature &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
+                           nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags,
+                           nda::array_const_view<dcomplex, 4> Fdagbars, nda::array_const_view<dcomplex, 4> Fbarsrefl, int v_ix,
+                           nda::array_view<dcomplex, 3> T);
 
 /**
  * @brief Multiply by a single vertex in a backbone diagram using dense storage
@@ -123,13 +117,8 @@ void multiply_vertex_dense(
  * @param[in] v_ix vertex index to multiply
  * @param[in] T array on which to left-multiply vertex
  */
-void multiply_vertex_dense(
-    BackboneSignature& backbone, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    DenseFSet& Fset, 
-    int v_ix, 
-    nda::array_view<dcomplex,3> T); 
+void multiply_vertex_dense(BackboneSignature &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf, DenseFSet &Fset,
+                           int v_ix, nda::array_view<dcomplex, 3> T);
 
 /**
  * @brief Compute a single edge in a backbone diagram using dense storage
@@ -140,13 +129,8 @@ void multiply_vertex_dense(
  * @param[in] e_ix edge index to compute
  * @param[in] GKt array for storing result
  */
-void compute_edge_dense(
-    BackboneSignature& backbone, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    nda::array_const_view<dcomplex,3> Gt, 
-    int e_ix, 
-    nda::array_view<dcomplex,3> GKt); 
+void compute_edge_dense(BackboneSignature &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
+                        nda::array_const_view<dcomplex, 3> Gt, int e_ix, nda::array_view<dcomplex, 3> GKt);
 
 /**
  * @brief Convolve with a single edge in a backbone diagram using dense storage
@@ -160,17 +144,9 @@ void compute_edge_dense(
  * @param[in] T array for storing result
  * @param[in] GKt array for storing result of edge computation
  */
-void compose_with_edge_dense(
-    BackboneSignature& backbone, 
-    imtime_ops& itops, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    double beta, 
-    nda::array_const_view<dcomplex,3> Gt, 
-    int e_ix, 
-    nda::array_view<dcomplex,3> T, 
-    nda::array_view<dcomplex,3> GKt
-);
+void compose_with_edge_dense(BackboneSignature &backbone, imtime_ops &itops, nda::vector_const_view<double> dlr_it,
+                             nda::vector_const_view<double> dlr_rf, double beta, nda::array_const_view<dcomplex, 3> Gt, int e_ix,
+                             nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt);
 
 /**
  * @brief Multiply by the zero vertex and the vertex connected to zero
@@ -184,16 +160,9 @@ void compose_with_edge_dense(
  * @param[in] Tmu intermediate storage array
  * @param[in] T array for storing result
  */
-void multiply_zero_vertex(
-    BackboneSignature& backbone, 
-    nda::array_const_view<dcomplex,3> hyb, 
-    nda::array_const_view<dcomplex,3> hyb_refl, 
-    bool is_forward, 
-    nda::array_const_view<dcomplex,3> Fs, 
-    nda::array_const_view<dcomplex,3> F_dags, 
-    nda::array_view<dcomplex,4> Tkaps, 
-    nda::array_view<dcomplex,3> Tmu, 
-    nda::array_view<dcomplex,3> T);
+void multiply_zero_vertex(BackboneSignature &backbone, nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl,
+                          bool is_forward, nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags,
+                          nda::array_view<dcomplex, 4> Tkaps, nda::array_view<dcomplex, 3> Tmu, nda::array_view<dcomplex, 3> T);
 
 /**
  * @brief Multiply by the zero vertex and the vertex connected to zero
@@ -206,15 +175,9 @@ void multiply_zero_vertex(
  * @param[in] Tmu intermediate storage array
  * @param[in] T array for storing result
  */
-void multiply_zero_vertex(
-    BackboneSignature& backbone, 
-    nda::array_const_view<dcomplex,3> hyb, 
-    nda::array_const_view<dcomplex,3> hyb_refl, 
-    bool is_forward, 
-    DenseFSet& Fset, 
-    nda::array_view<dcomplex,4> Tkaps, 
-    nda::array_view<dcomplex,3> Tmu, 
-    nda::array_view<dcomplex,3> T);
+void multiply_zero_vertex(BackboneSignature &backbone, nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl,
+                          bool is_forward, DenseFSet &Fset, nda::array_view<dcomplex, 4> Tkaps, nda::array_view<dcomplex, 3> Tmu,
+                          nda::array_view<dcomplex, 3> T);
 
 /**
  * @brief Evaluate a backbone diagram for particular orbital indices, poles, and line directions in dense storage
@@ -235,24 +198,13 @@ void multiply_zero_vertex(
  * @param[in] Tkaps intermediate storage array
  * @param[in] Tmu intermediate storage array
  */
-void eval_backbone_fixed_orbs_poles_lines_dense(
-    BackboneSignature &backbone, 
-    double beta, 
-    imtime_ops &itops, 
-    nda::array_const_view<dcomplex, 3> hyb, 
-    nda::array_view<dcomplex, 3> hyb_refl, 
-    nda::array_const_view<dcomplex, 3> Gt, 
-    nda::array_const_view<dcomplex, 3> Fs, 
-    nda::array_const_view<dcomplex, 3> F_dags, 
-    nda::array_const_view<dcomplex, 4> Fdagbars, 
-    nda::array_const_view<dcomplex, 4> Fbarsrefl, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    nda::array_view<dcomplex, 3> T, 
-    nda::array_view<dcomplex, 3> GKt, 
-    nda::array_view<dcomplex, 4> Tkaps, 
-    nda::array_view<dcomplex, 3> Tmu
-);
+void eval_backbone_fixed_orbs_poles_lines_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
+                                                nda::array_view<dcomplex, 3> hyb_refl, nda::array_const_view<dcomplex, 3> Gt,
+                                                nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags,
+                                                nda::array_const_view<dcomplex, 4> Fdagbars, nda::array_const_view<dcomplex, 4> Fbarsrefl,
+                                                nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
+                                                nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt, nda::array_view<dcomplex, 4> Tkaps,
+                                                nda::array_view<dcomplex, 3> Tmu);
 
 /**
  * @brief Evaluate a backbone diagram for particular orbital indices, poles, and line directions in dense storage
@@ -270,21 +222,11 @@ void eval_backbone_fixed_orbs_poles_lines_dense(
  * @param[in] Tkaps intermediate storage array
  * @param[in] Tmu intermediate storage array
  */
-void eval_backbone_fixed_orbs_poles_lines_dense(
-    BackboneSignature &backbone, 
-    double beta, 
-    imtime_ops &itops, 
-    nda::array_const_view<dcomplex, 3> hyb, 
-    nda::array_const_view<dcomplex, 3> Gt, 
-    DenseFSet& Fset, 
-    nda::array_view<dcomplex, 3> hyb_refl, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    nda::array_view<dcomplex, 3> T, 
-    nda::array_view<dcomplex, 3> GKt, 
-    nda::array_view<dcomplex, 4> Tkaps, 
-    nda::array_view<dcomplex, 3> Tmu
-);
+void eval_backbone_fixed_orbs_poles_lines_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
+                                                nda::array_const_view<dcomplex, 3> Gt, DenseFSet &Fset, nda::array_view<dcomplex, 3> hyb_refl,
+                                                nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
+                                                nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt, nda::array_view<dcomplex, 4> Tkaps,
+                                                nda::array_view<dcomplex, 3> Tmu);
 
 /**
  * @brief Evaluate a backbone diagram with fixed poles, and line directions in dense storage
@@ -307,26 +249,13 @@ void eval_backbone_fixed_orbs_poles_lines_dense(
  * @param[in] orb_inds vector of orbital indices
  * @param[in] Sigma_L array for storing backbone result, including prefactor, over all orbital indices
  */
-void eval_backbone_fixed_poles_lines_dense(
-    BackboneSignature &backbone, 
-    double beta, 
-    imtime_ops &itops, 
-    nda::array_const_view<dcomplex, 3> hyb, 
-    nda::array_view<dcomplex, 3> hyb_refl, 
-    nda::array_const_view<dcomplex, 3> Gt, 
-    nda::array_const_view<dcomplex, 3> Fs, 
-    nda::array_const_view<dcomplex, 3> F_dags, 
-    nda::array_const_view<dcomplex, 4> Fdagbars, 
-    nda::array_const_view<dcomplex, 4> Fbarsrefl, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    nda::array_view<dcomplex, 3> T, 
-    nda::array_view<dcomplex, 3> GKt, 
-    nda::array_view<dcomplex, 4> Tkaps, 
-    nda::array_view<dcomplex, 3> Tmu, 
-    nda::vector_view<int> orb_inds, 
-    nda::array_view<dcomplex, 3> Sigma_L
-);
+void eval_backbone_fixed_poles_lines_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
+                                           nda::array_view<dcomplex, 3> hyb_refl, nda::array_const_view<dcomplex, 3> Gt,
+                                           nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags,
+                                           nda::array_const_view<dcomplex, 4> Fdagbars, nda::array_const_view<dcomplex, 4> Fbarsrefl,
+                                           nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
+                                           nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt, nda::array_view<dcomplex, 4> Tkaps,
+                                           nda::array_view<dcomplex, 3> Tmu, nda::vector_view<int> orb_inds, nda::array_view<dcomplex, 3> Sigma_L);
 
 /**
  * @brief Evaluate a backbone diagram with fixed poles, and line directions in dense storage
@@ -346,23 +275,11 @@ void eval_backbone_fixed_poles_lines_dense(
  * @param[in] orb_inds vector of orbital indices
  * @param[in] Sigma_L array for storing backbone result, including prefactor, over all orbital indices
  */
-void eval_backbone_fixed_poles_lines_dense(
-    BackboneSignature &backbone, 
-    double beta, 
-    imtime_ops &itops, 
-    nda::array_const_view<dcomplex, 3> hyb, 
-    nda::array_view<dcomplex, 3> hyb_refl, 
-    nda::array_const_view<dcomplex, 3> Gt, 
-    DenseFSet& Fset, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    nda::array_view<dcomplex, 3> T, 
-    nda::array_view<dcomplex, 3> GKt, 
-    nda::array_view<dcomplex, 4> Tkaps, 
-    nda::array_view<dcomplex, 3> Tmu, 
-    nda::vector_view<int> orb_inds, 
-    nda::array_view<dcomplex, 3> Sigma_L
-);
+void eval_backbone_fixed_poles_lines_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
+                                           nda::array_view<dcomplex, 3> hyb_refl, nda::array_const_view<dcomplex, 3> Gt, DenseFSet &Fset,
+                                           nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
+                                           nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt, nda::array_view<dcomplex, 4> Tkaps,
+                                           nda::array_view<dcomplex, 3> Tmu, nda::vector_view<int> orb_inds, nda::array_view<dcomplex, 3> Sigma_L);
 
 /**
  * @brief Evaluate a backbone diagram with fixed line directions in dense storage
@@ -388,29 +305,14 @@ void eval_backbone_fixed_poles_lines_dense(
  * @param[in] sign (-1)^(f+m)
  * @param[in] Sigma array for storing self-energy contribution 
  */
-void eval_backbone_fixed_lines_dense(
-    BackboneSignature &backbone, 
-    double beta, 
-    imtime_ops &itops, 
-    nda::array_const_view<dcomplex, 3> hyb, 
-    nda::array_view<dcomplex, 3> hyb_refl, 
-    nda::array_const_view<dcomplex, 3> Gt, 
-    nda::array_const_view<dcomplex, 3> Fs, 
-    nda::array_const_view<dcomplex, 3> F_dags, 
-    nda::array_const_view<dcomplex, 4> Fdagbars, 
-    nda::array_const_view<dcomplex, 4> Fbarsrefl, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    nda::array_view<dcomplex, 3> T, 
-    nda::array_view<dcomplex, 3> GKt, 
-    nda::array_view<dcomplex, 4> Tkaps, 
-    nda::array_view<dcomplex, 3> Tmu, 
-    nda::vector_view<int> orb_inds, 
-    nda::array_view<dcomplex, 3> Sigma_L, 
-    nda::vector_view<int> pole_inds, 
-    int sign, 
-    nda::array_view<dcomplex, 3> Sigma
-);
+void eval_backbone_fixed_lines_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
+                                     nda::array_view<dcomplex, 3> hyb_refl, nda::array_const_view<dcomplex, 3> Gt,
+                                     nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags,
+                                     nda::array_const_view<dcomplex, 4> Fdagbars, nda::array_const_view<dcomplex, 4> Fbarsrefl,
+                                     nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf, nda::array_view<dcomplex, 3> T,
+                                     nda::array_view<dcomplex, 3> GKt, nda::array_view<dcomplex, 4> Tkaps, nda::array_view<dcomplex, 3> Tmu,
+                                     nda::vector_view<int> orb_inds, nda::array_view<dcomplex, 3> Sigma_L, nda::vector_view<int> pole_inds, int sign,
+                                     nda::array_view<dcomplex, 3> Sigma);
 
 /**
  * @brief Evaluate a backbone diagram with fixed line directions in dense storage
@@ -433,26 +335,12 @@ void eval_backbone_fixed_lines_dense(
  * @param[in] sign +/-1, depending on diagram order and line directions
  * @param[in] Sigma array for storing self-energy contribution 
  */
-void eval_backbone_fixed_lines_dense(
-    BackboneSignature &backbone, 
-    double beta, 
-    imtime_ops &itops, 
-    nda::array_const_view<dcomplex, 3> hyb, 
-    nda::array_view<dcomplex, 3> hyb_refl, 
-    nda::array_const_view<dcomplex, 3> Gt, 
-    DenseFSet& Fset, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    nda::array_view<dcomplex, 3> T, 
-    nda::array_view<dcomplex, 3> GKt, 
-    nda::array_view<dcomplex, 4> Tkaps, 
-    nda::array_view<dcomplex, 3> Tmu, 
-    nda::vector_view<int> orb_inds, 
-    nda::array_view<dcomplex, 3> Sigma_L, 
-    nda::vector_view<int> pole_inds, 
-    int sign, 
-    nda::array_view<dcomplex, 3> Sigma
-);
+void eval_backbone_fixed_lines_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
+                                     nda::array_view<dcomplex, 3> hyb_refl, nda::array_const_view<dcomplex, 3> Gt, DenseFSet &Fset,
+                                     nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf, nda::array_view<dcomplex, 3> T,
+                                     nda::array_view<dcomplex, 3> GKt, nda::array_view<dcomplex, 4> Tkaps, nda::array_view<dcomplex, 3> Tmu,
+                                     nda::vector_view<int> orb_inds, nda::array_view<dcomplex, 3> Sigma_L, nda::vector_view<int> pole_inds, int sign,
+                                     nda::array_view<dcomplex, 3> Sigma);
 
 /**
  * @brief Evaluate a single backbone diagram in dense storage
@@ -464,14 +352,9 @@ void eval_backbone_fixed_lines_dense(
  * @param[in] Fs annihilation operators
  * @param[in] F_dags creation operators
  */
-nda::array<dcomplex, 3> eval_backbone_dense(
-    BackboneSignature &backbone, 
-    double beta, 
-    imtime_ops &itops, 
-    nda::array_const_view<dcomplex, 3> hyb, 
-    nda::array_const_view<dcomplex, 3> Gt, 
-    nda::array_const_view<dcomplex, 3> Fs, 
-    nda::array_const_view<dcomplex, 3> F_dags);
+nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
+                                            nda::array_const_view<dcomplex, 3> Gt, nda::array_const_view<dcomplex, 3> Fs,
+                                            nda::array_const_view<dcomplex, 3> F_dags);
 
 /**
  * @brief Evaluate a single backbone diagram in dense storage
@@ -482,13 +365,8 @@ nda::array<dcomplex, 3> eval_backbone_dense(
  * @param[in] Gt Greens function
  * @param[in] Fset DenseFSet
  */
-nda::array<dcomplex, 3> eval_backbone_dense(
-    BackboneSignature &backbone, 
-    double beta, 
-    imtime_ops &itops, 
-    nda::array_const_view<dcomplex, 3> hyb, 
-    nda::array_const_view<dcomplex, 3> Gt, 
-    DenseFSet& Fset); 
+nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
+                                            nda::array_const_view<dcomplex, 3> Gt, DenseFSet &Fset);
 
 /**
  * @brief Multiply by a block of a single vertex in a backbone diagram
@@ -504,18 +382,10 @@ nda::array<dcomplex, 3> eval_backbone_dense(
  * @param[in] T array on which to left-multiply vertex
  * @param[in] block_dims {# cols vertex, # rows vertex}
  */
-void multiply_vertex_block(
-    BackboneSignature& backbone, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    std::vector<BlockOp>& Fs, 
-    std::vector<BlockOp>& F_dags, 
-    std::vector<std::vector<BlockOp>>& Fdagbars, 
-    std::vector<std::vector<BlockOp>>& Fbarsrefl, 
-    int v_ix, 
-    int b_ix, 
-    nda::array_view<dcomplex,3> T, 
-    nda::vector_const_view<int> block_dims); 
+void multiply_vertex_block(BackboneSignature &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
+                           std::vector<BlockOp> &Fs, std::vector<BlockOp> &F_dags, std::vector<std::vector<BlockOp>> &Fdagbars,
+                           std::vector<std::vector<BlockOp>> &Fbarsrefl, int v_ix, int b_ix, nda::array_view<dcomplex, 3> T,
+                           nda::vector_const_view<int> block_dims);
 
 /**
  * @brief Compute a block of a single edge in a backbone diagram
@@ -527,14 +397,8 @@ void multiply_vertex_block(
  * @param[in] b_ix block index
  * @param[in] GKt array for storing result
  */
-void compute_edge_block(
-    BackboneSignature& backbone, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    BlockDiagOpFun& Gt, 
-    int e_ix, 
-    int b_ix, 
-    nda::array_view<dcomplex,3> GKt_b); 
+void compute_edge_block(BackboneSignature &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf, BlockDiagOpFun &Gt,
+                        int e_ix, int b_ix, nda::array_view<dcomplex, 3> GKt_b);
 
 /**
  * @brief Convolve with a block of a single edge in a backbone diagram
@@ -549,17 +413,9 @@ void compute_edge_block(
  * @param[in] T array for storing result
  * @param[in] GKt array for storing result of edge computation
  */
-void compose_with_edge_block(
-    BackboneSignature& backbone, 
-    imtime_ops& itops, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    double beta, 
-    BlockDiagOpFun& Gt, 
-    int e_ix, 
-    int b_ix, 
-    nda::array_view<dcomplex,3> T, 
-    nda::array_view<dcomplex,3> GKt_b);
+void compose_with_edge_block(BackboneSignature &backbone, imtime_ops &itops, nda::vector_const_view<double> dlr_it,
+                             nda::vector_const_view<double> dlr_rf, double beta, BlockDiagOpFun &Gt, int e_ix, int b_ix,
+                             nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt_b);
 
 /**
  * @brief Evaluate a single backbone diagram in block-sparse storage
@@ -571,11 +427,5 @@ void compose_with_edge_block(
  * @param[in] Fs annihilation operators
  * @param[in] F_dags creation operators
  */
-BlockDiagOpFun eval_backbone(
-    BackboneSignature &backbone, 
-    double beta, 
-    imtime_ops &itops, 
-    nda::array_const_view<dcomplex, 3> hyb, 
-    BlockDiagOpFun& Gt, 
-    std::vector<BlockOp>& Fs, 
-    std::vector<BlockOp>& F_dags);
+BlockDiagOpFun eval_backbone(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb, BlockDiagOpFun &Gt,
+                             std::vector<BlockOp> &Fs, std::vector<BlockOp> &F_dags);
