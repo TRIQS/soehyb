@@ -286,50 +286,6 @@ std::ostream &operator<<(std::ostream &os, BackboneSignature &B) {
   return os;
 }
 
-void multiply_vertex_dense(BackboneSignature &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
-                           nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags,
-                           nda::array_const_view<dcomplex, 4> Fdagbars, nda::array_const_view<dcomplex, 4> Fbarsrefl,
-                           int v_ix, // vertex index
-                           nda::array_view<dcomplex, 3> T) {
-  // @brief Multiply by a single vertex in a backbone diagram using dense storage
-  // @param[in] backbone BackboneSignature object
-  // @param[in] dlr_it DLR imaginary time nodes in relative ordering
-  // @param[in] dlr_rf DLR frequency nodes
-  // @param[in] Fs F operators
-  // @param[in] F_dags F^dag operators
-  // @param[in] Fdagbars F^{bar dag} operators
-  // @param[in] Fbarsrefl F^bar operators
-  // @param[in] v_ix vertex index to multiply
-  // @param[in] T array on which to left-multiply vertex
-
-  int r    = dlr_it.size();
-  int o_ix = backbone.get_vertex_orb(v_ix); // orbital index
-  int l_ix = backbone.get_pole_ind(backbone.get_vertex_pole_prime(v_ix));
-  // backbone.get_vertex_pole_prime(v_ix) = i, where i is the # of primes on l
-  // l_ix = value of l with i primes
-
-  if (backbone.has_vertex_bar(v_ix)) {   // F has bar
-    if (backbone.has_vertex_dag(v_ix)) { // F has dagger
-      for (int t = 0; t < r; t++) T(t, _, _) = nda::matmul(Fdagbars(o_ix, l_ix, _, _), T(t, _, _));
-    } else {
-      for (int t = 0; t < r; t++) T(t, _, _) = nda::matmul(Fbarsrefl(o_ix, l_ix, _, _), T(t, _, _));
-    }
-  } else {
-    if (backbone.has_vertex_dag(v_ix)) { // F has dagger
-      for (int t = 0; t < r; t++) T(t, _, _) = nda::matmul(F_dags(o_ix, _, _), T(t, _, _));
-    } else {
-      for (int t = 0; t < r; t++) T(t, _, _) = nda::matmul(Fs(o_ix, _, _), T(t, _, _));
-    }
-  }
-
-  // K factor
-  int bv      = backbone.get_vertex_Ksign(v_ix); // sign on K
-  double pole = dlr_rf(l_ix);
-  if (bv != 0) {
-    for (int t = 0; t < r; t++) { T(t, _, _) = k_it(dlr_it(t), bv * pole) * T(t, _, _); }
-  }
-}
-
 void multiply_vertex_dense(BackboneSignature &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf, DenseFSet &Fset,
                            int v_ix, // vertex index
                            nda::array_view<dcomplex, 3> T) {
@@ -412,49 +368,6 @@ void compose_with_edge_dense(BackboneSignature &backbone, imtime_ops &itops, nda
 }
 
 void multiply_zero_vertex(BackboneSignature &backbone, nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl,
-                          bool is_forward, nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags,
-                          nda::array_view<dcomplex, 4> Tkaps, nda::array_view<dcomplex, 3> Tmu, nda::array_view<dcomplex, 3> T) {
-  // @brief Multiply by the zero vertex and the vertex connected to zero
-  // @param[in] backbone BackboneSignature object
-  // @param[in] hyb hybridization function at imaginary time nodes
-  // @param[in] hyb_refl hyb evaluated at (beta - tau)
-  // @param[in] is_forward true if the line connected to the zero vertex is forward in time
-  // @param[in] Fs F operators
-  // @param[in] F_dags F^dag operators
-  // @param[in] Tkaps intermediate storage array
-  // @param[in] Tmu intermediate storage array
-  // @param[in] T array for storing result
-
-  int n = backbone.n;
-  int r = hyb.extent(0);
-  if (is_forward) {
-    for (int kap = 0; kap < n; kap++) {
-      for (int t = 0; t < r; t++) { Tkaps(kap, t, _, _) = nda::matmul(T(t, _, _), Fs(kap, _, _)); }
-    }
-    T = 0;
-    for (int mu = 0; mu < n; mu++) {
-      Tmu = 0;
-      for (int kap = 0; kap < n; kap++) {
-        for (int t = 0; t < r; t++) { Tmu(t, _, _) += hyb(t, mu, kap) * Tkaps(kap, t, _, _); }
-      }
-      for (int t = 0; t < r; t++) { T(t, _, _) += nda::matmul(F_dags(mu, _, _), Tmu(t, _, _)); }
-    }
-  } else {
-    for (int kap = 0; kap < n; kap++) {
-      for (int t = 0; t < r; t++) { Tkaps(kap, t, _, _) = nda::matmul(T(t, _, _), F_dags(kap, _, _)); }
-    }
-    T = 0;
-    for (int mu = 0; mu < n; mu++) {
-      Tmu = 0;
-      for (int kap = 0; kap < n; kap++) {
-        for (int t = 0; t < r; t++) { Tmu(t, _, _) += hyb_refl(t, mu, kap) * Tkaps(kap, t, _, _); }
-      }
-      for (int t = 0; t < r; t++) { T(t, _, _) += nda::matmul(Fs(mu, _, _), Tmu(t, _, _)); }
-    }
-  }
-}
-
-void multiply_zero_vertex(BackboneSignature &backbone, nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl,
                           bool is_forward, DenseFSet &Fset, nda::array_view<dcomplex, 4> Tkaps, nda::array_view<dcomplex, 3> Tmu,
                           nda::array_view<dcomplex, 3> T) {
   // @brief Multiply by the zero vertex and the vertex connected to zero
@@ -493,57 +406,6 @@ void multiply_zero_vertex(BackboneSignature &backbone, nda::array_const_view<dco
       }
       for (int t = 0; t < r; t++) { T(t, _, _) += nda::matmul(Fset.Fs(mu, _, _), Tmu(t, _, _)); }
     }
-  }
-}
-
-void eval_backbone_fixed_orbs_poles_lines_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
-                                                nda::array_view<dcomplex, 3> hyb_refl, nda::array_const_view<dcomplex, 3> Gt,
-                                                nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags,
-                                                nda::array_const_view<dcomplex, 4> Fdagbars, nda::array_const_view<dcomplex, 4> Fbarsrefl,
-                                                nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
-                                                nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt, nda::array_view<dcomplex, 4> Tkaps,
-                                                nda::array_view<dcomplex, 3> Tmu) {
-  // @brief Evaluate a backbone diagram for particular orbital indices, poles, and line directions in dense storage
-  // @param[in] backbone BackboneSignature object
-  // @param[in] beta inverse temperature
-  // @param[in] itops DLR imaginary time object
-  // @param[in] hyb hybridization function at imaginary time nodes
-  // @param[in] hyb_refl hyb evaluated at (beta - tau)
-  // @param[in] Gt Greens function
-  // @param[in] Fs annihilation operators
-  // @param[in] F_dags creation operators
-  // @param[in] Fdagbars linear combinations of F_dags
-  // @param[in] Fbarsrefl linear combinations of Fs
-  // @param[in] dlr_it DLR imaginary time nodes in relative ordering
-  // @param[in] dlr_rf DLR frequency nodes
-  // @param[in] T array for storing result
-  // @param[in] GKt array for storing result of edge computation
-  // @param[in] Tkaps intermediate storage array
-  // @param[in] Tmu intermediate storage array
-
-  int m = backbone.m;
-  // 1. Starting from tau_1, proceed right to left, performing
-  //    multiplications at vertices and convolutions at edges,
-  //    until reaching the vertex containing the undecomposed
-  //    hybridization line Delta_{mu kappa}
-  T = Gt; // T stores the result as you move right to left
-  // T is initialized with Gt, which is always the function at the rightmost edge
-  for (int v = 1; v < backbone.get_topology(0, 1); v++) { // loop from the first vertex to before the vertex connected to zero
-    multiply_vertex_dense(backbone, dlr_it, dlr_rf, Fs, F_dags, Fdagbars, Fbarsrefl, v, T);
-    compose_with_edge_dense(backbone, itops, dlr_it, dlr_rf, beta, Gt, v, T, GKt);
-  }
-
-  // 2. For each kappa, multiply by F_kappa(^dag). Then for each
-  //    mu, kappa, multiply by Delta_{mu kappa}, and sum over
-  //    kappa. Finally for each mu, multiply F_mu[^dag] and sum
-  //    over mu.
-  multiply_zero_vertex(backbone, hyb, hyb_refl, (not backbone.has_vertex_dag(0)), Fs, F_dags, Tkaps, Tmu, T);
-
-  // 3. Continue right to left until the final vertex
-  //    multiplication is complete.
-  for (int v = backbone.get_topology(0, 1) + 1; v < 2 * m; v++) { // loop from the next edge to the final vertex
-    compose_with_edge_dense(backbone, itops, dlr_it, dlr_rf, beta, Gt, v - 1, T, GKt);
-    multiply_vertex_dense(backbone, dlr_it, dlr_rf, Fs, F_dags, Fdagbars, Fbarsrefl, v, T);
   }
 }
 
@@ -592,64 +454,6 @@ void eval_backbone_fixed_orbs_poles_lines_dense(BackboneSignature &backbone, dou
     compose_with_edge_dense(backbone, itops, dlr_it, dlr_rf, beta, Gt, v - 1, T, GKt);
     multiply_vertex_dense(backbone, dlr_it, dlr_rf, Fset, v, T);
   }
-}
-
-void eval_backbone_fixed_poles_lines_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
-                                           nda::array_view<dcomplex, 3> hyb_refl, nda::array_const_view<dcomplex, 3> Gt,
-                                           nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags,
-                                           nda::array_const_view<dcomplex, 4> Fdagbars, nda::array_const_view<dcomplex, 4> Fbarsrefl,
-                                           nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
-                                           nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt, nda::array_view<dcomplex, 4> Tkaps,
-                                           nda::array_view<dcomplex, 3> Tmu, nda::vector_view<int> orb_inds, nda::array_view<dcomplex, 3> Sigma_L) {
-  // @brief Evaluate a backbone diagram with fixed poles, and line directions in dense storage
-  // @param[in] backbone BackboneSignature object
-  // @param[in] beta inverse temperature
-  // @param[in] itops DLR imaginary time object
-  // @param[in] hyb hybridization function at imaginary time nodes
-  // @param[in] hyb_refl hyb evaluated at (beta - tau)
-  // @param[in] Gt Greens function
-  // @param[in] Fs annihilation operators
-  // @param[in] F_dags creation operators
-  // @param[in] Fdagbars linear combinations of F_dags
-  // @param[in] Fbarsrefl linear combinations of Fs
-  // @param[in] dlr_it DLR imaginary time nodes in relative ordering
-  // @param[in] dlr_rf DLR frequency nodes
-  // @param[in] T array for storing result
-  // @param[in] GKt array for storing result of edge computation
-  // @param[in] Tkaps intermediate storage array
-  // @param[in] Tmu intermediate storage array
-  // @param[in] orb_inds vector of orbital indices
-  // @param[in] Sigma_L array for storing backbone result, including prefactor, over all orbital indices
-
-  int n = backbone.n, m = backbone.m;
-  // set up orbital (Greek) indices that are explicity summed over
-  for (int s = 0; s < pow(n, m - 1); s++) { // loop over all combos of orbital indices
-    int s0 = s;
-    // turn (int) s into a vector of orbital indices
-    for (int i = 1; i < m; i++) { // loop over lines, skipping the one connected to zero
-      orb_inds(backbone.get_topology(i, 0)) = s0 % n;
-      orb_inds(backbone.get_topology(i, 1)) = s0 % n;
-      // orbital indices on vertices connected by a line are the same
-      s0 = s0 / n;
-    }
-    backbone.set_orb_inds(orb_inds);
-    eval_backbone_fixed_orbs_poles_lines_dense(backbone, beta, itops, hyb, hyb_refl, Gt, Fs, F_dags, Fdagbars, Fbarsrefl, dlr_it, dlr_rf, T, GKt,
-                                               Tkaps, Tmu);
-    Sigma_L += T;
-    backbone.reset_orb_inds();
-  } // sum over orbital indices
-
-  // 4. Multiply by prefactor
-  for (int p = 0; p < m - 1; p++) {           // loop over pole indices
-    int exp = backbone.get_prefactor_Kexp(p); // exponent on K for this pole index
-    if (exp != 0) {
-      int Ksign = backbone.get_prefactor_Ksign(p);
-      double om = dlr_rf(backbone.get_pole_ind(p));
-      double k  = k_it(0, Ksign * om);
-      for (int q = 0; q < exp; q++) Sigma_L = Sigma_L / k;
-    }
-  }
-  Sigma_L = backbone.prefactor_sign * Sigma_L;
 }
 
 void eval_backbone_fixed_poles_lines_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
@@ -707,67 +511,6 @@ void eval_backbone_fixed_poles_lines_dense(BackboneSignature &backbone, double b
 }
 
 void eval_backbone_fixed_lines_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
-                                     nda::array_view<dcomplex, 3> hyb_refl, nda::array_const_view<dcomplex, 3> Gt,
-                                     nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags,
-                                     nda::array_const_view<dcomplex, 4> Fdagbars, nda::array_const_view<dcomplex, 4> Fbarsrefl,
-                                     nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf, nda::array_view<dcomplex, 3> T,
-                                     nda::array_view<dcomplex, 3> GKt, nda::array_view<dcomplex, 4> Tkaps, nda::array_view<dcomplex, 3> Tmu,
-                                     nda::vector_view<int> orb_inds, nda::array_view<dcomplex, 3> Sigma_L, nda::vector_view<int> pole_inds, int sign,
-                                     nda::array_view<dcomplex, 3> Sigma) {
-  // @brief Evaluate a backbone diagram with fixed line directions in dense storage
-  // @param[in] backbone BackboneSignature object
-  // @param[in] beta inverse temperature
-  // @param[in] itops DLR imaginary time object
-  // @param[in] hyb hybridization function at imaginary time nodes
-  // @param[in] hyb_refl hyb evaluated at (beta - tau)
-  // @param[in] Gt Greens function
-  // @param[in] Fs annihilation operators
-  // @param[in] F_dags creation operators
-  // @param[in] Fdagbars linear combinations of F_dags
-  // @param[in] Fbarsrefl linear combinations of Fs
-  // @param[in] dlr_it DLR imaginary time nodes in relative ordering
-  // @param[in] dlr_rf DLR frequency nodes
-  // @param[in] T array for storing result
-  // @param[in] GKt array for storing result of edge computation
-  // @param[in] Tkaps intermediate storage array
-  // @param[in] Tmu intermediate storage array
-  // @param[in] orb_inds vector of orbital indices
-  // @param[in] Sigma_L array for storing backbone result, including prefactor, over all orbital indices
-  // @param[in] pole_inds vector of pole indices (pole_inds)
-  // @param[in] sign (-1)^(f+m)
-  // @param[in] Sigma array for storing self-energy contribution
-
-  int r = itops.rank(), m = backbone.m;
-  // L = pole multiindex
-  for (int L = 0; L < pow(r, m - 1); L++) { // loop over all combinations of pole indices
-    Sigma_L = 0;
-
-    int L0 = L;
-    // turn (int) L into a vector of pole indices
-    for (int i = 0; i < m - 1; i++) {
-      pole_inds(i) = L0 % r;
-      L0           = L0 / r;
-    }
-    backbone.set_pole_inds(pole_inds, dlr_rf); // give pole indices to backbone object
-
-    // print a negative and positive pole diagram for each set of line directions
-    /*
-        if (L == 0 || L == pow(r,m-1)/4 || L == pow(r,m-1)/2 || L == 3*pow(r,m-1)/4) {
-            std::cout << "poles = ";
-            for (int i = 0; i < m-1; i++) {
-                std::cout << dlr_rf(pole_inds(i)) << ", ";
-            }
-            std::cout << backbone << std::endl;
-        }
-        */
-    eval_backbone_fixed_poles_lines_dense(backbone, beta, itops, hyb, hyb_refl, Gt, Fs, F_dags, Fdagbars, Fbarsrefl, dlr_it, dlr_rf, T, GKt, Tkaps,
-                                          Tmu, orb_inds, Sigma_L);
-    Sigma += sign * Sigma_L;
-    backbone.reset_pole_inds();
-  }
-}
-
-void eval_backbone_fixed_lines_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
                                      nda::array_view<dcomplex, 3> hyb_refl, nda::array_const_view<dcomplex, 3> Gt, DenseFSet &Fset,
                                      nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf, nda::array_view<dcomplex, 3> T,
                                      nda::array_view<dcomplex, 3> GKt, nda::array_view<dcomplex, 4> Tkaps, nda::array_view<dcomplex, 3> Tmu,
@@ -815,78 +558,6 @@ void eval_backbone_fixed_lines_dense(BackboneSignature &backbone, double beta, i
 
     backbone.reset_pole_inds();
   }
-}
-
-nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
-                                            nda::array_const_view<dcomplex, 3> Gt, nda::array_const_view<dcomplex, 3> Fs,
-                                            nda::array_const_view<dcomplex, 3> F_dags) {
-  // @brief Evaluate a single backbone diagram in dense storage
-  // @param[in] backbone BackboneSignature object
-  // @param[in] beta inverse temperature
-  // @param[in] itops DLR imaginary time object
-  // @param[in] hyb hybridization function at imaginary time nodes
-  // @param[in] Gt Greens function
-  // @param[in] Fs annihilation operators
-  // @param[in] F_dags creation operators
-
-  // index orders:
-  // Gt (time, N, N), where N = 2^n, n = number of orbital indices
-  // Fs (n, N, N)
-  // Fbars (n, r, N, N)
-
-  nda::vector_const_view<double> dlr_rf = itops.get_rfnodes();
-  nda::vector_const_view<double> dlr_it = itops.get_itnodes();
-  // number of imaginary time nodes
-  int r = dlr_it.extent(0);
-  int N = Gt.extent(1);
-  int m = backbone.m;
-
-  auto hyb_coeffs      = itops.vals2coefs(hyb); // hybridization DLR coeffs
-  auto hyb_refl        = nda::make_regular(-itops.reflect(hyb));
-  auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
-  int n                = Fs.extent(0);
-
-  // compute Fbars and Fdagbars
-  auto Fdagbars  = nda::array<dcomplex, 4>(n, r, N, N);
-  auto Fbarsrefl = nda::array<dcomplex, 4>(n, r, N, N);
-  for (int lam = 0; lam < n; lam++) {
-    for (int l = 0; l < r; l++) {
-      for (int nu = 0; nu < n; nu++) {
-        Fdagbars(lam, l, _, _) += hyb_coeffs(l, nu, lam) * F_dags(nu, _, _);
-        Fbarsrefl(nu, l, _, _) += hyb_refl_coeffs(l, nu, lam) * Fs(lam, _, _);
-      }
-    }
-  }
-
-  // initialize self-energy
-  nda::array<dcomplex, 3> Sigma(r, N, N), Sigma_temp(r, N, N);
-
-  // preallocate intermediate arrays
-  nda::array<dcomplex, 3> Sigma_L(r, N, N), T(r, N, N), Tmu(r, N, N), GKt(r, N, N);
-  // needed array and write into top-left corner
-  nda::array<dcomplex, 4> Tkaps(n, r, N, N);
-  // Sigma_l = term of self-energy assoc'd with pole l, rest are placeholders
-  // loop over hybridization lines
-
-  nda::vector<int> fb_vec(m), orb_inds(2 * m);
-  auto pole_inds = nda::zeros<int>(m - 1);
-
-  for (int fb = 0; fb < pow(2, m); fb++) { // loop over 2^m combos of for/backward lines
-    int fb0 = fb;
-    // turn (int) fb into a vector of 1s and 0s corresp. to forward, backward lines, resp.
-    for (int i = 0; i < m; i++) {
-      fb_vec(i) = fb0 % 2;
-      fb0       = fb0 / 2;
-    }
-    backbone.set_directions(fb_vec); // give line directions to backbone object
-    int sign = ((fb + m) % 2 == 0) ? 1 : -1;
-    // std::cout << "\nDiagrams, fb = " << fb << std::endl;
-    eval_backbone_fixed_lines_dense(backbone, beta, itops, hyb, hyb_refl, Gt, Fs, F_dags, Fdagbars, Fbarsrefl, dlr_it, dlr_rf, T, GKt, Tkaps, Tmu,
-                                    orb_inds, Sigma_L, pole_inds, sign, Sigma);
-    backbone.reset_directions();
-  } // sum over forward/backward lines
-
-  return Sigma;
 }
 
 nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
