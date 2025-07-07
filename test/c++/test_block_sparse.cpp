@@ -630,6 +630,7 @@ TEST(Backbone, one_vertex_and_edge) {
       }
     }
   }
+  auto Fset = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
 
   // initialize backbone
   auto BB             = BackboneSignature(topology, n);
@@ -646,7 +647,7 @@ TEST(Backbone, one_vertex_and_edge) {
   nda::vector<int> states = {1, 0, 2, 3, 4, 5};
 
   // multiply T by vertex 1
-  multiply_vertex_dense(BB, dlr_it, dlr_rf, Fs_dense, F_dags_dense, Fdagbars, Fbarsrefl, 1, T);
+  multiply_vertex_dense(BB, dlr_it, dlr_rf, Fset, 1, T);
   std::cout << BB << std::endl;
 
   // do the same mulplication manually
@@ -706,13 +707,11 @@ TEST(Backbone, OCA) {
 
   auto BB = BackboneSignature(topology, n);
 
-  auto OCA_result       = eval_backbone_dense(BB, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense);
-  auto OCA_result_2     = eval_backbone_dense(BB, beta, itops, Deltat, Gt_dense, Fset);
+  auto OCA_result     = eval_backbone_dense(BB, beta, itops, Deltat, Gt_dense, Fset);
   auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
 
   std::cout << "OCA generic result = " << OCA_result(10, _, _) << std::endl;
   std::cout << "OCA dense result = " << OCA_dense_result(10, _, _) << std::endl;
-  ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_result_2)), 1e-12);
   ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_dense_result)), 1e-12);
 }
 
@@ -747,6 +746,7 @@ TEST(Backbone, third_order_manual) {
       }
     }
   }
+  auto Fset = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
 
   // compute self-energy contribution of one third-order diagram topology,
   // with all forward hybridization lines and particular poles
@@ -761,7 +761,7 @@ TEST(Backbone, third_order_manual) {
   nda::array<dcomplex, 3> T(r, N, N), GKt(r, N, N), Tmu(r, N, N), Sigma_generic(r, N, N);
   nda::array<dcomplex, 4> Tkaps(n, r, N, N);
   nda::vector<int> states(6);
-  eval_backbone_fixed_poles_lines_dense(B, beta, itops, Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense, Fdagbars, Fbarsrefl, dlr_it, dlr_rf, T,
+  eval_backbone_fixed_poles_lines_dense(B, beta, itops, Deltat, Deltat_refl, Gt_dense, Fset, dlr_it, dlr_rf, T,
                                         GKt, Tkaps, Tmu, states, Sigma_generic);
 
   ASSERT_LE(nda::max_element(nda::abs(Sigma_manual(10, _, _) - Sigma_generic(10, _, _))), 1e-10);
@@ -798,7 +798,7 @@ TEST(Backbone, third_order) {
   auto NCA_result          = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
   nda::array<int, 2> T_OCA = {{0, 2}, {1, 3}};
   auto B_OCA               = BackboneSignature(T_OCA, n);
-  auto OCA_result          = eval_backbone_dense(B_OCA, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense);
+  auto OCA_result          = eval_backbone_dense(B_OCA, beta, itops, Deltat, Gt_dense, Fset);
 
   // arrays for storing results from third-order diagram computations
   auto third_order_result      = nda::zeros<dcomplex>(r, N, N);
@@ -812,7 +812,7 @@ TEST(Backbone, third_order) {
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < 4; i++) {
     auto B    = BackboneSignature(topologies(i, _, _), n);
-    auto eval = eval_backbone_dense(B, beta, itops, Deltat, Gt_dense, Fs_dense, F_dags_dense);
+    auto eval = eval_backbone_dense(B, beta, itops, Deltat, Gt_dense, Fset);
     third_order_result += topo_sign(i) * eval;
     if (i == 0)
       third_order_02_result = eval;
@@ -826,16 +826,6 @@ TEST(Backbone, third_order) {
   auto end      = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
   std::cout << "Elapsed time for dense comp'n of 3rd order diags = " << duration.count() << " seconds" << std::endl;
-
-  start = std::chrono::high_resolution_clock::now();
-  for (int i = 0; i < 4; i++) {
-    auto B    = BackboneSignature(topologies(i, _, _), n);
-    auto eval = eval_backbone_dense(B, beta, itops, Deltat, Gt_dense, Fset);
-    third_order_result_Fset += topo_sign(i) * eval;
-  }
-  end      = std::chrono::high_resolution_clock::now();
-  duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
-  std::cout << "with Fset = " << duration.count() << " seconds" << std::endl;
 
   // load results from a run of twoband.py
   h5::file hfile("/home/paco/feynman/soehyb/test/c++/h5/two_band_py_Lambda10.h5", 'r');

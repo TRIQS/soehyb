@@ -63,14 +63,6 @@ int BlockDiagOpFun::get_num_block_cols() const { return num_block_cols; }
 
 int BlockDiagOpFun::get_zero_block_index(int i) const { return zero_block_indices(i); }
 
-void BlockDiagOpFun::set_blocks_dlr_coeffs(imtime_ops &itops) {
-  for (int i = 0; i < num_block_cols; i++) { blocks_dlr_coeffs[i] = itops.vals2coefs(blocks[i]); }
-}
-
-const std::vector<nda::array<dcomplex, 3>> &BlockDiagOpFun::get_blocks_dlr_coeffs() const { return blocks_dlr_coeffs; }
-
-nda::array_const_view<dcomplex, 3> BlockDiagOpFun::get_block_dlr_coeffs(int i) const { return blocks_dlr_coeffs[i]; }
-
 int BlockDiagOpFun::get_num_time_nodes() const {
   for (int i = 0; i < num_block_cols; i++) {
     if (zero_block_indices(i) != -1) { return blocks[i].shape(0); }
@@ -261,16 +253,6 @@ nda::vector<int> BlockOpFun::get_block_size(int i) const {
   return block_size;
 }
 
-void BlockOpFun::set_blocks_dlr_coeffs(imtime_ops &itops) {
-  for (int i = 0; i < num_block_cols; i++) {
-    if (block_indices(i) != -1) { blocks_dlr_coeffs[i] = itops.vals2coefs(blocks[i]); }
-  }
-}
-
-const std::vector<nda::array<dcomplex, 3>> &BlockOpFun::get_blocks_dlr_coeffs() { return blocks_dlr_coeffs; }
-
-nda::array_const_view<dcomplex, 3> BlockOpFun::get_block_dlr_coeffs(int i) const { return blocks_dlr_coeffs[i]; }
-
 int BlockOpFun::get_num_time_nodes() const {
   for (int i = 0; i < num_block_cols; i++) {
     if (block_indices(i) != -1) { return blocks[i].shape(0); }
@@ -279,6 +261,7 @@ int BlockOpFun::get_num_time_nodes() const {
 }
 
 /////////////// DenseFSet class ///////////////
+
 DenseFSet::DenseFSet(nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags, nda::array_const_view<dcomplex, 3> hyb_coeffs,
                      nda::array_const_view<dcomplex, 3> hyb_refl_coeffs)
    : Fs(Fs), F_dags(F_dags) {
@@ -297,6 +280,10 @@ DenseFSet::DenseFSet(nda::array_const_view<dcomplex, 3> Fs, nda::array_const_vie
     }
   }
 }
+
+/////////////// BlockOpSymSet class ///////////////
+
+////////////// BlockOpSymQuartet class ///////////////
 
 /////////////// Utilities and operator overrides ///////////////
 

@@ -9,23 +9,17 @@
 
 using namespace nda;
 
-// TODO:
-// templates for double/dcomplex
-// convolve on values, not DLR coeffs
+// TODO templates for double/dcomplex
 
 /**
- * @class BlockDiagOpFun
+ * @class BlockDiagOpFun (BDOF)
  * @brief Block-sparse storage of time-dependent block-diagonal operator (e.g. Green's f'n)
  */
-// TODO: Does this need to be a class? Or should we just define a type
-// BlockDiagOpFun which is an std::vector<nda::array<dcomplex,3>>?
-// Maybe yes -- class could also have DLR info?
 class BlockDiagOpFun {
   private:
   std::vector<nda::array<dcomplex, 3>> blocks;
   int num_block_cols;
   nda::vector<int> zero_block_indices;
-  std::vector<nda::array<dcomplex, 3>> blocks_dlr_coeffs;
 
   public:
   BlockDiagOpFun &operator+=(const BlockDiagOpFun &G);
@@ -38,9 +32,6 @@ class BlockDiagOpFun {
   int get_max_block_size() const;
   int get_num_block_cols() const;
   int get_zero_block_index(int i) const;
-  void set_blocks_dlr_coeffs(imtime_ops &itops);
-  const std::vector<nda::array<dcomplex, 3>> &get_blocks_dlr_coeffs() const;
-  nda::array_const_view<dcomplex, 3> get_block_dlr_coeffs(int i) const;
   int get_num_time_nodes() const;
   void add_block(int i, nda::array_const_view<dcomplex, 3> block);
   static std::string hdf5_format();
@@ -63,7 +54,7 @@ class BlockDiagOpFun {
 };
 
 /**
- * @class BlockOp
+ * @class BlockOp (BO)
  * @brief Block-sparse storage of F or F^dagger
  */
 class BlockOp {
@@ -105,7 +96,7 @@ class BlockOp {
 };
 
 /**
- * @class BlockOpFun
+ * @class BlockOpFun (BOF)
  * @brief Block-sparse storage of an arbitrary time-dependent operator
  */
 class BlockOpFun {
@@ -113,7 +104,6 @@ class BlockOpFun {
   nda::vector<int> block_indices;
   std::vector<nda::array<dcomplex, 3>> blocks;
   int num_block_cols;
-  std::vector<nda::array<dcomplex, 3>> blocks_dlr_coeffs;
 
   public:
   BlockOpFun &operator+=(const BlockOpFun &A);
@@ -128,9 +118,6 @@ class BlockOpFun {
   int get_num_block_cols() const;
   nda::array<int, 2> get_block_sizes() const;
   nda::vector<int> get_block_size(int i) const;
-  void set_blocks_dlr_coeffs(imtime_ops &itops);
-  const std::vector<nda::array<dcomplex, 3>> &get_blocks_dlr_coeffs();
-  nda::array_const_view<dcomplex, 3> get_block_dlr_coeffs(int i) const;
   int get_num_time_nodes() const;
 
   /**
@@ -145,14 +132,14 @@ class BlockOpFun {
      * @brief Constructor for BlockOpFun with blocks of zeros
      * @param[in] r number of imaginary time nodes
      * @param[in] block_indices vector of block-col-indices
-     * @param[in] block_sizes vector of sizes of diagonal blocks
+     * @param[in] block_sizes vector of sizes of blocks
      */
   BlockOpFun(int r, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes);
 };
 
 /**
  * @class DenseFSet
- * @brief Container for (linear combinations of) creation and annihilation operators
+ * @brief Container for (linear combinations of) creation and annihilation operators in dense storage
  */
 class DenseFSet {
   public:
