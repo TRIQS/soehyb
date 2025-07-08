@@ -1,6 +1,6 @@
 .. _about:
 
-About triqs_soehyb
+About soehyb
 ******************
 
 The TRIQS Sum-Of-Exponentials bold HYBridization expansion impurity solver.
