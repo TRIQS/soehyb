@@ -54,7 +54,7 @@ class TriqsSolver:
         self.S.G_iaa = self.S.G0_iaa.copy() # Fixme: use S.__setup_initial_guess?
 
         self.delta_iaa = self.__from_blockgf_to_array(self.Delta_tau)
-        self.S.set_hybridization(self.delta_iaa)
+        self.S.set_hybridization(self.delta_iaa, compress=True)
 
         self.S.solve(order, **kwargs)
 
