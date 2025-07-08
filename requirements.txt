@@ -2,6 +2,7 @@
 mako
 numpy
 scipy
+sympy
 # For documentation builds we additionaly require
 #sphinx
 #numpydoc
