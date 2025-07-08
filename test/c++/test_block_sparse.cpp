@@ -1,8 +1,10 @@
 #include <chrono>
 #include <cppdlr/dlr_imfreq.hpp>
+#include <cppdlr/dlr_imtime.hpp>
 #include <cppdlr/dlr_kernels.hpp>
 #include <h5/complex.hpp>
 #include <h5/object.hpp>
+#include <iostream>
 #include <limits>
 #include <nda/algorithms.hpp>
 #include <nda/basic_functions.hpp>
@@ -331,13 +333,13 @@ TEST(BlockSparseNCA, two_band_discrete_bath) {
   }
 
   // check that dense NCA and OCA calculations agree with twoband.py
-  ASSERT_LE(nda::max_element(nda::abs(NCA_dense_result - NCA_py_perm)), 10*eps);
+  ASSERT_LE(nda::max_element(nda::abs(NCA_dense_result - NCA_py_perm)), 10 * eps);
 
   // check that block-sparse NCA and OCA calculations agree with twoband.py
   int s0 = 0;
   int s1 = subspaces[0].size();
   for (int i = 0; i < num_blocks; i++) { // compare each block
-    ASSERT_LE(nda::max_element(nda::abs(NCA_result.get_block(i) - NCA_py_perm(_, range(s0, s1), range(s0, s1)))), 10*eps);
+    ASSERT_LE(nda::max_element(nda::abs(NCA_result.get_block(i) - NCA_py_perm(_, range(s0, s1), range(s0, s1)))), 10 * eps);
     s0 = s1;
     if (i < num_blocks - 1) s1 += subspaces[i + 1].size();
   }
@@ -613,9 +615,6 @@ TEST(Backbone, one_vertex_and_edge) {
   auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
   int r              = itops.rank();
 
-  nda::array<dcomplex, 3> T(r, N, N);
-  for (int t = 0; t < r; t++) T(t, _, _) = nda::eye<dcomplex>(N);
-
   // compute Fbars and Fdagbars
   auto hyb_coeffs      = itops.vals2coefs(Deltat); // hybridization DLR coeffs
   auto hyb_refl        = nda::make_regular(-itops.reflect(Deltat));
@@ -632,42 +631,44 @@ TEST(Backbone, one_vertex_and_edge) {
   }
   auto Fset = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
 
-  // initialize backbone
-  auto BB             = BackboneSignature(topology, n);
-  int fb1             = 0;
-  nda::vector<int> fb = {1, fb1, 0};
-  // set line directions
-  BB.set_directions(fb);
+  for (int fb1 = 0; fb1 <= 1; fb1++) {
+    // initialize backbone
+    auto BB = BackboneSignature(topology, n);
+    nda::array<dcomplex, 3> T(r, N, N);
+    for (int t = 0; t < r; t++) T(t, _, _) = nda::eye<dcomplex>(N);
 
-  // set pole indices
-  nda::vector<int> pole_inds = {0, r - 1};
-  BB.set_pole_inds(pole_inds, dlr_rf);
+    nda::vector<int> fb = {1, fb1, 0};
+    // set line directions
+    BB.set_directions(fb);
 
-  // set orbital indices
-  nda::vector<int> states = {1, 0, 2, 3, 4, 5};
+    // set pole indices
+    nda::vector<int> pole_inds = {0, r - 1};
+    BB.set_pole_inds(pole_inds, dlr_rf);
 
-  // multiply T by vertex 1
-  multiply_vertex_dense(BB, dlr_it, dlr_rf, Fset, 1, T);
-  std::cout << BB << std::endl;
+    // multiply T by vertex 1
+    multiply_vertex_dense(BB, dlr_it, dlr_rf, Fset, 1, T);
+    std::cout << BB << std::endl;
 
-  // do the same mulplication manually
-  nda::array<dcomplex, 3> Tact(r, N, N);
-  if (fb1 == 1) {
-    for (int t = 0; t < r; t++) Tact(t, _, _) = k_it(dlr_it(t), -dlr_rf(pole_inds(0))) * Fs_dense(0, _, _);
-  } else {
-    for (int t = 0; t < r; t++) Tact(t, _, _) = F_dags_dense(0, _, _);
-  }
-  ASSERT_LE(nda::max_element(nda::abs(T - Tact)), 1e-12);
+    // do the same mulplication manually
+    nda::array<dcomplex, 3> Tact(r, N, N);
+    if (fb1 == 1) {
+      for (int t = 0; t < r; t++) Tact(t, _, _) = k_it(dlr_it(t), -dlr_rf(pole_inds(0))) * Fs_dense(0, _, _);
+    } else {
+      for (int t = 0; t < r; t++) Tact(t, _, _) = F_dags_dense(0, _, _);
+    }
+    ASSERT_LE(nda::max_element(nda::abs(T - Tact)), 1e-12);
 
-  // check that function on first edge is correct
-  nda::array<dcomplex, 3> GKt(r, N, N);
-  compute_edge_dense(BB, dlr_it, dlr_rf, Gt_dense, 1, GKt);
-  if (fb1 == 1) {
-    ASSERT_LE(nda::max_element(nda::abs(GKt - Gt_dense)), 1e-12);
-  } else {
-    nda::array<dcomplex, 3> GKt_act(r, N, N);
-    for (int t = 0; t < r; t++) GKt_act(t, _, _) = k_it(dlr_it(t), -dlr_rf(pole_inds(0))) * Gt_dense(t, _, _);
-    ASSERT_LE(nda::max_element(nda::abs(GKt - GKt_act)), 1e-12);
+    // check that convolution with function on first edge is correct
+    nda::array<dcomplex, 3> GKt(r, N, N);
+    compose_with_edge_dense(BB, itops, dlr_it, dlr_rf, beta, Gt_dense, 1, T, GKt);
+    if (fb1 == 1) {
+      Tact = itops.convolve(beta, Fermion, itops.vals2coefs(Gt_dense), itops.vals2coefs(Tact), TIME_ORDERED);
+    } else {
+      nda::array<dcomplex, 3> GKt_act(r, N, N);
+      for (int t = 0; t < r; t++) GKt_act(t, _, _) = k_it(dlr_it(t), -dlr_rf(pole_inds(0))) * Gt_dense(t, _, _);
+      Tact = itops.convolve(beta, Fermion, itops.vals2coefs(GKt_act), itops.vals2coefs(Tact), TIME_ORDERED);
+    }
+    ASSERT_LE(nda::max_element(nda::abs(T - Tact)), 1e-12);
   }
 }
 
@@ -708,7 +709,7 @@ TEST(Backbone, OCA) {
 
   auto BB = BackboneSignature(topology, n);
 
-  auto OCA_result     = eval_backbone_dense(BB, beta, itops, Deltat, Gt_dense, Fset);
+  auto OCA_result       = eval_backbone_dense(BB, beta, itops, Deltat, Gt_dense, Fset);
   auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
 
   std::cout << "OCA generic result = " << OCA_result(10, _, _) << std::endl;
@@ -762,8 +763,8 @@ TEST(Backbone, third_order_manual) {
   nda::array<dcomplex, 3> T(r, N, N), GKt(r, N, N), Tmu(r, N, N), Sigma_generic(r, N, N);
   nda::array<dcomplex, 4> Tkaps(n, r, N, N);
   nda::vector<int> states(6);
-  eval_backbone_fixed_poles_lines_dense(B, beta, itops, Deltat, Deltat_refl, Gt_dense, Fset, dlr_it, dlr_rf, T,
-                                        GKt, Tkaps, Tmu, states, Sigma_generic);
+  eval_backbone_fixed_poles_lines_dense(B, beta, itops, Deltat, Deltat_refl, Gt_dense, Fset, dlr_it, dlr_rf, T, GKt, Tkaps, Tmu, states,
+                                        Sigma_generic);
 
   ASSERT_LE(nda::max_element(nda::abs(Sigma_manual(10, _, _) - Sigma_generic(10, _, _))), 1e-10);
 }

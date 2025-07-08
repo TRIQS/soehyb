@@ -5,16 +5,13 @@
 
 using namespace nda;
 
-// Constructor for BackboneVertex, an abstract representation of a backbone vertex
 BackboneVertex::BackboneVertex() : bar(false), dag(false), pole_prime(0), Ksign(0), orb(0) { ; }
 
-bool BackboneVertex::has_bar() { return bar; } // true if the F on this vertex has a bar
-bool BackboneVertex::has_dag() { return dag; } // true if the F on this vertex has a dagger
-int BackboneVertex::get_pole_prime() {
-  return pole_prime;
-} // which of l, l`, ... is associated with the K (and possibly F^bar) on this vertex, i.e., the number of primes on l
-int BackboneVertex::get_Ksign() { return Ksign; } // 1 if K^+, -1 if K^-, 0 if no K
-int BackboneVertex::get_orb() { return orb; }     // value of orbital index on this vertex
+bool BackboneVertex::has_bar() { return bar; }
+bool BackboneVertex::has_dag() { return dag; }
+int BackboneVertex::get_pole_prime() { return pole_prime; }
+int BackboneVertex::get_Ksign() { return Ksign; }
+int BackboneVertex::get_orb() { return orb; }
 
 void BackboneVertex::set_bar(bool b) { bar = b; }
 void BackboneVertex::set_dag(bool b) { dag = b; }
@@ -22,40 +19,13 @@ void BackboneVertex::set_pole_prime(int i) { pole_prime = i; }
 void BackboneVertex::set_Ksign(int i) { Ksign = i; }
 void BackboneVertex::set_orb(int i) { orb = i; }
 
-BackboneSignature::BackboneSignature(nda::array<int, 2> topology, int n)
-   : topology(topology),
-     m(topology.extent(0)),
-     n(n), // e.g. 2CA, m = 3, topology has 3 lines
-     prefactor_sign(1) {
+BackboneSignature::BackboneSignature(nda::array<int, 2> topology, int n) : topology(topology), m(topology.extent(0)), n(n), prefactor_sign(1) {
 
   prefactor_Ksigns = nda::vector<int>(m - 1, 0);
-  // for each of m-1 pole indices (l, l`, ...), the sign on K_l^?(0)
-  prefactor_Kexps = nda::vector<int>(m - 1, 0);
-  // for each of m-1 pole_indices, the exponent on K_l(0)^?
-
-  auto dummy = BackboneVertex();
-  vertices   = std::vector<BackboneVertex>(2 * m, dummy);
-
-  edges = nda::zeros<int>(2 * m - 1, m - 1);
-  // 2*m-1 = # edges; m-1: each pole index
-  // all entries are +/-1 or 0
-  // edges(e,p) = if +/-1, +/- on K_l^?(tau) on edge e, where l has p primes
-  // else, edges(e,p) = 0, and there is not K_l^?(tau) on edge e
-  // Example: if edges(3,2) = -1, then the third edge has K_{l''}^{-1}(tau)
-  /*            pole index      
-              | l | l' | l'' | ... 
-         -------------------------
-         0    |   |    |     |    
-     e   -------------------------
-     d   1    |   |    |     |    
-     g   -------------------------
-     e   2    |   |    |     |    
-     #   -------------------------
-         ...  |   |    |     |    
-         -------------------------
-         2*m-2|   |    |     |    
-         -------------------------
-    */
+  prefactor_Kexps  = nda::vector<int>(m - 1, 0);
+  auto dummy       = BackboneVertex();
+  vertices         = std::vector<BackboneVertex>(2 * m, dummy);
+  edges            = nda::zeros<int>(2 * m - 1, m - 1);
 }
 
 void BackboneSignature::set_directions(nda::vector_const_view<int> fb) {
@@ -192,9 +162,6 @@ int BackboneSignature::get_topology(int i, int j) { return topology(i, j); }
 int BackboneSignature::get_pole_ind(int i) { return pole_inds(i); }
 
 std::ostream &operator<<(std::ostream &os, BackboneSignature &B) {
-  // @brief Print BackboneSignature to output stream
-  // @param[in] os output stream
-  // @param[in] B BackboneSignature
 
   std::string p_str = "1 / (";
   int sign          = B.prefactor_sign;
@@ -318,10 +285,10 @@ void multiply_vertex_dense(BackboneSignature &backbone, nda::vector_const_view<d
   }
 }
 
-void compute_edge_dense(BackboneSignature &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
-                        nda::array_const_view<dcomplex, 3> Gt,
-                        int e_ix, // edge index
-                        nda::array_view<dcomplex, 3> GKt) {
+void compose_with_edge_dense(BackboneSignature &backbone, imtime_ops &itops, nda::vector_const_view<double> dlr_it,
+                             nda::vector_const_view<double> dlr_rf, double beta, nda::array_const_view<dcomplex, 3> Gt,
+                             int e_ix, // edge index
+                             nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt) {
 
   GKt   = Gt;
   int m = backbone.m;
@@ -332,14 +299,6 @@ void compute_edge_dense(BackboneSignature &backbone, nda::vector_const_view<doub
       for (int t = 0; t < r; t++) { GKt(t, _, _) = k_it(dlr_it(t), be * dlr_rf(backbone.get_pole_ind(x))) * GKt(t, _, _); }
     }
   }
-}
-
-void compose_with_edge_dense(BackboneSignature &backbone, imtime_ops &itops, nda::vector_const_view<double> dlr_it,
-                             nda::vector_const_view<double> dlr_rf, double beta, nda::array_const_view<dcomplex, 3> Gt,
-                             int e_ix, // edge index
-                             nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt) {
-
-  compute_edge_dense(backbone, dlr_it, dlr_rf, Gt, e_ix, GKt);
   T = itops.convolve(beta, Fermion, itops.vals2coefs(GKt), itops.vals2coefs(T), TIME_ORDERED);
 }
 

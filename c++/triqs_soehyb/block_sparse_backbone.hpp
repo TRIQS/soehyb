@@ -9,9 +9,12 @@ using namespace nda;
 /**
  * @class BackboneVertex
  * @brief Abstract representation of a backbone vertex
+ * @note This is a lightweight class used to represent a vertex in a backbone diagram. Specifically, it says whether this vertex has a creation 
+ * @note operator, an annihilation operator, or a linear combination of one of these with coefficients from a decomposition of a hybridization
+ * @note function. It also stores which hybridization index (l, l`, ...) is associated with the K on this vertex, the sign on K, and the orbital
+ * @note index on the operator. All of this information is specified by integer indices, since evaluation is left to the DiagramEvaluator class. 
  */
- // TODO: describe in a bit more detail conceptually what this class is
- // TODO: change name of "pole prime" index to "hybridization index" throughout
+// TODO: change name of "pole prime" index to "hybridization index" throughout
 class BackboneVertex {
   private:
   bool bar;       // true if the F on this vertex has a bar
@@ -34,31 +37,54 @@ class BackboneVertex {
   void set_orb(int i);
 
   /**
-     * @brief Constructor for BackboneVertex
-     */
+   * @brief Constructor for BackboneVertex
+   */
   BackboneVertex();
 };
 
 /**
  * @class BackboneSignature
  * @brief Abstract representation of a backbone diagram
+ * @note This is a lightweight class used to represent a backbone diagram of a specific order and topology. Its attributes contain information about 
+ * @note the prefactor; the locations, signs, and hybridization indices of the K's on the edges; and the vertices (see documentation for 
+ * @note BackboneVertex). For a given order and topology, the aforementioned information is fixed by the directions of the hybridization lines,
+ * @note the signs of the values of the hybridization indices, and the orbital indices on the vertices. These can be set and reset by methods of this 
+ * @note class so that a single BackboneSignature object can be reused for all backbones of a given order and topology. All of this information is 
+ * @note specified by integer and Boolean indices, since evaluation is left to the DiagramEvaluator class.
  */
- // TODO: describe in a bit more detail conceptually what this class is
- // TODO: rename BackboneSignature class to Backbone
+// TODO: rename BackboneSignature class to Backbone
 class BackboneSignature {
   private:
   nda::array<int, 2> topology;
 
-  nda::vector<int> prefactor_Ksigns;
-  nda::vector<int> prefactor_Kexps;
+  nda::vector<int> prefactor_Ksigns; // for each of m-1 pole indices (l, l`, ...), the sign on K_l^?(0)
+  nda::vector<int> prefactor_Kexps;  // for each of m-1 pole_indices, the exponent on K_l(0)^?
   nda::array<int, 2> edges;
-  nda::vector<int> fb;
-  nda::vector<int> pole_inds;
+  // all entries are +/-1 or 0
+  // edges(e,p) = if +/-1, +/- on K_l^?(tau) on edge e, where l has p primes
+  // else, edges(e,p) = 0, and there is not K_l^?(tau) on edge e
+  // Example: if edges(3,2) = -1, then the third edge has K_{l''}^{-1}(tau)
+  /*            pole index      
+              | l | l' | l'' | ... 
+         -------------------------
+         0    |   |    |     |    
+     e   -------------------------
+     d   1    |   |    |     |    
+     g   -------------------------
+     e   2    |   |    |     |    
+     #   -------------------------
+         ...  |   |    |     |    
+         -------------------------
+         2*m-2|   |    |     |    
+         -------------------------
+    */
+  nda::vector<int> fb;        // directions of the hybridization lines, 0 for backward, 1 for forward
+  nda::vector<int> pole_inds; // values of the hybridization indices (l, l`, ...)
 
   public:
-  int m; // order
-  int n; // number of orbital indices
-  int prefactor_sign;
+  int m;              // order
+  int n;              // number of orbital indices
+  int prefactor_sign; // +1 or -1, depending on the sign of the prefactor
   std::vector<BackboneVertex> vertices;
 
   void set_directions(nda::vector_const_view<int> fb);
@@ -82,11 +108,11 @@ class BackboneSignature {
   int get_pole_ind(int i);
 
   /**
-     * @brief Constructor for BackboneSignature
-     * 
-     * @param[in] topology list of vertices connected by a hybridization line
-     * @param[in] n number of orbital indices
-     */
+   * @brief Constructor for BackboneSignature
+   * 
+   * @param[in] topology list of vertices connected by a hybridization line
+   * @param[in] n number of orbital indices
+   */
   BackboneSignature(nda::array<int, 2> topology, int n);
 };
 
@@ -110,18 +136,6 @@ void multiply_vertex_dense(BackboneSignature &backbone, nda::vector_const_view<d
                            int v_ix, nda::array_view<dcomplex, 3> T);
 
 // TODO: merge compute_edge_dense into compose_with_edge_dense
-
-/**
- * @brief Compute a single edge in a backbone diagram using dense storage
- * @param[in] backbone BackboneSignature object
- * @param[in] dlr_it DLR imaginary time nodes in relative ordering
- * @param[in] dlr_rf DLR frequency nodes
- * @param[in] Gt Green's function
- * @param[in] e_ix edge index to compute
- * @param[in] GKt array for storing result
- */
-void compute_edge_dense(BackboneSignature &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
-                        nda::array_const_view<dcomplex, 3> Gt, int e_ix, nda::array_view<dcomplex, 3> GKt);
 
 /**
  * @brief Convolve with a single edge in a backbone diagram using dense storage
@@ -251,15 +265,8 @@ nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone, double 
  * @param[in] T array on which to left-multiply vertex
  * @param[in] block_dims {# cols vertex, # rows vertex}
  */
-void multiply_vertex_block(
-    BackboneSignature& backbone, 
-    nda::vector_const_view<double> dlr_it, 
-    nda::vector_const_view<double> dlr_rf, 
-    BlockOpSymQuartet& Fset, 
-    int v_ix, 
-    int b_ix, 
-    nda::array_view<dcomplex,3> T, 
-    nda::vector_const_view<int> block_dims); 
+void multiply_vertex_block(BackboneSignature &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
+                           BlockOpSymQuartet &Fset, int v_ix, int b_ix, nda::array_view<dcomplex, 3> T, nda::vector_const_view<int> block_dims);
 
 /**
  * @brief Compute a block of a single edge in a backbone diagram
@@ -300,10 +307,5 @@ void compose_with_edge_block(BackboneSignature &backbone, imtime_ops &itops, nda
  * @param[in] Gt Greens function
  * @param[in] Fset BlockOpSymQuartet
  */
-BlockDiagOpFun eval_backbone(
-    BackboneSignature &backbone, 
-    double beta, 
-    imtime_ops &itops, 
-    nda::array_const_view<dcomplex, 3> hyb, 
-    BlockDiagOpFun& Gt, 
-    BlockOpSymQuartet& Fset);
+BlockDiagOpFun eval_backbone(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb, BlockDiagOpFun &Gt,
+                             BlockOpSymQuartet &Fset);

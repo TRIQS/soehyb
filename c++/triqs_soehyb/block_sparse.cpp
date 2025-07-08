@@ -264,7 +264,7 @@ int BlockOpFun::get_num_time_nodes() const {
   for (int i = 0; i < num_block_cols; i++) {
     if (block_indices(i) != -1) { return blocks[i].shape(0); }
   }
-  return 0; // BlockDiagOpFun is all zeros anyways
+  return 0; // BlockOpFun is all zeros anyways
 }
 
 /////////////// DenseFSet class ///////////////
@@ -304,6 +304,46 @@ int BlockOpSymSet::get_size_sym_set() const {
 }
 
 ////////////// BlockOpSymQuartet class ///////////////
+
+BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<BlockOpSymSet> F_dags, nda::array_const_view<dcomplex, 3> hyb_coeffs,
+                                       nda::array_const_view<dcomplex, 3> hyb_refl_coeffs)
+   : Fs(Fs), F_dags(F_dags) {
+
+  // Fs and F_dags are vectors of BOSS
+  // Each entry corresponds to a set of operators with the same block-sparse structure
+  // Fs and F_dags have the same number of entries
+  // if k = # of entries of Fs, and each entry f_i has q_i operators, then n = sum(q_i) = number of orbital indices
+  int k = Fs.size();
+  if (k != F_dags.size()) {
+    throw std::invalid_argument("Fs and F_dags must have the same number of entries");
+  }
+
+  // initialize F_dag_bars and F_bars_refl
+  std::vector<std::vector<BlockOpSymSet>> F_dag_bars(k);
+  std::vector<std::vector<BlockOpSymSet>> F_bars_refl(k);
+  int r = hyb_coeffs.extent(0);
+  for (int i = 0; i < k; i++) {
+    auto Fbar_indices = Fs[i].get_block_indices();
+    auto Fbar_sizes   = Fs[i].get_block_sizes();
+    auto Fdagbar_indices = F_dags[i].get_block_indices();
+    auto Fdagbar_sizes   = F_dags[i].get_block_sizes(); 
+    int qi = Fs[i].get_size_sym_set();
+    if (qi != F_dags[i].get_size_sym_set()) {
+      throw std::invalid_argument("Fs and F_dags must have the same number of operators in each set");
+    }
+    F_dag_bars[i] = std::vector<BlockOpSymSet>(r, BlockOpSymSet(qi, Fdagbar_indices, Fdagbar_sizes));
+    F_bars_refl[i] = std::vector<BlockOpSymSet>(r, BlockOpSymSet(qi, Fbar_indices, Fbar_sizes));
+  }
+
+  // compute F_dag_bars and F_bars_refl
+  for (int lam = 0; lam < k; lam++) {
+    for (int l = 0; l < r; l++) {
+      for (int nu = 0; nu < k; nu++) {
+        
+      }
+    }
+  }
+}
 
 /////////////// Utilities and operator overrides ///////////////
 
@@ -362,6 +402,21 @@ BlockOp operator*(const dcomplex c, const BlockOp &F) {
   // Compute a product between a scalar and an BlockOp
   // @param[in] c dcomplex
   // @param[in] F BlockOp
+
+  auto product = F;
+  for (int i = 0; i < F.get_num_block_cols(); i++) {
+    if (F.get_block_index(i) != -1) {
+      auto prod_block = nda::make_regular(c * F.get_block(i));
+      product.set_block(i, prod_block);
+    }
+  }
+  return product;
+}
+
+BlockOp3D operator*(const dcomplex c, const BlockOp3D &F) {
+  // Compute a product between a scalar and an BlockOp3D
+  // @param[in] c dcomplex
+  // @param[in] F BlockOp3D
 
   auto product = F;
   for (int i = 0; i < F.get_num_block_cols(); i++) {

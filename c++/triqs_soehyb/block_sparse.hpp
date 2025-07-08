@@ -96,6 +96,11 @@ class BlockOp {
 };
 
 /**
+ * @class BlockOpND 
+ * @brief Abstract superclass for block-sparse storage of collections of matrices with the same sparsity pattern
+ */
+
+/**
  * @class BlockOp3D 
  * @brief Abstract superclass for block-sparse storage of sequences of matrices with the same sparsity pattern
  */
@@ -173,12 +178,12 @@ class DenseFSet {
   nda::array<dcomplex, 4> F_bars_refl;
 
   /**
-     * @brief Constructor for DenseFSet
-     * @param[in] Fs annihilation operators
-     * @param[in] F_dags creation operators
-     * @param[in] hyb_coeffs DLR coefficients of hybridization
-     * @param[in] hyb_refl_coeffs DLR coefficients of reflected hybridization
-     */
+   * @brief Constructor for DenseFSet
+   * @param[in] Fs annihilation operators
+   * @param[in] F_dags creation operators
+   * @param[in] hyb_coeffs DLR coefficients of hybridization
+   * @param[in] hyb_refl_coeffs DLR coefficients of reflected hybridization
+   */
   DenseFSet(nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags, nda::array_const_view<dcomplex, 3> hyb_coeffs,
             nda::array_const_view<dcomplex, 3> hyb_refl_coeffs);
 };
@@ -192,19 +197,19 @@ class BlockOpSymSet : public BlockOp3D {
   int get_size_sym_set() const;
 
   /**
-     * @brief Constructor for BlockOpSymSet
-     * @param[in] block_indices vector of block-col-indices
-     * @param[in] blocks vector of blocks
-     * @note block_indices[i] = -1 if F does not have a block in col i
-     */
+   * @brief Constructor for BlockOpSymSet
+   * @param[in] block_indices vector of block-col-indices
+   * @param[in] blocks vector of blocks
+   * @note block_indices[i] = -1 if F does not have a block in col i
+   */
   BlockOpSymSet(nda::vector_const_view<int> block_indices, std::vector<nda::array<dcomplex, 3>> &blocks);
 
   /**
-     * @brief Constructor for BlockOpSymSet with blocks of zeros
-     * @param[in] q number of operators in this set
-     * @param[in] block_indices vector of block-col-indices
-     * @param[in] block_sizes vector of sizes of blocks
-     */
+   * @brief Constructor for BlockOpSymSet with blocks of zeros
+   * @param[in] q number of operators in this set
+   * @param[in] block_indices vector of block-col-indices
+   * @param[in] block_sizes vector of sizes of blocks
+   */
   BlockOpSymSet(int q, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes);
 };
 
@@ -216,8 +221,18 @@ class BlockOpSymQuartet {
   public:
   std::vector<BlockOpSymSet> Fs;
   std::vector<BlockOpSymSet> F_dags;
-  std::vector<BlockOpSymSet> F_dag_bars;
-  std::vector<BlockOpSymSet> F_bars_refl;
+  std::vector<std::vector<BlockOpSymSet>> F_dag_bars;
+  std::vector<std::vector<BlockOpSymSet>> F_bars_refl;
+
+  /** 
+   * @brief Constructor for BlockOpSymQuartet
+   * @param[in] Fs vector of annihilation operator BOSS
+   * @param[in] F_dags vector of creation operator BOSS
+   * @param[in] F_dag_bars vector of vectors of linear combinations of creation operator BOSS 
+   * @param[in] F_bars_refl vector of vectors of linear combinations of annihilation operator BOSS
+   */
+   BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<BlockOpSymSet> F_dags, nda::array_const_view<dcomplex, 3> hyb_coeffs, 
+                     nda::array_const_view<dcomplex, 3> hyb_refl_coeffs); 
 };
 
 /**
@@ -247,6 +262,13 @@ BlockOp dagger_bs(BlockOp const &F);
  * @param[in] F BlockOp
  */
 BlockOp operator*(const dcomplex c, const BlockOp &F);
+
+/**
+ * @brief Compute a product between a scalar and a BlockOp3D
+ * @param[in] c dcomplex
+ * @param[in] F BlockOp3D
+ */
+BlockOp3D operator*(const dcomplex c, const BlockOp3D &F);
 
 /**
  * @brief Convert a BlockOpFun with diagonal structure to a BlockDiagOpFun
