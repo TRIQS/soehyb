@@ -4,10 +4,14 @@
 
 using namespace nda;
 
+// TODO: move documentation from cpp to hpp
+
 /**
  * @class BackboneVertex
  * @brief Abstract representation of a backbone vertex
  */
+ // TODO: describe in a bit more detail conceptually what this class is
+ // TODO: change name of "pole prime" index to "hybridization index" throughout
 class BackboneVertex {
   private:
   bool bar;       // true if the F on this vertex has a bar
@@ -39,6 +43,8 @@ class BackboneVertex {
  * @class BackboneSignature
  * @brief Abstract representation of a backbone diagram
  */
+ // TODO: describe in a bit more detail conceptually what this class is
+ // TODO: rename BackboneSignature class to Backbone
 class BackboneSignature {
   private:
   nda::array<int, 2> topology;
@@ -102,6 +108,8 @@ std::ostream &operator<<(std::ostream &os, BackboneSignature &B);
  */
 void multiply_vertex_dense(BackboneSignature &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf, DenseFSet &Fset,
                            int v_ix, nda::array_view<dcomplex, 3> T);
+
+// TODO: merge compute_edge_dense into compose_with_edge_dense
 
 /**
  * @brief Compute a single edge in a backbone diagram using dense storage

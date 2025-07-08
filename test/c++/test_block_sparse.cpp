@@ -686,6 +686,7 @@ TEST(Backbone, OCA) {
   auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
   int r              = itops.rank();
 
+  // TODO: delete unnecessary stuff
   nda::array<dcomplex, 3> T(r, N, N);
   for (int t = 0; t < r; t++) T(t, _, _) = nda::eye<dcomplex>(N);
 

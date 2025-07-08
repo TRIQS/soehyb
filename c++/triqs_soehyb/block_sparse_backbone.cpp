@@ -289,13 +289,6 @@ std::ostream &operator<<(std::ostream &os, BackboneSignature &B) {
 void multiply_vertex_dense(BackboneSignature &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf, DenseFSet &Fset,
                            int v_ix, // vertex index
                            nda::array_view<dcomplex, 3> T) {
-  // @brief Multiply by a single vertex in a backbone diagram using dense storage
-  // @param[in] backbone BackboneSignature object
-  // @param[in] dlr_it DLR imaginary time nodes in relative ordering
-  // @param[in] dlr_rf DLR frequency nodes
-  // @param[in] Fset DenseFSet
-  // @param[in] v_ix vertex index to multiply
-  // @param[in] T array on which to left-multiply vertex
 
   int r    = dlr_it.size();
   int o_ix = backbone.get_vertex_orb(v_ix); // orbital index
@@ -329,13 +322,6 @@ void compute_edge_dense(BackboneSignature &backbone, nda::vector_const_view<doub
                         nda::array_const_view<dcomplex, 3> Gt,
                         int e_ix, // edge index
                         nda::array_view<dcomplex, 3> GKt) {
-  // @brief Compute a single edge in a backbone diagram using dense storage
-  // @param[in] backbone BackboneSignature object
-  // @param[in] dlr_it DLR imaginary time nodes in relative ordering
-  // @param[in] dlr_rf DLR frequency nodes
-  // @param[in] Gt Green's function
-  // @param[in] e_ix edge index to compute
-  // @param[in] GKt array for storing result
 
   GKt   = Gt;
   int m = backbone.m;
@@ -352,16 +338,6 @@ void compose_with_edge_dense(BackboneSignature &backbone, imtime_ops &itops, nda
                              nda::vector_const_view<double> dlr_rf, double beta, nda::array_const_view<dcomplex, 3> Gt,
                              int e_ix, // edge index
                              nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt) {
-  // @brief Convolve with a single edge in a backbone diagram using dense storage
-  // @param[in] backbone BackboneSignature object
-  // @param[in] itops DLR imaginary time object
-  // @param[in] dlr_it DLR imaginary time nodes in relative ordering
-  // @param[in] dlr_rf DLR frequency nodes
-  // @param[in] beta inverse temperature
-  // @param[in] Gt Green's function
-  // @param[in] e_ix edge index to compute
-  // @param[in] T array for storing result
-  // @param[in] GKt array for storing result of edge computation
 
   compute_edge_dense(backbone, dlr_it, dlr_rf, Gt, e_ix, GKt);
   T = itops.convolve(beta, Fermion, itops.vals2coefs(GKt), itops.vals2coefs(T), TIME_ORDERED);
@@ -370,15 +346,6 @@ void compose_with_edge_dense(BackboneSignature &backbone, imtime_ops &itops, nda
 void multiply_zero_vertex(BackboneSignature &backbone, nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl,
                           bool is_forward, DenseFSet &Fset, nda::array_view<dcomplex, 4> Tkaps, nda::array_view<dcomplex, 3> Tmu,
                           nda::array_view<dcomplex, 3> T) {
-  // @brief Multiply by the zero vertex and the vertex connected to zero
-  // @param[in] backbone BackboneSignature object
-  // @param[in] hyb hybridization function at imaginary time nodes
-  // @param[in] hyb_refl hyb evaluated at (beta - tau)
-  // @param[in] is_forward true if the line connected to the zero vertex is forward in time
-  // @param[in] Fset DenseFSet
-  // @param[in] Tkaps intermediate storage array
-  // @param[in] Tmu intermediate storage array
-  // @param[in] T array for storing result
 
   int n = backbone.n;
   int r = hyb.extent(0);
@@ -414,20 +381,6 @@ void eval_backbone_fixed_orbs_poles_lines_dense(BackboneSignature &backbone, dou
                                                 nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
                                                 nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt, nda::array_view<dcomplex, 4> Tkaps,
                                                 nda::array_view<dcomplex, 3> Tmu) {
-  // @brief Evaluate a backbone diagram for particular orbital indices, poles, and line directions in dense storage
-  // @param[in] backbone BackboneSignature object
-  // @param[in] beta inverse temperature
-  // @param[in] itops DLR imaginary time object
-  // @param[in] hyb hybridization function at imaginary time nodes
-  // @param[in] hyb_refl hyb evaluated at (beta - tau)
-  // @param[in] Gt Greens function
-  // @param[in] Fset DenseFSet (cre/ann operators with and without bars)
-  // @param[in] dlr_it DLR imaginary time nodes in relative ordering
-  // @param[in] dlr_rf DLR frequency nodes
-  // @param[in] T array for storing result
-  // @param[in] GKt array for storing result of edge computation
-  // @param[in] Tkaps intermediate storage array
-  // @param[in] Tmu intermediate storage array
 
   int m = backbone.m;
 
@@ -461,21 +414,6 @@ void eval_backbone_fixed_poles_lines_dense(BackboneSignature &backbone, double b
                                            nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
                                            nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt, nda::array_view<dcomplex, 4> Tkaps,
                                            nda::array_view<dcomplex, 3> Tmu, nda::vector_view<int> orb_inds, nda::array_view<dcomplex, 3> Sigma_L) {
-  // @param[in] backbone BackboneSignature object
-  // @param[in] beta inverse temperature
-  // @param[in] itops DLR imaginary time object
-  // @param[in] hyb hybridization function at imaginary time nodes
-  // @param[in] hyb_refl hyb evaluated at (beta - tau)
-  // @param[in] Gt Greens function
-  // @param[in] Fset DenseFSet (cre/ann operators with and without bars)
-  // @param[in] dlr_it DLR imaginary time nodes in relative ordering
-  // @param[in] dlr_rf DLR frequency nodes
-  // @param[in] T array for storing result
-  // @param[in] GKt array for storing result of edge computation
-  // @param[in] Tkaps intermediate storage array
-  // @param[in] Tmu intermediate storage array
-  // @param[in] orb_inds vector of orbital indices
-  // @param[in] Sigma_L array for storing backbone result, including prefactor, over all orbital indices
 
   int n = backbone.n, m = backbone.m;
 
@@ -516,25 +454,6 @@ void eval_backbone_fixed_lines_dense(BackboneSignature &backbone, double beta, i
                                      nda::array_view<dcomplex, 3> GKt, nda::array_view<dcomplex, 4> Tkaps, nda::array_view<dcomplex, 3> Tmu,
                                      nda::vector_view<int> orb_inds, nda::array_view<dcomplex, 3> Sigma_L, nda::vector_view<int> pole_inds, int sign,
                                      nda::array_view<dcomplex, 3> Sigma) {
-  // @brief Evaluate a backbone diagram with fixed line directions in dense storage
-  // @param[in] backbone BackboneSignature object
-  // @param[in] beta inverse temperature
-  // @param[in] itops DLR imaginary time object
-  // @param[in] hyb hybridization function at imaginary time nodes
-  // @param[in] hyb_refl hyb evaluated at (beta - tau)
-  // @param[in] Gt Greens function
-  // @param[in] Fset DenseFSet (cre/ann operators with and without bars)
-  // @param[in] dlr_it DLR imaginary time nodes in relative ordering
-  // @param[in] dlr_rf DLR frequency nodes
-  // @param[in] T array for storing result
-  // @param[in] GKt array for storing result of edge computation
-  // @param[in] Tkaps intermediate storage array
-  // @param[in] Tmu intermediate storage array
-  // @param[in] orb_inds vector of orbital indices
-  // @param[in] Sigma_L array for storing backbone result, including prefactor, over all orbital indices
-  // @param[in] pole_inds vector of pole indices (pole_inds)
-  // @param[in] sign +/-1, depending on diagram order and line directions
-  // @param[in] Sigma array for storing self-energy contribution
 
   int r = itops.rank(), m = backbone.m;
   // L = pole multiindex
@@ -562,13 +481,6 @@ void eval_backbone_fixed_lines_dense(BackboneSignature &backbone, double beta, i
 
 nda::array<dcomplex, 3> eval_backbone_dense(BackboneSignature &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
                                             nda::array_const_view<dcomplex, 3> Gt, DenseFSet &Fset) {
-  // @brief Evaluate a single backbone diagram in dense storage
-  // @param[in] backbone BackboneSignature object
-  // @param[in] beta inverse temperature
-  // @param[in] itops DLR imaginary time object
-  // @param[in] hyb hybridization function at imaginary time nodes
-  // @param[in] Gt Greens function
-  // @param[in] Fset DenseFSet
 
   // index orders:
   // Gt (time, N, N), where N = 2^n, n = number of orbital indices
