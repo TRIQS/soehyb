@@ -5,6 +5,10 @@ ARG APPNAME=triqs_soehyb
 # Install here missing dependencies, e.g.
 # RUN apt-get update && apt-get install -y python3-skimage
 
+# Install pyed
+RUN git clone https://github.com/HugoStrand/pyed $SRC/pyed
+ENV PYTHONPATH=$SRC/pyed:$PYTHONPATH
+
 COPY --chown=build . $SRC/$APPNAME
 WORKDIR $BUILD/$APPNAME
 RUN chown build .
