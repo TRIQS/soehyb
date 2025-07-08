@@ -29,9 +29,10 @@ Z. Huang, E. Gull, L. Lin, Phys. Rev. B 107, 075151 (2023) https://doi.org/10.11
 import numpy as np 
 import scipy
 import scipy.optimize
-# import cvxpy as cp
-# import mosek
-from triqs_soehyb.aaa import *
+
+from triqs_soehyb.aaa.aaa_matrix import aaa_matrix_real
+
+
 def kernel(tau, omega):
     kernel = np.empty((len(tau), len(omega)))
 
@@ -45,6 +46,8 @@ def kernel(tau, omega):
     kernel[:, m] = np.exp((1. - tau)*w_m) / (1 + np.exp(w_m))
 
     return kernel
+
+
 def eval_with_pole(pol, Z, weight):
     pol_t = np.reshape(pol,[pol.size,1])
     M = 1/(Z-pol_t)
@@ -54,6 +57,8 @@ def eval_with_pole(pol, Z, weight):
     else:
         G = M@np.reshape(weight, (weight.shape[0], weight.shape[1]*weight.shape[2]))
         return np.reshape(G, (G.shape[0],  weight.shape[1], weight.shape[2]))
+
+    
 def get_weight_t(pol, tgrid, Deltat, beta, maxiter=100000):
     M = -kernel(tgrid/beta, pol*beta)
     shape_iaa = Deltat.shape
@@ -64,6 +69,7 @@ def get_weight_t(pol, tgrid, Deltat, beta, maxiter=100000):
     
     weight = weight.reshape(shape_xaa)
     return weight, M, residue
+
 
 def erroreval_t(pol,  tgrid, Deltat, beta, maxiter=100000):
     R, M, residue = get_weight_t(pol, tgrid, Deltat, beta, maxiter=100000)
@@ -82,6 +88,7 @@ def erroreval_t(pol,  tgrid, Deltat, beta, maxiter=100000):
 
     grad = -grad/y
     return y, grad
+
 
 def get_weight(pol, Z, G, cleanflag=True, maxiter=100000, Hermitian = True):
     pol_t = np.reshape(pol,[pol.size,1])
@@ -120,6 +127,7 @@ def get_weight(pol, Z, G, cleanflag=True, maxiter=100000, Hermitian = True):
                         R[:,i,j] = R1 + 1j*R2
                         R[:,j,i] = R1 - 1j*R2
         else:
+            import cvxpy as cp
             X = [cp.Variable((Norb, Norb), hermitian=True) for i in range(Np) ]
             Nw = len(Z)
             constraints = [X[i] >> 0 for i in range(Np)]
@@ -130,6 +138,8 @@ def get_weight(pol, Z, G, cleanflag=True, maxiter=100000, Hermitian = True):
             objective = cp.Minimize(sum(Gfit))
             prob = cp.Problem(objective, constraints)
             result = prob.solve(solver = "SCS",verbose = False, eps = 1.e-8)
+
+            # import mosek
             # mosek_params_dict = {"MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1.e-8,\
             #                     "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1.e-8,
             #                     "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1.e-8, 
@@ -156,6 +166,7 @@ def aaa_reduce(pol, R, eps=1e-6):
     nonz_index = Rnorm>eps
     return pol[nonz_index], R[nonz_index]
 
+
 def erroreval(pol,  Z, G, cleanflag=True, maxiter=100000,Hermitian=True):
     R, M, residue = get_weight(pol,  Z, G, cleanflag=cleanflag, maxiter=maxiter,Hermitian=Hermitian)
     if len(G.shape)==1:
@@ -173,6 +184,7 @@ def erroreval(pol,  Z, G, cleanflag=True, maxiter=100000,Hermitian=True):
 
     grad = -grad/y
     return y, grad
+
 
 def polefitting(Deltaiw, Z, Deltat,tgrid, Deltat_dense, tgrid_dense,beta, Np_max=50,eps = 1e-5,Hermitian=True):
     Num_of_nonzero_entries = 0
@@ -199,6 +211,8 @@ def polefitting(Deltaiw, Z, Deltat,tgrid, Deltat_dense, tgrid_dense,beta, Np_max
             return weight, res.x, error
         
     return weight, res.x, np.linalg.norm(residue)
+
+
 # def polefitting(Deltaiw, Z, Np_max=50,eps = 1e-5,Hermitian=True):
 #     for mmax in range(4,Np_max,2):
 #         r = aaa_matrix_real(Deltaiw, Z, mmax=mmax)
