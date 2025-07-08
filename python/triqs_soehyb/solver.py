@@ -39,11 +39,11 @@ from .ase.utils.timing import Timer, timer
 
 
 def logo():
-    """ http://patorjk.com/software/taag/#p=display&f=Small&t=PPSC-soe """
-    return r"""  ___ ___  ___  ___                 
- | _ \ _ \/ __|/ __|__ ___ ___  ___ 
- |  _/  _/\__ \ (_|___(_-</ _ \/ -_)
- |_| |_|  |___/\___|  /__/\___/\___|"""
+    """ https://patorjk.com/software/taag/#p=display&f=Small&t=SoE-HYB """
+    return r"""  ___      ___    _  ___   _____
+ / __| ___| __|__| || \ \ / / _ )
+ \__ \/ _ \ _|___| __ |\ V /| _ \
+ |___/\___/___|  |_||_| |_| |___/  [github.com/TRIQS/soehyb]"""
 
 
 def is_root():
