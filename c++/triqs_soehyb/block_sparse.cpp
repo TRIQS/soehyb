@@ -178,12 +178,12 @@ int BlockOp::get_block_size(int block_ind, int dim) const {
   }
 }
 
-/////////////// BlockOpFun (BOF) class ///////////////
+/////////////// BlockOp3D class ///////////////
 
-BlockOpFun::BlockOpFun(nda::vector_const_view<int> block_indices, std::vector<nda::array<dcomplex, 3>> &blocks)
+BlockOp3D::BlockOp3D(nda::vector_const_view<int> block_indices, std::vector<nda::array<dcomplex, 3>> &blocks)
    : block_indices(block_indices), blocks(blocks), num_block_cols(block_indices.size()) {}
 
-BlockOpFun::BlockOpFun(int r, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes)
+BlockOp3D::BlockOp3D(int r, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes)
    : block_indices(block_indices), num_block_cols(block_indices.size()) {
 
   for (int i = 0; i < num_block_cols; i++) {
@@ -195,29 +195,29 @@ BlockOpFun::BlockOpFun(int r, nda::vector_const_view<int> block_indices, nda::ar
   }
 }
 
-void BlockOpFun::set_block_indices(nda::vector<int> &block_indices) {
+void BlockOp3D::set_block_indices(nda::vector<int> &block_indices) {
 
   this->block_indices = block_indices;
   num_block_cols      = block_indices.size();
 }
 
-void BlockOpFun::set_block_index(int i, int block_index) { block_indices(i) = block_index; }
+void BlockOp3D::set_block_index(int i, int block_index) { block_indices(i) = block_index; }
 
-void BlockOpFun::set_blocks(std::vector<nda::array<dcomplex, 3>> &blocks) {
+void BlockOp3D::set_blocks(std::vector<nda::array<dcomplex, 3>> &blocks) {
 
   this->blocks   = blocks;
   num_block_cols = blocks.size();
 }
 
-void BlockOpFun::set_block(int i, nda::array_const_view<dcomplex, 3> block) { blocks[i] = block; }
+void BlockOp3D::set_block(int i, nda::array_const_view<dcomplex, 3> block) { blocks[i] = block; }
 
-nda::vector_const_view<int> BlockOpFun::get_block_indices() const { return block_indices; }
+nda::vector_const_view<int> BlockOp3D::get_block_indices() const { return block_indices; }
 
-int BlockOpFun::get_block_index(int i) const { return block_indices(i); }
+int BlockOp3D::get_block_index(int i) const { return block_indices(i); }
 
-const std::vector<nda::array<dcomplex, 3>> &BlockOpFun::get_blocks() const { return blocks; }
+const std::vector<nda::array<dcomplex, 3>> &BlockOp3D::get_blocks() const { return blocks; }
 
-nda::array_const_view<dcomplex, 3> BlockOpFun::get_block(int i) const {
+nda::array_const_view<dcomplex, 3> BlockOp3D::get_block(int i) const {
   if (block_indices(i) == -1) {
     auto arr = nda::zeros<dcomplex>(1, 1, 1);
     return arr;
@@ -226,9 +226,9 @@ nda::array_const_view<dcomplex, 3> BlockOpFun::get_block(int i) const {
   }
 }
 
-int BlockOpFun::get_num_block_cols() const { return num_block_cols; }
+int BlockOp3D::get_num_block_cols() const { return num_block_cols; }
 
-nda::array<int, 2> BlockOpFun::get_block_sizes() const {
+nda::array<int, 2> BlockOp3D::get_block_sizes() const {
   auto block_sizes = nda::zeros<int>(num_block_cols, 2);
   for (int i = 0; i < num_block_cols; i++) {
     if (block_indices(i) != -1) {
@@ -242,7 +242,7 @@ nda::array<int, 2> BlockOpFun::get_block_sizes() const {
   return block_sizes;
 }
 
-nda::vector<int> BlockOpFun::get_block_size(int i) const {
+nda::vector<int> BlockOp3D::get_block_size(int i) const {
   auto block_size = nda::zeros<int>(2);
   if (block_indices(i) != -1) {
     block_size(0) = blocks[i].shape(1);
@@ -252,6 +252,13 @@ nda::vector<int> BlockOpFun::get_block_size(int i) const {
   }
   return block_size;
 }
+
+/////////////// BlockOpFun (BOF) class ///////////////
+
+BlockOpFun::BlockOpFun(nda::vector_const_view<int> block_indices, std::vector<nda::array<dcomplex, 3>> &blocks) : BlockOp3D{block_indices, blocks} {}
+
+BlockOpFun::BlockOpFun(int r, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes)
+   : BlockOp3D{r, block_indices, block_sizes} {}
 
 int BlockOpFun::get_num_time_nodes() const {
   for (int i = 0; i < num_block_cols; i++) {
@@ -282,6 +289,19 @@ DenseFSet::DenseFSet(nda::array_const_view<dcomplex, 3> Fs, nda::array_const_vie
 }
 
 /////////////// BlockOpSymSet class ///////////////
+
+BlockOpSymSet::BlockOpSymSet(nda::vector_const_view<int> block_indices, std::vector<nda::array<dcomplex, 3>> &blocks)
+   : BlockOp3D{block_indices, blocks} {}
+
+BlockOpSymSet::BlockOpSymSet(int q, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes)
+   : BlockOp3D{q, block_indices, block_sizes} {}
+
+int BlockOpSymSet::get_size_sym_set() const {
+  for (int i = 0; i < num_block_cols; i++) {
+    if (block_indices(i) != -1) { return blocks[i].shape(0); }
+  }
+  return 0; // BlockOpSymSet is all zeros anyways
+}
 
 ////////////// BlockOpSymQuartet class ///////////////
 

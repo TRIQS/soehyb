@@ -96,17 +96,16 @@ class BlockOp {
 };
 
 /**
- * @class BlockOpFun (BOF)
- * @brief Block-sparse storage of an arbitrary time-dependent operator
+ * @class BlockOp3D 
+ * @brief Abstract superclass for block-sparse storage of sequences of matrices with the same sparsity pattern
  */
-class BlockOpFun {
-  private:
+class BlockOp3D {
+  protected:
   nda::vector<int> block_indices;
   std::vector<nda::array<dcomplex, 3>> blocks;
-  int num_block_cols;
+  int num_block_cols; // TODO handle non-symmetry-related zeros
 
   public:
-  BlockOpFun &operator+=(const BlockOpFun &A);
   void set_block_indices(nda::vector<int> &block_indices);
   void set_block_index(int i, int block_index);
   void set_blocks(std::vector<nda::array<dcomplex, 3>> &blocks);
@@ -118,6 +117,31 @@ class BlockOpFun {
   int get_num_block_cols() const;
   nda::array<int, 2> get_block_sizes() const;
   nda::vector<int> get_block_size(int i) const;
+
+  /**
+   * @brief Constructor for BlockOpFun 
+   * @param[in] block_indices vector of block-col-indices
+   * @param[in] blocks vector of blocks
+   * @note block_indices[i] = -1 if F does not have a block in col i
+   */
+  BlockOp3D(nda::vector_const_view<int> block_indices, std::vector<nda::array<dcomplex, 3>> &blocks);
+
+  /**
+   * @brief Constructor for BlockOpFun with blocks of zeros
+   * @param[in] r number of imaginary time nodes
+   * @param[in] block_indices vector of block-col-indices
+   * @param[in] block_sizes vector of sizes of blocks
+   */
+  BlockOp3D(int r, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes);
+};
+
+/**
+ * @class BlockOpFun (BOF)
+ * @brief Block-sparse storage of an arbitrary time-dependent operator
+ */
+class BlockOpFun : public BlockOp3D {
+  public:
+  BlockOpFun &operator+=(const BlockOpFun &A);
   int get_num_time_nodes() const;
 
   /**
@@ -157,6 +181,43 @@ class DenseFSet {
      */
   DenseFSet(nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags, nda::array_const_view<dcomplex, 3> hyb_coeffs,
             nda::array_const_view<dcomplex, 3> hyb_refl_coeffs);
+};
+
+/**
+ * @class BlockOpSymSet (BOSS)
+ * @brief Container for (linear combinations of) creation/annihilation operators with the same block-sparse structure
+ */
+class BlockOpSymSet : public BlockOp3D {
+  public:
+  int get_size_sym_set() const;
+
+  /**
+     * @brief Constructor for BlockOpSymSet
+     * @param[in] block_indices vector of block-col-indices
+     * @param[in] blocks vector of blocks
+     * @note block_indices[i] = -1 if F does not have a block in col i
+     */
+  BlockOpSymSet(nda::vector_const_view<int> block_indices, std::vector<nda::array<dcomplex, 3>> &blocks);
+
+  /**
+     * @brief Constructor for BlockOpSymSet with blocks of zeros
+     * @param[in] q number of operators in this set
+     * @param[in] block_indices vector of block-col-indices
+     * @param[in] block_sizes vector of sizes of blocks
+     */
+  BlockOpSymSet(int q, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes);
+};
+
+/**
+ * @class BlockOpSymQuartet (BOSQ)
+ * @brief Container for multiple symmetry sets of BOSS 
+ */
+class BlockOpSymQuartet {
+  public:
+  std::vector<BlockOpSymSet> Fs;
+  std::vector<BlockOpSymSet> F_dags;
+  std::vector<BlockOpSymSet> F_dag_bars;
+  std::vector<BlockOpSymSet> F_bars_refl;
 };
 
 /**

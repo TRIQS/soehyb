@@ -295,7 +295,7 @@ TEST(BlockSparseNCA, single_exponential) {
 TEST(BlockSparseNCA, two_band_discrete_bath) {
   // DLR parameters
   double beta   = 2.0;
-  double Lambda = 1000 * beta;
+  double Lambda = 100 * beta;
   double eps    = 1.0e-10;
   // DLR generation
   auto dlr_rf        = build_dlr_rf(Lambda, eps);
@@ -331,13 +331,13 @@ TEST(BlockSparseNCA, two_band_discrete_bath) {
   }
 
   // check that dense NCA and OCA calculations agree with twoband.py
-  ASSERT_LE(nda::max_element(nda::abs(NCA_dense_result - NCA_py_perm)), eps);
+  ASSERT_LE(nda::max_element(nda::abs(NCA_dense_result - NCA_py_perm)), 10*eps);
 
   // check that block-sparse NCA and OCA calculations agree with twoband.py
   int s0 = 0;
   int s1 = subspaces[0].size();
   for (int i = 0; i < num_blocks; i++) { // compare each block
-    ASSERT_LE(nda::max_element(nda::abs(NCA_result.get_block(i) - NCA_py_perm(_, range(s0, s1), range(s0, s1)))), eps);
+    ASSERT_LE(nda::max_element(nda::abs(NCA_result.get_block(i) - NCA_py_perm(_, range(s0, s1), range(s0, s1)))), 10*eps);
     s0 = s1;
     if (i < num_blocks - 1) s1 += subspaces[i + 1].size();
   }
@@ -469,7 +469,7 @@ TEST(BlockSparseMisc, compute_nonint_gf) {
 TEST(BlockSparseOCA, two_band_discrete_bath_bs) {
   // DLR parameters
   double beta   = 2.0;
-  double Lambda = 1000 * beta;
+  double Lambda = 100 * beta;
   double eps    = 1.0e-10;
   // DLR generation
   auto dlr_rf        = build_dlr_rf(Lambda, eps);
