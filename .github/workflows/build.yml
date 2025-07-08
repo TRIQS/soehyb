@@ -103,6 +103,11 @@ jobs:
       run: |
         echo "CXXFLAGS=-stdlib=libc++" >> $GITHUB_ENV
 
+    - name: Install pyed
+      run: |
+        git clone https://github.com/HugoStrand/pyed $HOME/pyed
+        echo "PYTHONPATH=$HOME/pyed:$PYTHONPATH" >> $GITHUB_ENV
+
     - name: Build & Install TRIQS
       env:
         CC: ${{ matrix.cc }}
