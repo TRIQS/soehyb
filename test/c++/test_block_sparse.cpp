@@ -640,7 +640,7 @@ TEST(Backbone, one_vertex_and_edge) {
 
     // multiply T by vertex 1
     for (int t = 0; t < r; t++) D.T(t, _, _) = nda::eye<dcomplex>(N);
-    multiply_vertex_dense(B, D, 1);
+    D.multiply_vertex_dense(B, 1);
     std::cout << B << std::endl;
 
     // do the same multiplication manually
@@ -653,7 +653,7 @@ TEST(Backbone, one_vertex_and_edge) {
     ASSERT_LE(nda::max_element(nda::abs(D.T - Tact)), 1e-12);
 
     // check that convolution with function on first edge is correct
-    compose_with_edge_dense(B, D, 1);
+    D.compose_with_edge_dense(B, 1);
     if (fb1 == 1) {
       Tact = itops.convolve(beta, Fermion, itops.vals2coefs(Gt_dense), itops.vals2coefs(Tact), TIME_ORDERED);
     } else {
@@ -693,12 +693,10 @@ TEST(Backbone, OCA) {
   auto B = Backbone(topology, n);
   auto D = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset);
 
-  // auto OCA_result       = eval_backbone_dense(B, beta, itops, Deltat, Gt_dense, Fset);
-  auto OCA_result       = eval_diagram_dense(B, D); 
+  D.eval_diagram_dense(B); 
+  auto OCA_result       = D.Sigma; 
   auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
 
-  // std::cout << "OCA generic result = " << OCA_result(10, _, _) << std::endl;
-  // std::cout << "OCA dense result = " << OCA_dense_result(10, _, _) << std::endl;
   ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_dense_result)), eps);
 }
 
@@ -722,18 +720,6 @@ TEST(Backbone, third_order_manual) {
   auto hyb_coeffs      = itops.vals2coefs(hyb); // hybridization DLR coeffs
   auto hyb_refl        = nda::make_regular(-itops.reflect(hyb));
   auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
-
-  // compute Fbars and Fdagbars
-  auto Fdagbars  = nda::array<dcomplex, 4>(n, r, N, N);
-  auto Fbarsrefl = nda::array<dcomplex, 4>(n, r, N, N);
-  for (int lam = 0; lam < n; lam++) {
-    for (int l = 0; l < r; l++) {
-      for (int nu = 0; nu < n; nu++) {
-        Fdagbars(lam, l, _, _) += hyb_coeffs(l, nu, lam) * F_dags_dense(nu, _, _);
-        Fbarsrefl(nu, l, _, _) += hyb_refl_coeffs(l, nu, lam) * Fs_dense(lam, _, _);
-      }
-    }
-  }
   auto Fset = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
 
   // compute self-energy contribution of one third-order diagram topology,
@@ -744,15 +730,15 @@ TEST(Backbone, third_order_manual) {
   nda::vector<int> fb{1, 1, 1}, pole_inds{7, 9};
   B.set_directions(fb);
   B.set_pole_inds(pole_inds, dlr_rf);
+  auto D = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset);
 
-  // perform the same calculation using the a routine called by eval_backbone_dense()
+  // perform the same calculation using the a routine called by eval_diagram_dense()
   nda::array<dcomplex, 3> T(r, N, N), GKt(r, N, N), Tmu(r, N, N), Sigma_generic(r, N, N);
   nda::array<dcomplex, 4> Tkaps(n, r, N, N);
   nda::vector<int> states(6);
-  eval_backbone_fixed_poles_lines_dense(B, beta, itops, Deltat, Deltat_refl, Gt_dense, Fset, dlr_it, dlr_rf, T, GKt, Tkaps, Tmu, states,
-                                        Sigma_generic);
+  D.eval_diagram_fixed_poles_lines_dense(B); 
 
-  ASSERT_LE(nda::max_element(nda::abs(Sigma_manual(10, _, _) - Sigma_generic(10, _, _))), 1e-10);
+  ASSERT_LE(nda::max_element(nda::abs(Sigma_manual(10, _, _) - D.Sigma_L(10, _, _))), eps);
 }
 
 TEST(Backbone, third_order) {
@@ -784,7 +770,10 @@ TEST(Backbone, third_order) {
   auto NCA_result          = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
   nda::array<int, 2> T_OCA = {{0, 2}, {1, 3}};
   auto B_OCA               = Backbone(T_OCA, n);
-  auto OCA_result          = eval_backbone_dense(B_OCA, beta, itops, Deltat, Gt_dense, Fset);
+  auto D     = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset); // create DiagramEvaluator object
+  D.eval_diagram_dense(B_OCA); // evaluate OCA diagram
+  auto OCA_result = D.Sigma; // get the result from the DiagramEvaluator
+  D.reset(); 
 
   // arrays for storing results from third-order diagram computations
   auto third_order_result      = nda::zeros<dcomplex>(r, N, N);
@@ -795,12 +784,11 @@ TEST(Backbone, third_order) {
 
   // compute third-order diagrams using generic backbone evaluators
   auto start = std::chrono::high_resolution_clock::now();
-  auto D     = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset); // create DiagramEvaluator object
   for (int i = 0; i < 4; i++) {
     auto B = Backbone(topologies(i, _, _), n); // create Backbone object for topology i
-    // auto eval = eval_backbone_dense(B, beta, itops, Deltat, Gt_dense, Fset);
-    auto eval = eval_diagram_dense(B, D);
-    third_order_result += topo_sign(i) * eval;
+    D.eval_diagram_dense(B);
+    auto eval = D.Sigma; 
+    third_order_result += topo_sign(i) * D.Sigma;;
     if (i == 0)
       third_order_02_result = eval;
     else if (i == 1)
