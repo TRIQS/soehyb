@@ -20,7 +20,11 @@
 
 using namespace nda;
 
+// NOTE: Tests with PYTHON_ in the name load h5 files and should probably be performed on the Python side
+
 nda::array<dcomplex, 3> Hmat_to_Gtmat(nda::array<dcomplex, 2> Hmat, double beta, nda::array<double, 1> dlr_it_abs) {
+  // Helper function for computing the non-interacting Green's function from the Hamiltonian, both in dense storage
+
   int N                         = Hmat.extent(0);
   auto [H_loc_eval, H_loc_evec] = nda::linalg::eigenelements(Hmat);
   auto E0                       = nda::min_element(H_loc_eval);
@@ -42,6 +46,7 @@ nda::array<dcomplex, 3> Hmat_to_Gtmat(nda::array<dcomplex, 2> Hmat, double beta,
 std::tuple<int, nda::array<dcomplex, 3>, nda::array<dcomplex, 3>, BlockDiagOpFun, std::vector<BlockOp>, nda::array<dcomplex, 3>,
            nda::array<dcomplex, 3>, nda::array<dcomplex, 3>, std::vector<std::vector<unsigned long>>, std::vector<long>>
 two_band_discrete_bath_helper(double beta, double Lambda, double eps) {
+  // Helper function for setting up the two-band discrete bath model
 
   auto dlr_rf        = build_dlr_rf(Lambda, eps);
   auto itops         = imtime_ops(Lambda, dlr_rf);
@@ -81,9 +86,6 @@ two_band_discrete_bath_helper(double beta, double Lambda, double eps) {
   Deltat_refl = t * t * Deltat_refl;
 
   // get Hamiltonian, creation/annihilation operators in block-sparse storage
-  h5::file hfile("../test/c++/h5/two_band_ad.h5", 'r');
-  h5::group hgroup(hfile);
-  h5::group ad   = hgroup.open_group("ad");
   int num_blocks = 5; // number of blocks of Hamiltonian
 
   // Hamiltonian
@@ -100,42 +102,169 @@ two_band_discrete_bath_helper(double beta, double Lambda, double eps) {
   auto Gt = nonint_gf_BDOF(H_blocks, H_block_inds, beta, dlr_it_abs);
 
   // creation/annihilation operators
-  nda::array<int, 2> ann_conn = {{2, 0, -1, 1, 3}, {2, 0, -1, 1, 3}, {2, 0, -1, 1, 3}, {2, 0, -1, 1, 3}}; // block column indices of F operators
-  nda::array<int, 2> cre_conn = {{1, 3, 0, 4, -1}, {1, 3, 0, 4, -1}, {1, 3, 0, 4, -1}, {1, 3, 0, 4, -1}}; // block column indices of F^dag operators
+  nda::vector<int> ann_conn = {2, 0, -1, 1, 3}; // block column indices of F operators
+  nda::vector<int> cre_conn = {1, 3, 0, 4, -1}; // block column indices of F^dag operators
   std::vector<BlockOp> Fs;
   std::vector<BlockOp> Fdags;
   std::vector<nda::array<dcomplex, 2>> dummy(num_blocks);
   std::vector<std::vector<nda::array<dcomplex, 2>>> F_blocks(4, dummy);
   std::vector<std::vector<nda::array<dcomplex, 2>>> Fdag_blocks(4, dummy);
+
+  F_blocks[0][0] = {{1, 0, 0, 0}};
+  F_blocks[0][1] = {{0, 0, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 0}, {0, 1, 0, 0, 0, 0}, {0, 0, 0, 1, 0, 0}};
+  F_blocks[0][2] = {{0}};
+  F_blocks[0][3] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}};
+  F_blocks[0][4] = {{0}, {0}, {0}, {1}};
+
+  F_blocks[1][0] = {{0, 1, 0, 0}};
+  F_blocks[1][1] = {{-1, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0}, {0, 0, 1, 0, 0, 0}, {0, 0, 0, 0, 1, 0}};
+  F_blocks[1][2] = {{0}};
+  F_blocks[1][3] = {{0, 0, 0, 0}, {-1, 0, 0, 0}, {0, 0, 0, 0}, {0, -1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 1}};
+  F_blocks[1][4] = {{0}, {0}, {-1}, {0}};
+
+  F_blocks[2][0] = {{0, 0, 1, 0}};
+  F_blocks[2][1] = {{0, -1, 0, 0, 0, 0}, {0, 0, -1, 0, 0, 0}, {0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 1}};
+  F_blocks[2][2] = {{0}};
+  F_blocks[2][3] = {{1, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, -1, 0}, {0, 0, 0, -1}, {0, 0, 0, 0}};
+  F_blocks[2][4] = {{0}, {1}, {0}, {0}};
+
+  F_blocks[3][0] = {{0, 0, 0, 1}};
+  F_blocks[3][1] = {{0, 0, 0, -1, 0, 0}, {0, 0, 0, 0, -1, 0}, {0, 0, 0, 0, 0, -1}, {0, 0, 0, 0, 0, 0}};
+  F_blocks[3][2] = {{0}};
+  F_blocks[3][3] = {{0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
+  F_blocks[3][4] = {{-1}, {0}, {0}, {0}};
+
+  Fdag_blocks[0][0] = {{0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 1}, {0, 0, 0, 0}, {0, 0, 0, 0}};
+  Fdag_blocks[0][1] = {{0, 0, 1, 0, 0, 0}, {0, 0, 0, 0, 1, 0}, {0, 0, 0, 0, 0, 1}, {0, 0, 0, 0, 0, 0}};
+  Fdag_blocks[0][2] = {{1}, {0}, {0}, {0}};
+  Fdag_blocks[0][3] = {{0, 0, 0, 1}};
+  Fdag_blocks[0][4] = {{0}};
+
+  Fdag_blocks[1][0] = {{-1, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 0}, {0, 0, 0, 1}, {0, 0, 0, 0}};
+  Fdag_blocks[1][1] = {{0, -1, 0, 0, 0, 0}, {0, 0, 0, -1, 0, 0}, {0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 1}};
+  Fdag_blocks[1][2] = {{0}, {1}, {0}, {0}};
+  Fdag_blocks[1][3] = {{0, 0, -1, 0}};
+  Fdag_blocks[1][4] = {{0}};
+
+  Fdag_blocks[2][0] = {{0, 0, 0, 0}, {-1, 0, 0, 0}, {0, -1, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 1}};
+  Fdag_blocks[2][1] = {{1, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0}, {0, 0, 0, -1, 0, 0}, {0, 0, 0, 0, -1, 0}};
+  Fdag_blocks[2][2] = {{0}, {0}, {1}, {0}};
+  Fdag_blocks[2][3] = {{0, 1, 0, 0}};
+  Fdag_blocks[2][4] = {{0}};
+
+  Fdag_blocks[3][0] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {-1, 0, 0, 0}, {0, -1, 0, 0}, {0, 0, -1, 0}};
+  Fdag_blocks[3][1] = {{0, 0, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 0}, {0, 1, 0, 0, 0, 0}, {0, 0, 1, 0, 0, 0}};
+  Fdag_blocks[3][2] = {{0}, {0}, {0}, {1}};
+  Fdag_blocks[3][3] = {{-1, 0, 0, 0}};
+  Fdag_blocks[3][4] = {{0}};
+
   for (int i = 0; i < 4; i++) {
-    h5::read(hgroup, "c_blocks/" + std::to_string(i), F_blocks[i]);
-    h5::read(hgroup, "cdag_blocks/" + std::to_string(i), Fdag_blocks[i]);
-  }
-  for (int i = 0; i < 4; i++) {
-    nda::vector<int> F_block_indices = ann_conn(i, _);
-    Fs.emplace_back(BlockOp(F_block_indices, F_blocks[i]));
-    nda::vector<int> Fdag_block_indices = cre_conn(i, _);
-    Fdags.emplace_back(BlockOp(Fdag_block_indices, Fdag_blocks[i]));
+    Fs.emplace_back(ann_conn, F_blocks[i]);
+    Fdags.emplace_back(cre_conn, Fdag_blocks[i]);
   }
 
   // subspace indices
   std::vector<unsigned long> dummy2;
   std::vector<std::vector<unsigned long>> subspaces(num_blocks, dummy2);
-  for (int i = 0; i < num_blocks; i++) { h5::read(ad, "sub_hilbert_spaces/" + std::to_string(i) + "/fock_states", subspaces[i]); }
+  subspaces[0] = {1, 2, 4, 8};
+  subspaces[1] = {3, 5, 6, 9, 10, 12};
+  subspaces[2] = {0};
+  subspaces[3] = {7, 11, 13, 14};
+  subspaces[4] = {15};
   std::vector<long> fock_state_order(begin(subspaces[0]), end(subspaces[0]));
   for (int i = 1; i < num_blocks; i++) { fock_state_order.insert(end(fock_state_order), begin(subspaces[i]), end(subspaces[i])); }
 
-  // Hamiltonian, creation/annihilation operators in dense storage
-  // Hamiltonian
-  auto H_dense = nda::zeros<dcomplex>(16, 16);
-  h5::read(hgroup, "H_mat_dense", H_dense);
+  // Hamiltonian in dense storage
+  auto H_dense    = nda::zeros<dcomplex>(16, 16);
+  H_dense(0, 0)   = -1;
+  H_dense(1, 1)   = -1;
+  H_dense(2, 2)   = -1;
+  H_dense(3, 3)   = -1;
+  H_dense(4, 4)   = -0.6;
+  H_dense(5, 8)   = 0.2;
+  H_dense(6, 6)   = -0.4;
+  H_dense(6, 7)   = 0.2;
+  H_dense(7, 6)   = 0.2;
+  H_dense(7, 7)   = -0.4;
+  H_dense(8, 5)   = 0.2;
+  H_dense(9, 9)   = -0.6;
+  H_dense(11, 11) = 2;
+  H_dense(12, 12) = 2;
+  H_dense(13, 13) = 2;
+  H_dense(14, 14) = 2;
+  H_dense(15, 15) = 6;
 
-  // Green's function
+  // Green's function in dense storage
   auto Gt_dense = Hmat_to_Gtmat(H_dense, beta, dlr_it_abs);
 
-  // creation/annihilation operators
+  // creation/annihilation operators in dense storage
   auto Fs_dense = nda::zeros<dcomplex>(4, 16, 16);
-  h5::read(hgroup, "c_dense", Fs_dense);
+  // h5::read(hgroup, "c_dense", Fs_dense);
+  // copied from a text dump of an h5 file output from atom_diag
+  Fs_dense          = {{{0, 0, 0, 0, 0, -1, 0, 0, -2.23711e-17, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, -1, -2.23711e-17, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2.23711e-17, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2.23711e-17, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
+                       {{0, 0, 0, 0, 0, 0, -2.23711e-17, -1, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, -2.23711e-17, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.23711e-17, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.23711e-17, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
+                       {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 1, 0, 0, 2.23711e-17, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 2.23711e-17, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.23711e-17, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.23711e-17, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0},
+                        {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
+                       {{0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 1, 2.23711e-17, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 2.23711e-17, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2.23711e-17, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -2.23711e-17, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0},
+                        {0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}};
   auto F_dags_dense = nda::zeros<dcomplex>(4, 16, 16);
   for (int i = 0; i < 4; i++) { F_dags_dense(i, _, _) = nda::transpose(nda::conj(Fs_dense(i, _, _))); }
 
@@ -285,7 +414,6 @@ TEST(BlockSparseNCA, single_exponential) {
   auto NCA_ana              = nda::zeros<dcomplex>(r);
   for (int i = 0; i < r; i++) {
     auto tau = dlr_it_abs(i);
-    // NCA_ana(i) = exp(2*tau) - 1;
     NCA_ana(i) = -exp(-(D + g) * tau) - exp((D - g) * tau);
   }
 
@@ -294,7 +422,37 @@ TEST(BlockSparseNCA, single_exponential) {
             1.0e-12);
 }
 
-TEST(BlockSparseNCA, two_band_discrete_bath) {
+TEST(BlockSparseNCA, two_band_discrete_bath_bs_vs_dense) {
+  // DLR parameters
+  double beta   = 2.0;
+  double Lambda = 100 * beta;
+  double eps    = 1.0e-10;
+  // DLR generation
+  auto dlr_rf        = build_dlr_rf(Lambda, eps);
+  auto itops         = imtime_ops(Lambda, dlr_rf);
+  auto const &dlr_it = itops.get_itnodes();
+  auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
+
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+     two_band_discrete_bath_helper(beta, Lambda, eps);
+
+  // block-sparse NCA compuation
+  auto NCA_result = NCA_bs(Deltat, Deltat_refl, Gt, Fs);
+
+  // dense-matrix NCA computation
+  auto NCA_dense_result = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
+
+  // check that block-sparse NCA calculation agrees with dense NCA calculation
+  int s0 = 0;
+  int s1 = subspaces[0].size();
+  for (int i = 0; i < num_blocks; i++) { // compare each block
+    ASSERT_LE(nda::max_element(nda::abs(NCA_result.get_block(i) - NCA_dense_result(_, range(s0, s1), range(s0, s1)))), 10 * eps);
+    s0 = s1;
+    if (i < num_blocks - 1) s1 += subspaces[i + 1].size();
+  }
+}
+
+TEST(BlockSparseNCA, PYTHON_two_band_discrete_bath_bs_vs_py) {
   // DLR parameters
   double beta   = 2.0;
   double Lambda = 100 * beta;
@@ -312,37 +470,28 @@ TEST(BlockSparseNCA, two_band_discrete_bath) {
   // block-sparse NCA compuation
   auto NCA_result = NCA_bs(Deltat, Deltat_refl, Gt, Fs);
 
-  // dense-matrix NCA computation
-  auto NCA_dense_result = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
-
-  // load NCA and OCA results from twoband.py
+  // load NCA twoband.py
   h5::file Gtfile("../test/c++/h5/two_band_py.h5", 'r');
   h5::group Gtgroup(Gtfile);
   auto NCA_py = nda::zeros<dcomplex>(r, 16, 16);
   h5::read(Gtgroup, "NCA", NCA_py);
-  auto OCA_py = nda::zeros<dcomplex>(r, 16, 16);
-  h5::read(Gtgroup, "OCA", OCA_py);
 
   // permute twoband.py results to match block structure from atom_diag
   auto NCA_py_perm = nda::zeros<dcomplex>(r, 16, 16);
-  auto OCA_py_perm = nda::zeros<dcomplex>(r, 16, 16);
   for (int t = 0; t < r; t++) {
     for (int i = 0; i < 16; i++) {
       for (int j = 0; j < 16; j++) { NCA_py_perm(t, i, j) = NCA_py(t, fock_state_order[i], fock_state_order[j]); }
     }
   }
 
-  // check that dense NCA and OCA calculations agree with twoband.py
-  ASSERT_LE(nda::max_element(nda::abs(NCA_dense_result - NCA_py_perm)), 10 * eps);
-
-  // check that block-sparse NCA and OCA calculations agree with twoband.py
+  // check that NCA calculation agrees with python NCA calculation
   int s0 = 0;
   int s1 = subspaces[0].size();
   for (int i = 0; i < num_blocks; i++) { // compare each block
     ASSERT_LE(nda::max_element(nda::abs(NCA_result.get_block(i) - NCA_py_perm(_, range(s0, s1), range(s0, s1)))), 10 * eps);
     s0 = s1;
     if (i < num_blocks - 1) s1 += subspaces[i + 1].size();
-  }
+  } 
 }
 
 TEST(BlockSparseOCA, single_exponential) {
@@ -367,7 +516,6 @@ TEST(BlockSparseOCA, single_exponential) {
   double g                 = -13.0;
   auto Gt_block            = nda::array<dcomplex, 3>(r, 1, 1);
   auto Gt_zero_block_index = nda::ones<int>(1);
-  // Gt_block(_,0,0) = exp(-g*dlr_it_abs*beta);
   for (int t = 0; t < r; t++) Gt_block(t, 0, 0) = k_it(dlr_it(t), g);
   std::vector<nda::array<dcomplex, 3>> Gt_blocks = {Gt_block};
   auto Gt                                        = BlockDiagOpFun(Gt_blocks, Gt_zero_block_index);
@@ -401,6 +549,62 @@ TEST(BlockSparseOCA, single_exponential) {
 }
 
 TEST(BlockSparseMisc, compute_nonint_gf) {
+  // DLR parameters
+  double beta   = 2.0;
+  double Lambda = 1000 * beta;
+  double eps    = 1.0e-10;
+  // DLR generation
+  auto dlr_rf        = build_dlr_rf(Lambda, eps);
+  auto itops         = imtime_ops(Lambda, dlr_rf);
+  auto const &dlr_it = itops.get_itnodes();
+  auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
+  int r              = itops.rank();
+
+  // the following variables can be read from the output of benchmarks/atom_diag_to_text.py
+  int num_blocks = 5;                                      // number of blocks in Hamiltonian
+  std::vector<nda::array<double, 2>> H_blocks(num_blocks); // Hamiltonian in sparse storage
+  H_blocks[0]                           = nda::make_regular(-1 * nda::eye<double>(4));
+  H_blocks[1]                           = {{-0.6, 0, 0, 0, 0, 0},   {0, 8.27955e-19, 0, 0, 0.2, 0}, {0, 0, -0.4, 0.2, 0, 0},
+                                           {0, 0, 0.2, -0.4, 0, 0}, {0, 0.2, 0, 0, 8.27955e-19, 0}, {0, 0, 0, 0, 0, -0.6}};
+  H_blocks[2]                           = {{0}};
+  H_blocks[3]                           = nda::make_regular(2 * nda::eye<double>(4));
+  H_blocks[4]                           = {{6}};
+  nda::vector<int> H_block_inds         = {0, 0, -1, 0, 0};
+  auto H_dense                          = nda::zeros<dcomplex>(16, 16); // Hamiltonian in dense storage
+  H_dense(range(0, 4), range(0, 4))     = H_blocks[0];
+  H_dense(range(4, 10), range(4, 10))   = H_blocks[1];
+  H_dense(range(11, 15), range(11, 15)) = H_blocks[3];
+  H_dense(15, 15)                       = 6;
+
+  // compute noninteracting Green's function from dense Hamiltonian
+  auto [H_loc_eval, H_loc_evec] = nda::linalg::eigenelements(H_dense);
+  auto E0                       = nda::min_element(H_loc_eval);
+  H_loc_eval -= E0;
+  auto tr_exp_minusbetaH = nda::sum(exp(-beta * H_loc_eval));
+  auto eta_0             = nda::log(tr_exp_minusbetaH) / beta;
+  H_loc_eval += eta_0;
+  auto Gt_evals_t = nda::zeros<dcomplex>(16, 16);
+  auto Gt_mat     = nda::zeros<dcomplex>(r, 16, 16);
+  auto Gbeta      = nda::zeros<dcomplex>(16, 16);
+  Gt_mat          = Hmat_to_Gtmat(H_dense, beta, dlr_it_abs);
+  for (int i = 0; i < 16; i++) { Gbeta(i, i) = -exp(-beta * H_loc_eval(i)); }
+  Gbeta = nda::matmul(Gbeta, nda::transpose(H_loc_evec));
+  Gbeta = nda::matmul(H_loc_evec, Gbeta);
+  // check that trace of noninteracting Green's function from dense
+  // Hamiltonian at tau = beta has trace 1
+  ASSERT_LE(nda::abs(nda::trace(Gbeta) + 1), 1e-13);
+
+  auto Gt = nonint_gf_BDOF(H_blocks, H_block_inds, beta, dlr_it_abs);
+  // check that the noninteracting Green's function, computing from the
+  // sparse- and dense-storage Hamiltonians are the same
+  ASSERT_LE(nda::max_element(nda::abs(Gt_mat(_, range(0, 4), range(0, 4)) - Gt.get_block(0))), 1e-13);
+  ASSERT_LE(nda::max_element(nda::abs(Gt_mat(_, range(4, 10), range(4, 10)) - Gt.get_block(1))), 1e-13);
+  ASSERT_LE(nda::max_element(nda::abs(Gt_mat(_, range(10, 11), range(10, 11)) - Gt.get_block(2))), 1e-13);
+  ASSERT_LE(nda::max_element(nda::abs(Gt_mat(_, range(11, 15), range(11, 15)) - Gt.get_block(3))), 1e-13);
+  ASSERT_LE(nda::max_element(nda::abs(Gt_mat(_, range(15, 16), range(15, 16)) - Gt.get_block(4))), 1e-13);
+}
+
+TEST(BlockSparseMisc, PYTHON_compute_nonint_gf) {
   // DLR parameters
   double beta   = 2.0;
   double Lambda = 1000 * beta;
@@ -462,13 +666,11 @@ TEST(BlockSparseMisc, compute_nonint_gf) {
   ASSERT_LE(nda::max_element(nda::abs(Gt_mat(_, range(11, 15), range(11, 15)) - Gt.get_block(3))), 1e-13);
   ASSERT_LE(nda::max_element(nda::abs(Gt_mat(_, range(15, 16), range(15, 16)) - Gt.get_block(4))), 1e-13);
 
-  std::cout << G0_py(0, range(4, 10), range(4, 10)) << std::endl;
-  std::cout << Gt_mat(0, range(4, 10), range(4, 10)) << std::endl;
   // check that the result here agrees with the result of benchmarks/twoband.py
-  ASSERT_LE(nda::max_element(nda::abs(G0_py - Gt_mat)), 1e-13);
+  ASSERT_LE(nda::max_element(nda::abs(G0_py - Gt_mat)), 1e-13);  
 }
 
-TEST(BlockSparseOCA, two_band_discrete_bath_bs) {
+TEST(BlockSparseOCA, PYTHON_two_band_discrete_bath_bs) {
   // DLR parameters
   double beta   = 2.0;
   double Lambda = 100 * beta;
@@ -483,11 +685,9 @@ TEST(BlockSparseOCA, two_band_discrete_bath_bs) {
   auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
 
-  // block-sparse NCA and OCA compuations
+  // block-sparse NCA and OCA computations
   auto OCA_result = OCA_bs(Deltat, itops, beta, Gt, Fs);
   // load NCA and OCA results from twoband.py
-  std::string Lambda_str = (beta == 2.0) ? "2000.0" : "1000.0";
-  std::string beta_str   = (beta == 2.0) ? "2.0" : "1.0";
   h5::file Gtfile("../test/c++/h5/two_band_py.h5", 'r');
   h5::group Gtgroup(Gtfile);
   auto NCA_py = nda::zeros<dcomplex>(r, 16, 16);
@@ -519,7 +719,7 @@ TEST(BlockSparseOCA, two_band_discrete_bath_bs) {
   }
 }
 
-TEST(BlockSparseOCA, two_band_discrete_bath_dense) {
+TEST(BlockSparseOCA, PYTHON_two_band_discrete_bath_dense) {
   // DLR parameters
   double beta   = 2.0;
   double Lambda = 100.0 * beta;
@@ -561,7 +761,37 @@ TEST(BlockSparseOCA, two_band_discrete_bath_dense) {
   ASSERT_LE(nda::max_element(nda::abs(OCA_dense_result - OCA_py_perm + NCA_py_perm)), eps);
 }
 
-TEST(BlockSparseOCA, two_band_discrete_bath_tpz) {
+TEST(BlockSparseOCA, two_band_discrete_bath_bs_vs_dense) {
+  // DLR parameters
+  double beta   = 2.0;
+  double Lambda = 100 * beta;
+  double eps    = 1.0e-10;
+  // DLR generation
+  auto dlr_rf        = build_dlr_rf(Lambda, eps);
+  auto itops         = imtime_ops(Lambda, dlr_rf);
+  auto const &dlr_it = itops.get_itnodes();
+  auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
+
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+     two_band_discrete_bath_helper(beta, Lambda, eps);
+
+  // block-sparse OCA computation
+  auto OCA_result = OCA_bs(Deltat, itops, beta, Gt, Fs);
+
+  // dense-matrix OCA computation
+  auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
+
+  // check that block-sparse OCA calculation agrees with dense OCA calculation
+  int s0 = 0;
+  int s1 = subspaces[0].size();
+  for (int i = 0; i < num_blocks; i++) { // compare each block
+    ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(i) - OCA_dense_result(_, range(s0, s1), range(s0, s1)))), eps);
+    s0 = s1;
+    if (i < num_blocks - 1) s1 += subspaces[i + 1].size();
+  }
+}
+
+TEST(BlockSparseOCA, PYTHON_two_band_discrete_bath_tpz) {
   // DLR parameters
   double beta   = 2.0;
   double Lambda = 1000 * beta;
@@ -580,7 +810,7 @@ TEST(BlockSparseOCA, two_band_discrete_bath_tpz) {
 
   int n_quad = 100;
   // compute OCA using trapezoidal rule using 100 quadrature nodes0
-  // load precomputed values from the followin 3 lines:
+  // load precomputed values from the following 3 lines:
   // auto OCA_tpz_result = OCA_tpz(Deltat, itops, beta, Gt_dense, Fs_dense, n_quad);
   // h5::file tpz_file("../test/c++/h5/tpz100.h5", 'w');
   // h5::write(tpz_file, "OCA_tpz_result", OCA_tpz_result);
@@ -693,8 +923,8 @@ TEST(Backbone, OCA) {
   auto B = Backbone(topology, n);
   auto D = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset);
 
-  D.eval_diagram_dense(B); 
-  auto OCA_result       = D.Sigma; 
+  D.eval_diagram_dense(B);
+  auto OCA_result       = D.Sigma;
   auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
 
   ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_dense_result)), eps);
@@ -720,7 +950,7 @@ TEST(Backbone, third_order_manual) {
   auto hyb_coeffs      = itops.vals2coefs(hyb); // hybridization DLR coeffs
   auto hyb_refl        = nda::make_regular(-itops.reflect(hyb));
   auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
-  auto Fset = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
+  auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
 
   // compute self-energy contribution of one third-order diagram topology,
   // with all forward hybridization lines and particular poles
@@ -736,12 +966,12 @@ TEST(Backbone, third_order_manual) {
   nda::array<dcomplex, 3> T(r, N, N), GKt(r, N, N), Tmu(r, N, N), Sigma_generic(r, N, N);
   nda::array<dcomplex, 4> Tkaps(n, r, N, N);
   nda::vector<int> states(6);
-  D.eval_diagram_fixed_poles_lines_dense(B); 
+  D.eval_diagram_fixed_poles_lines_dense(B);
 
   ASSERT_LE(nda::max_element(nda::abs(Sigma_manual(10, _, _) - D.Sigma_L(10, _, _))), eps);
 }
 
-TEST(Backbone, third_order) {
+TEST(Backbone, PYTHON_third_order) {
   nda::array<int, 3> topologies = {{{0, 2}, {1, 4}, {3, 5}}, {{0, 3}, {1, 5}, {2, 4}}, {{0, 4}, {1, 3}, {2, 5}}, {{0, 3}, {1, 4}, {2, 5}}};
   nda::vector<int> topo_sign{1, 1, 1, -1}; // topo_sign(i) = (-1)^{# of line crossings in topology i}
 
@@ -770,10 +1000,10 @@ TEST(Backbone, third_order) {
   auto NCA_result          = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
   nda::array<int, 2> T_OCA = {{0, 2}, {1, 3}};
   auto B_OCA               = Backbone(T_OCA, n);
-  auto D     = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset); // create DiagramEvaluator object
-  D.eval_diagram_dense(B_OCA); // evaluate OCA diagram
-  auto OCA_result = D.Sigma; // get the result from the DiagramEvaluator
-  D.reset(); 
+  auto D                   = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset); // create DiagramEvaluator object
+  D.eval_diagram_dense(B_OCA);                                                                   // evaluate OCA diagram
+  auto OCA_result = D.Sigma;                                                                     // get the result from the DiagramEvaluator
+  D.reset();
 
   // arrays for storing results from third-order diagram computations
   auto third_order_result      = nda::zeros<dcomplex>(r, N, N);
@@ -787,8 +1017,9 @@ TEST(Backbone, third_order) {
   for (int i = 0; i < 4; i++) {
     auto B = Backbone(topologies(i, _, _), n); // create Backbone object for topology i
     D.eval_diagram_dense(B);
-    auto eval = D.Sigma; 
-    third_order_result += topo_sign(i) * D.Sigma;;
+    auto eval = D.Sigma;
+    third_order_result += topo_sign(i) * D.Sigma;
+    ;
     if (i == 0)
       third_order_02_result = eval;
     else if (i == 1)

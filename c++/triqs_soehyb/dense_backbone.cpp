@@ -63,19 +63,16 @@ void DiagramEvaluator::multiply_vertex_dense(Backbone &backbone, int v_ix) {
 
 void DiagramEvaluator::compose_with_edge_dense(Backbone &backbone, int e_ix) {
 
-  GKt = Gt;
-  int m         = backbone.m;
-  int r         = dlr_it.size();
+  GKt   = Gt;
+  int m = backbone.m;
+  int r = dlr_it.size();
   for (int x = 0; x < m - 1; x++) {
     int be = backbone.get_edge(e_ix, x); // sign on K
     if (be != 0) {
-      for (int t = 0; t < r; t++) {
-        GKt(t, _, _) = k_it(dlr_it(t), be * dlr_rf(backbone.get_pole_ind(x))) * GKt(t, _, _);
-      }
+      for (int t = 0; t < r; t++) { GKt(t, _, _) = k_it(dlr_it(t), be * dlr_rf(backbone.get_pole_ind(x))) * GKt(t, _, _); }
     }
   }
-  T = itops.convolve(beta, Fermion, itops.vals2coefs(GKt), itops.vals2coefs(T),
-                                         TIME_ORDERED);
+  T = itops.convolve(beta, Fermion, itops.vals2coefs(GKt), itops.vals2coefs(T), TIME_ORDERED);
 }
 
 void DiagramEvaluator::multiply_zero_vertex(Backbone &backbone, bool is_forward) {
@@ -131,7 +128,7 @@ void DiagramEvaluator::eval_diagram_fixed_lines_dense(Backbone &backbone) {
   // L = pole multiindex
   for (int L = 0; L < pow(r, m - 1); L++) { // loop over all combinations of pole indices
     Sigma_L = 0;
-    int L0            = L;
+    int L0  = L;
     // turn (int) L into a vector of pole indices
     auto pole_inds = nda::vector<int>(m - 1);
     for (int i = 0; i < m - 1; i++) {
@@ -174,7 +171,7 @@ void DiagramEvaluator::eval_diagram_fixed_poles_lines_dense(Backbone &backbone) 
   for (int p = 0; p < m - 1; p++) {           // loop over hybridization indices
     int exp = backbone.get_prefactor_Kexp(p); // exponent on K for this hybridization index
     if (exp != 0) {
-      int Ksign = backbone.get_prefactor_Ksign(p);            // sign on K for this hybridization index
+      int Ksign = backbone.get_prefactor_Ksign(p);  // sign on K for this hybridization index
       double om = dlr_rf(backbone.get_pole_ind(p)); // DLR frequency for this value of this hybridization index
       double k  = k_it(0, Ksign * om);
       for (int q = 0; q < exp; q++) Sigma_L /= k;
