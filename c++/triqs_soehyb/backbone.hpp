@@ -3,12 +3,17 @@
 #include <nda/nda.hpp>
 
 /**
- * @class BackboneVertex
+ * @class BackboneVertex 
  * @brief Abstract representation of a backbone vertex
- * @note This is a lightweight class used to represent a vertex in a backbone diagram. Specifically, it says whether this vertex has a creation 
- * @note operator, an annihilation operator, or a linear combination of one of these with coefficients from a decomposition of a hybridization
- * @note function. It also stores which hybridization index (l, l`, ...) is associated with the K on this vertex, the sign on K, and the orbital
- * @note index on the operator. All of this information is specified by integer indices, since evaluation is left to the DiagramEvaluator class. 
+ * 
+ * This is a lightweight class used to represent a vertex in a backbone diagram.
+ * Specifically, it says whether this vertex has a creation operator, an
+ * annihilation operator, or a linear combination of one of these with
+ * coefficients from a decomposition of a hybridization function. It also stores
+ * which hybridization index (l, l`, ...) is associated with the K on this
+ * vertex, the sign on K, and the orbital index on the operator. All of this
+ * information is specified by integer indices, since evaluation is left to the
+ * DiagramEvaluator class. 
  */
 class BackboneVertex {
   private:
@@ -40,12 +45,18 @@ class BackboneVertex {
 /**
  * @class Backbone
  * @brief Abstract representation of a backbone diagram
- * @note This is a lightweight class used to represent a backbone diagram of a specific order and topology. Its attributes contain information about 
- * @note the prefactor; the locations, signs, and hybridization indices of the K's on the edges; and the vertices (see documentation for 
- * @note BackboneVertex). For a given order and topology, the aforementioned information is fixed by the directions of the hybridization lines,
- * @note the signs of the values of the hybridization indices, and the orbital indices on the vertices. These can be set and reset by methods of this 
- * @note class so that a single Backbone object can be reused for all backbones of a given order and topology. All of this information is 
- * @note specified by integer and Boolean indices, since evaluation is left to the DiagramEvaluator class.
+ *
+ * This is a lightweight class used to represent a backbone diagram of a
+ * specific order and topology. Its attributes contain information about the
+ * prefactor; the locations, signs, and hybridization indices of the K's on the
+ * edges; and the vertices (see documentation for BackboneVertex). For a given
+ * order and topology, the aforementioned information is fixed by the directions
+ * of the hybridization lines, the signs of the values of the hybridization
+ * indices, and the orbital indices on the vertices. These can be set and reset
+ * by methods of this class so that a single Backbone object can be reused for
+ * all backbones of a given order and topology. All of this information is 
+ * specified by integer and Boolean indices, since evaluation is left to the
+ * DiagramEvaluator class.
  */
 class Backbone {
   private:

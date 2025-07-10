@@ -9,9 +9,11 @@ using namespace nda;
 /**
  * @class DiagramEvaluator
  * @brief Class for evaluating a diagram of a given order and topology
- * @note This class is used to evaluate all the backbone decompositions of a given order and topology. It reads the information from a Backbone object
- * @note and contains the Green's functions and creation/annihilation operators needed to actually compute the diagram. It also contains temporary 
- * @note arrays required for computation. 
+ * This class is used to evaluate all the backbone decompositions of a given
+ * order and topology. It reads the information from a Backbone object and
+ * contains the Green's functions and creation/annihilation operators needed to
+ * actually compute the diagram. It also contains temporary arrays required for
+ * computation. 
  */
 class DiagramEvaluator {
   public:
