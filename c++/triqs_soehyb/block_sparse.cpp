@@ -71,7 +71,7 @@ int BlockDiagOpFun::get_num_time_nodes() const {
 }
 
 void BlockDiagOpFun::add_block(int i, nda::array_const_view<dcomplex, 3> block) {
-  blocks[i] = nda::make_regular(blocks[i] + block); // TODO: does this work?
+  blocks[i] = nda::make_regular(blocks[i] + block);
 }
 
 std::string BlockDiagOpFun::hdf5_format() { return "BlockDiagOpFun"; }
@@ -186,6 +186,7 @@ BlockOp3D::BlockOp3D(nda::vector_const_view<int> block_indices, std::vector<nda:
 BlockOp3D::BlockOp3D(int r, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes)
    : block_indices(block_indices), num_block_cols(block_indices.size()) {
 
+  std::vector<nda::array<dcomplex, 3>> blocks(num_block_cols);
   for (int i = 0; i < num_block_cols; i++) {
     if (block_indices(i) != -1) {
       blocks[i] = nda::zeros<dcomplex>(r, block_sizes(i, 0), block_sizes(i, 1));
@@ -193,6 +194,7 @@ BlockOp3D::BlockOp3D(int r, nda::vector_const_view<int> block_indices, nda::arra
       blocks[i] = nda::zeros<dcomplex>(1, 1, 1);
     }
   }
+  this->blocks = blocks;
 }
 
 void BlockOp3D::set_block_indices(nda::vector<int> &block_indices) {
@@ -303,6 +305,72 @@ int BlockOpSymSet::get_size_sym_set() const {
   return 0; // BlockOpSymSet is all zeros anyways
 }
 
+////////////// BlockOpSymSetBar class ///////////////
+
+BlockOpSymSetBar::BlockOpSymSetBar(nda::vector_const_view<int> block_indices, std::vector<nda::array<dcomplex, 4>> &blocks)
+   : block_indices(block_indices), blocks(blocks), num_block_cols(block_indices.size()) {}
+
+BlockOpSymSetBar::BlockOpSymSetBar(int q, int r, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes)
+   : block_indices(block_indices), num_block_cols(block_indices.size()) {
+
+  for (int i = 0; i < num_block_cols; i++) {
+    if (block_indices(i) != -1) {
+      blocks[i] = nda::zeros<dcomplex>(q, r, block_sizes(i, 0), block_sizes(i, 1));
+    } else {
+      blocks[i] = nda::zeros<dcomplex>(q, r, 1, 1);
+    }
+  }
+}
+
+void BlockOpSymSetBar::set_block_indices(nda::vector<int> &block_indices) {
+
+  this->block_indices = block_indices;
+  num_block_cols      = block_indices.size();
+}
+
+void BlockOpSymSetBar::set_block_index(int i, int block_index) { block_indices(i) = block_index; }
+
+void BlockOpSymSetBar::set_blocks(std::vector<nda::array<dcomplex, 4>> &blocks) { this->blocks = blocks; }
+
+void BlockOpSymSetBar::set_block(int i, nda::array_const_view<dcomplex, 4> block) { blocks[i] = block; }
+
+nda::vector_const_view<int> BlockOpSymSetBar::get_block_indices() const { return block_indices; }
+
+int BlockOpSymSetBar::get_block_index(int i) const { return block_indices(i); }
+
+const std::vector<nda::array<dcomplex, 4>> &BlockOpSymSetBar::get_blocks() const { return blocks; }
+
+nda::array_const_view<dcomplex, 4> BlockOpSymSetBar::get_block(int i) const {
+  if (block_indices(i) == -1) {
+    auto arr = nda::zeros<dcomplex>(1, 1, 1, 1);
+    return arr;
+  } else {
+    return blocks[i];
+  }
+}
+
+int BlockOpSymSetBar::get_num_block_cols() const { return num_block_cols; }
+
+int BlockOpSymSetBar::get_size_sym_set() const {
+  for (int i = 0; i < num_block_cols; i++) {
+    if (block_indices(i) != -1) { return blocks[i].shape(0); }
+  }
+  return 0; // BlockOpSymSetBar is all zeros anyways
+}
+
+int BlockOpSymSetBar::get_num_time_nodes() const {
+  for (int i = 0; i < num_block_cols; i++) {
+    if (block_indices(i) != -1) { return blocks[i].shape(1); }
+  }
+  return 0; // BlockOpSymSetBar is all zeros anyways
+}
+
+void BlockOpSymSetBar::add_block(int i, int s, int t, nda::array_const_view<dcomplex, 2> block) {
+  if (block_indices(i) != -1) {
+    blocks[i](s, t, _, _) += block;
+  }
+}
+
 ////////////// BlockOpSymQuartet class ///////////////
 
 BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<BlockOpSymSet> F_dags, nda::array_const_view<dcomplex, 3> hyb_coeffs,
@@ -319,27 +387,23 @@ BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<
   }
 
   // initialize F_dag_bars and F_bars_refl
-  std::vector<std::vector<BlockOpSymSet>> F_dag_bars(k);
-  std::vector<std::vector<BlockOpSymSet>> F_bars_refl(k);
   int r = hyb_coeffs.extent(0);
-  for (int i = 0; i < k; i++) {
-    auto Fbar_indices = Fs[i].get_block_indices();
-    auto Fbar_sizes   = Fs[i].get_block_sizes();
-    auto Fdagbar_indices = F_dags[i].get_block_indices();
-    auto Fdagbar_sizes   = F_dags[i].get_block_sizes(); 
-    int qi = Fs[i].get_size_sym_set();
-    if (qi != F_dags[i].get_size_sym_set()) {
-      throw std::invalid_argument("Fs and F_dags must have the same number of operators in each set");
-    }
-    F_dag_bars[i] = std::vector<BlockOpSymSet>(r, BlockOpSymSet(qi, Fdagbar_indices, Fdagbar_sizes));
-    F_bars_refl[i] = std::vector<BlockOpSymSet>(r, BlockOpSymSet(qi, Fbar_indices, Fbar_sizes));
-  }
+  std::vector<BlockOpSymSetBar> F_dag_bars(k, {F_dags[0].get_size_sym_set(), r, F_dags[0].get_block_indices(), F_dags[0].get_block_sizes()});
+  std::vector<BlockOpSymSetBar> F_bars_refl(k, {Fs[0].get_size_sym_set(), r, Fs[0].get_block_indices(), Fs[0].get_block_sizes()});
 
   // compute F_dag_bars and F_bars_refl
-  for (int lam = 0; lam < k; lam++) {
+  for (int i = 0; i < k; i++) {
+    int qi = Fs[i].get_size_sym_set();
     for (int l = 0; l < r; l++) {
-      for (int nu = 0; nu < k; nu++) {
-        
+      for (int lam = 0; lam < qi; lam++) {
+        for (int nu = 0; nu < qi; nu++) {
+          for (int b = 0; b < F_dags[i].get_num_block_cols(); b++) {
+            if (F_dags[i].get_block_index(b) != -1) {
+              F_dag_bars[i].add_block(b, lam, l, nda::make_regular(hyb_coeffs(l, nu, lam) * F_dags[i].get_block(b)(nu, _, _)));
+              F_bars_refl[i].add_block(b, lam, l, nda::make_regular(hyb_refl_coeffs(l, lam, nu) * Fs[i].get_block(b)(nu, _, _)));
+            }
+          }
+        }
       }
     }
   }

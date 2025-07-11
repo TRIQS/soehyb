@@ -1,4 +1,5 @@
 #include <cppdlr/dlr_kernels.hpp>
+#include <nda/blas/tools.hpp>
 #include <nda/declarations.hpp>
 #include <triqs_soehyb/block_sparse.hpp>
 #include <nda/nda.hpp>
@@ -7,56 +8,49 @@
 using namespace nda;
 
 /**
- * @brief Multiply by a block of a single vertex in a backbone diagram
- * @param[in] backbone Backbone object
- * @param[in] dlr_it DLR imaginary time nodes in relative ordering
- * @param[in] dlr_rf DLR frequency nodes
- * @param[in] Fset BlockOpSymQuartet
- * @param[in] v_ix vertex index to multiply
- * @param[in] b_ix block index
- * @param[in] T array on which to left-multiply vertex
- * @param[in] block_dims {# cols vertex, # rows vertex}
+ * @class DiagramBlockSparseEvaluator
+ * @brief Class for evaluating a diagram of a given order and topology in block-sparse storage
+ * This class is used to evaluate all the backbone decompositions of a given order and topology. It reads the information from a Backbone object
+ * and contains the Green's functions and creation/annihilation operators needed to actually compute the diagram. It also contains temporary 
+ * data structures required for computation.
  */
-void multiply_vertex_block(Backbone &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf, BlockOpSymQuartet &Fset,
-                           int v_ix, int b_ix, nda::array_view<dcomplex, 3> T, nda::vector_const_view<int> block_dims);
+class DiagramBlockSparseEvaluator {
+  public:
+  double beta;                      // inverse temperature
+  int r;                            // rank of the DLR imaginary time object
+  int n;                            // number of orbitals
+  int Nmax;                         // maximum block size in the Green's function
+  nda::vector<int> block_dims;      // dimensions of intermediate arrays
+  imtime_ops itops;                 // DLR imaginary time object
+  nda::array<dcomplex, 3> hyb;      // hybridization function at imaginary time nodes
+  nda::array<dcomplex, 3> hyb_refl; // hybridization function at (beta - tau) nodes
+  BlockDiagOpFun Gt;                // Green's function at imaginary time nodes
+  BlockOpSymQuartet Fset;           // BlockOpSymQuartet (cre/ann operators with and without bars)
+  nda::vector<double> dlr_it;       // DLR imaginary time nodes in relative ordering
+  nda::vector<double> dlr_rf;       // DLR frequency nodes
+  BlockDiagOpFun Sigma;             // array for storing self-energy contribution (final result)
+  nda::array<dcomplex, 3> T;        // array for storing intermediate result
+  nda::array<dcomplex, 3> GKt;      // array for storing result of edge computation
+  nda::array<dcomplex, 4> Tkaps;    // intermediate storage array
+  nda::array<dcomplex, 3> Tmu;      // intermediate storage array
+  nda::array<dcomplex, 3> Sigma_L;  // intermediate storage array for backbone result, including prefactor, over all orbital indices
 
-/**
- * @brief Compute a block of a single edge in a backbone diagram
- * @param[in] backbone Backbone object
- * @param[in] dlr_it DLR imaginary time nodes in relative ordering
- * @param[in] dlr_rf DLR frequency nodes
- * @param[in] Gt Green's function
- * @param[in] e_ix edge index to compute
- * @param[in] b_ix block index
- * @param[in] GKt array for storing result
- */
-void compute_edge_block(Backbone &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf, BlockDiagOpFun &Gt,
-                        int e_ix, int b_ix, nda::array_view<dcomplex, 3> GKt_b);
+  void multiply_vertex_block(Backbone &backbone, int v_ix,
+                             int b_ix); // for block b_ix, multiply by a single vertex, v_ix, in a backbone diagram using block-sparse storage
+  void compose_with_edge_block(Backbone &backbone, int e_ix,
+                               int b_ix); // for block b_ix, convolve with a single edge, e_ix, in a backbone diagram using block-sparse storage
+  void reset();                           // reset all arrays to zero
+  void eval_diagram_block_sparse(Backbone &backbone); // evaluate a diagram of a given order and topology in block-sparse storage
 
-/**
- * @brief Convolve with a block of a single edge in a backbone diagram
- * @param[in] backbone Backbone object
- * @param[in] itops DLR imaginary time object
- * @param[in] dlr_it DLR imaginary time nodes in relative ordering
- * @param[in] dlr_rf DLR frequency nodes
- * @param[in] beta inverse temperature
- * @param[in] Gt Green's function
- * @param[in] e_ix edge index to compute
- * @param[in] b_ix block index
- * @param[in] T array for storing result
- * @param[in] GKt array for storing result of edge computation
- */
-void compose_with_edge_block(Backbone &backbone, imtime_ops &itops, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf,
-                             double beta, BlockDiagOpFun &Gt, int e_ix, int b_ix, nda::array_view<dcomplex, 3> T, nda::array_view<dcomplex, 3> GKt_b);
-
-/**
- * @brief Evaluate a single backbone diagram in block-sparse storage
- * @param[in] backbone Backbone object
- * @param[in] beta inverse temperature
- * @param[in] itops DLR imaginary time object
- * @param[in] hyb hybridization function at imaginary time nodes
- * @param[in] Gt Greens function
- * @param[in] Fset BlockOpSymQuartet
- */
-BlockDiagOpFun eval_backbone(Backbone &backbone, double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb, BlockDiagOpFun &Gt,
-                             BlockOpSymQuartet &Fset);
+  /**
+   * @brief Constructor for DiagramBlockSparseEvaluator
+   * @param[in] beta inverse temperature
+   * @param[in] itops DLR imaginary time object
+   * @param[in] hyb hybridization function at imaginary time nodes
+   * @param[in] hyb_refl hybridization function at (beta - tau) nodes
+   * @param[in] Gt Green's function at imaginary time nodes
+   * @param[in] Fset BlockOpSymQuartet (cre/ann operators with and without bars)
+   */
+  DiagramBlockSparseEvaluator(double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl,
+                              BlockDiagOpFun &Gt, BlockOpSymQuartet &Fset);
+};

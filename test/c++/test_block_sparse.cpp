@@ -830,7 +830,7 @@ TEST(BlockSparseOCA, PYTHON_two_band_discrete_bath_tpz) {
   }
 }
 
-TEST(Backbone, one_vertex_and_edge) {
+TEST(DenseBackbone, one_vertex_and_edge) {
   nda::array<int, 2> topology = {{0, 2}, {1, 4}, {3, 5}};
   int n = 4, N = 16;
   double beta   = 2.0;
@@ -895,7 +895,7 @@ TEST(Backbone, one_vertex_and_edge) {
   }
 }
 
-TEST(Backbone, OCA) {
+TEST(DenseBackbone, OCA) {
   nda::array<int, 2> topology = {{0, 2}, {1, 3}};
   int n = 4, N = 16;
   double beta   = 2.0;
@@ -930,7 +930,7 @@ TEST(Backbone, OCA) {
   ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_dense_result)), eps);
 }
 
-TEST(Backbone, third_order_manual) {
+TEST(DenseBackbone, third_order_manual) {
   int n = 4, N = 16;
   double beta   = 2.0;
   double Lambda = 10.0 * beta; // 1000.0*beta;
@@ -971,7 +971,7 @@ TEST(Backbone, third_order_manual) {
   ASSERT_LE(nda::max_element(nda::abs(Sigma_manual(10, _, _) - D.Sigma_L(10, _, _))), eps);
 }
 
-TEST(Backbone, PYTHON_third_order) {
+TEST(DenseBackbone, PYTHON_third_order) {
   nda::array<int, 3> topologies = {{{0, 2}, {1, 4}, {3, 5}}, {{0, 3}, {1, 5}, {2, 4}}, {{0, 4}, {1, 3}, {2, 5}}, {{0, 3}, {1, 4}, {2, 5}}};
   nda::vector<int> topo_sign{1, 1, 1, -1}; // topo_sign(i) = (-1)^{# of line crossings in topology i}
 
@@ -1088,4 +1088,95 @@ TEST(Backbone, PYTHON_third_order) {
   ASSERT_LE(nda::max_element(nda::abs(third_order_04_result - third_order_py_04_perm)), 100 * eps);
 
   ASSERT_LE(nda::max_element(nda::abs(third_order_result - third_order_py_perm)), 100 * eps);
+}
+
+TEST(Backbone, flat_index) {
+  nda::array<int, 2> topology = {{0, 2}, {1, 4}, {3, 5}};
+  int n = 4, m = topology.extent(0);
+
+  double beta   = 2.0;
+  double Lambda = 100.0 * beta;
+  double eps    = 1.0e-10;
+
+  // DLR generation
+  auto dlr_rf        = build_dlr_rf(Lambda, eps);
+  int r = dlr_rf.size();
+
+  nda::vector<int> fb{1, 1, 0};
+  nda::vector<int> pole_inds{3, 10};
+  nda::vector<int> orb_inds{1, 3, 1, 2, 3, 2};
+
+  auto B = Backbone(topology, n);
+  B.set_directions(fb);
+  B.set_pole_inds(pole_inds, dlr_rf);
+  B.set_orb_inds(orb_inds);
+
+  int fb_ix = 1 + 2 * 1; 
+  int p_ix = 3 + r * 10;
+  int o_ix = 3 + n * 2; 
+  auto B2 = Backbone(topology, n); 
+  B2.set_directions(fb_ix);
+  B2.set_pole_inds(p_ix, dlr_rf);
+  B2.set_orb_inds(o_ix);
+
+  ASSERT_EQ(B.get_fb(0), B2.get_fb(0));
+  ASSERT_EQ(B.get_fb(1), B2.get_fb(1));
+  ASSERT_EQ(B.get_fb(2), B2.get_fb(2));
+  ASSERT_EQ(B.get_pole_ind(0), B2.get_pole_ind(0));
+  ASSERT_EQ(B.get_pole_ind(1), B2.get_pole_ind(1));
+  ASSERT_EQ(B.get_orb_ind(1), B2.get_orb_ind(1));
+  ASSERT_EQ(B.get_orb_ind(3), B2.get_orb_ind(3));
+  ASSERT_EQ(B.get_orb_ind(4), B2.get_orb_ind(4));
+  ASSERT_EQ(B.get_orb_ind(5), B2.get_orb_ind(5));
+
+  int f_ix = o_ix + p_ix * n * n + fb_ix * n * n * r * r; 
+  auto B3 = Backbone(topology, n);
+  B3.set_flat_index(f_ix, dlr_rf);
+
+  ASSERT_EQ(B.get_fb(0), B3.get_fb(0));
+  ASSERT_EQ(B.get_fb(1), B3.get_fb(1)); 
+  ASSERT_EQ(B.get_fb(2), B3.get_fb(2));
+  ASSERT_EQ(B.get_pole_ind(0), B3.get_pole_ind(0));
+  ASSERT_EQ(B.get_pole_ind(1), B3.get_pole_ind(1));
+  ASSERT_EQ(B.get_orb_ind(1), B3.get_orb_ind(1));
+  ASSERT_EQ(B.get_orb_ind(3), B3.get_orb_ind(3));
+  ASSERT_EQ(B.get_orb_ind(4), B3.get_orb_ind(4));
+  ASSERT_EQ(B.get_orb_ind(5), B3.get_orb_ind(5));
+}
+
+TEST(Backbone, data_structures) {
+  int n = 4, k = 5; 
+  double beta   = 2.0;
+  double Lambda = 100.0 * beta;
+  double eps    = 1.0e-10;
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+     two_band_discrete_bath_helper(beta, Lambda, eps);
+
+  // DLR generation
+  auto dlr_rf        = build_dlr_rf(Lambda, eps);
+  auto itops         = imtime_ops(Lambda, dlr_rf);
+  auto const &dlr_it = itops.get_itnodes();
+  auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
+  int r              = itops.rank();
+
+  // compute hybridization function
+  auto hyb             = Deltat;
+  auto hyb_coeffs      = itops.vals2coefs(hyb); // hybridization DLR coeffs
+  auto hyb_refl        = nda::make_regular(-itops.reflect(hyb));
+  auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
+
+  // compute creation and annihilation operators in dense storage
+  auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
+
+  // compute creation and annihilation operators in block-sparse storage
+  auto Fs_sym = BlockOpSymSet(n, Fs[0].get_block_indices(), Fs[0].get_block_sizes()); 
+  for (int i = 0; i < k; i++) {
+    if (Fs[0].get_block_index(i) == -1) continue; // skip empty blocks
+    auto Fs_sym_block = nda::zeros<dcomplex>(n, Fs[0].get_block_size(i,0), Fs[0].get_block_size(i,1));
+    for (int j = 0; j < n; j++) {
+      Fs_sym_block(j, _, _) = Fs[j].get_block(i);
+    }
+    Fs_sym.set_block(i, Fs_sym_block);
+  }
+  std::cout << "Fs_sym block = " << Fs_sym.get_block(1)(0,_,_) << std::endl;
 }

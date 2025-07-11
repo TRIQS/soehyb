@@ -37,7 +37,7 @@ class BackboneVertex {
   void set_orb(int i);
 
   /**
-   * @brief Constructor for BackboneVertex
+   * @brief Default constructor for BackboneVertex
    */
   BackboneVertex();
 };
@@ -85,19 +85,28 @@ class Backbone {
     */
   nda::vector<int> fb;        // directions of the hybridization lines, 0 for backward, 1 for forward
   nda::vector<int> pole_inds; // values of the hybridization indices (i.e. values of l, l`, ...)
+  nda::vector<int> orb_inds;  // orbital indices on the vertices, i.e., values of lambda, mu, ...
 
   public:
   int m;              // order
   int n;              // number of orbital indices
+  int fb_ix_max;      // maximum value of fb_ix, i.e., 2^m - 1
+  int o_ix_max;       // maximum value of o_ix, i.e., n^(m-1) - 1
   int prefactor_sign; // +1 or -1, depending on the sign of the prefactor
   std::vector<BackboneVertex> vertices;
 
+  void set_directions(int fb_ix); // set directions from a single integer index in [[0, 2^m-1]]
   void set_directions(nda::vector_const_view<int> fb);
   void reset_directions();
+  void set_pole_inds(int p_ix, nda::vector_const_view<double> dlr_rf); // set pole indices from a single integer index in [[0, r^(m-1)-1]]
   void set_pole_inds(nda::vector_const_view<int> pole_inds, nda::vector_const_view<double> dlr_rf);
   void reset_pole_inds();
   void set_orb_inds(nda::vector_const_view<int> orb_inds);
+  void set_orb_inds(int o_ix); // set orbital indices from a single integer index in [[0, n^(m-1)-1]]
   void reset_orb_inds();
+  void set_flat_index(int f_ix,
+                      nda::vector_const_view<double> dlr_rf); // set directions, pole indices, and orbital indices from a single integer index.
+  // In terms of fb_ix, p_ix, and o_ix, f_ix = o_ix + n^(m-1) * p_ix + (n * r)^(m-1) * fb_ix, where r is the number of hybridization indices.
 
   int get_prefactor_Ksign(int i);
   int get_prefactor_Kexp(int i);
@@ -112,6 +121,7 @@ class Backbone {
   int get_topology(int i, int j);
   int get_pole_ind(int i);
   int get_fb(int i);
+  int get_orb_ind(int i); 
 
   /**
    * @brief Constructor for Backbone

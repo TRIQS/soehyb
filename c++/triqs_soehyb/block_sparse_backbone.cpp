@@ -4,6 +4,33 @@
 #include <triqs_soehyb/block_sparse.hpp>
 #include <triqs_soehyb/block_sparse_backbone.hpp>
 
+DiagramBlockSparseEvaluator::DiagramBlockSparseEvaluator(double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
+                                                         nda::array_const_view<dcomplex, 3> hyb_refl, BlockDiagOpFun &Gt, BlockOpSymQuartet &Fset)
+   : beta(beta), itops(itops), r(itops.rank()), n(hyb.extent(1)), Nmax(Gt.get_max_block_size()), hyb(hyb), hyb_refl(hyb_refl), Gt(Gt), Fset(Fset), Sigma(itops.rank(), Gt.get_block_sizes()) {
+
+  dlr_it = itops.get_itnodes();
+  dlr_rf = itops.get_rfnodes();
+
+  // allocate arrays
+  T       = nda::zeros<dcomplex>(r, Nmax, Nmax);
+  GKt     = nda::zeros<dcomplex>(r, Nmax, Nmax);
+  Tkaps   = nda::zeros<dcomplex>(n, r, Nmax, Nmax);
+  Tmu     = nda::zeros<dcomplex>(r, Nmax, Nmax);
+  Sigma_L = nda::zeros<dcomplex>(r, Nmax, Nmax);
+}
+
+void DiagramBlockSparseEvaluator::multiply_vertex_block(Backbone &backbone, int v_ix, int b_ix) {
+  int o_ix = backbone.get_vertex_orb(v_ix); // orbital_index
+  int l_ix = backbone.get_pole_ind(backbone.get_vertex_hyb_ind(v_ix));
+  
+  /*
+  if (backbone.has_vertex_bar(v_ix)) {   // F has bar
+    if (backbone.has_vertex_dag(v_ix)) { // F has dagger
+      for (int t = 0; t < r; t++) {
+        T(t, range(0, block_dims(1)), range(0, block_dims(0))) = nda}
+  */
+}
+
 void multiply_vertex_block(Backbone &backbone, nda::vector_const_view<double> dlr_it, nda::vector_const_view<double> dlr_rf, BlockOpSymQuartet &Fset,
                            int v_ix, int b_ix, nda::array_view<dcomplex, 3> T, nda::vector_const_view<int> block_dims) {
   int r    = dlr_it.size();

@@ -1,5 +1,6 @@
 #include <cppdlr/dlr_imtime.hpp>
 #include <cppdlr/dlr_kernels.hpp>
+#include <nda/declarations.hpp>
 #include <nda/nda.hpp>
 #include <triqs_soehyb/block_sparse.hpp>
 #include <triqs_soehyb/backbone.hpp>
@@ -20,12 +21,17 @@ void BackboneVertex::set_hyb_ind(int i) { hyb_ind = i; }
 void BackboneVertex::set_Ksign(int i) { Ksign = i; }
 void BackboneVertex::set_orb(int i) { orb = i; }
 
-Backbone::Backbone(nda::array<int, 2> topology, int n) : topology(topology), m(topology.extent(0)), n(n), prefactor_sign(1) {
+Backbone::Backbone(nda::array<int, 2> topology, int n)
+   : topology(topology),
+     m(topology.extent(0)),
+     n(n),
+     fb_ix_max(static_cast<int>(pow(2, m))),
+     o_ix_max(static_cast<int>(pow(n, m - 1))),
+     prefactor_sign(1) {
 
   prefactor_Ksigns = nda::vector<int>(m - 1, 0);
   prefactor_Kexps  = nda::vector<int>(m - 1, 0);
-  auto dummy       = BackboneVertex();
-  vertices         = std::vector<BackboneVertex>(2 * m, dummy);
+  vertices         = std::vector<BackboneVertex>(2 * m);
   edges            = nda::zeros<int>(2 * m - 1, m - 1);
 }
 
@@ -61,6 +67,16 @@ void Backbone::set_directions(nda::vector_const_view<int> fb) {
       vertices[topology(i, 1)].set_dag(false); // annihilation operator on vertex i
     }
   }
+}
+
+void Backbone::set_directions(int fb_ix) {
+
+  auto fb_vec = nda::vector<int>(m);
+  for (int i = 0; i < m; i++) {
+    fb_vec(i) = fb_ix % 2; // 0 for backward, 1 for forward
+    fb_ix /= 2;
+  }
+  set_directions(fb_vec);
 }
 
 void Backbone::reset_directions() {
@@ -126,6 +142,17 @@ void Backbone::set_pole_inds(nda::vector_const_view<int> pole_inds, nda::vector_
   }
 }
 
+void Backbone::set_pole_inds(int p_ix, nda::vector_const_view<double> dlr_rf) {
+
+  int r          = dlr_rf.size();
+  auto pole_inds = nda::vector<int>(m - 1);
+  for (int i = 0; i < m - 1; i++) {
+    pole_inds(i) = p_ix % r;
+    p_ix /= r;
+  }
+  set_pole_inds(pole_inds, dlr_rf);
+}
+
 void Backbone::reset_pole_inds() {
   pole_inds        = 0;
   edges            = 0;
@@ -142,13 +169,45 @@ void Backbone::reset_pole_inds() {
 void Backbone::set_orb_inds(nda::vector_const_view<int> orb_inds) {
   // orb_inds = orbital indices (e.g. lambda, mu indices), going
   // right to left, excluding the ones associated with the special vertex
+  this->orb_inds = orb_inds;
   for (int i = 0; i < 2 * m; i++) {
     if (i != 0 && i != topology(0, 1)) { vertices[i].set_orb(orb_inds(i)); }
   }
 }
 
+void Backbone::set_orb_inds(int o_ix) {
+  // set orbital indices from a single integer index
+  auto orb_inds = nda::vector<int>(2 * m);
+  orb_inds(0) = -1; 
+  orb_inds(topology(0, 1)) = -1; // special vertex 0 and the one connected to it have no orbital indices explicitly summed over
+  for (int i = 1; i < m; i++) { // loop over lines, skipping the one connected to vertex 0
+    orb_inds(topology(i, 0)) = o_ix % n;
+    orb_inds(topology(i, 1)) = o_ix % n;
+    // orbital indices on vertices connected by a line are the same
+    o_ix /= n;
+  }
+  set_orb_inds(orb_inds);
+}
+
 void Backbone::reset_orb_inds() {
   for (int i = 0; i < 2 * m; i++) vertices[i].set_orb(0);
+}
+
+void Backbone::set_flat_index(int f_ix, nda::vector_const_view<double> dlr_rf) {
+  // set directions, pole indices, and orbital indices from a single integer index.
+  // In terms of fb_ix, p_ix, and o_ix,
+  // f_ix = o_ix + n^(m-1) * p_ix + (n * r)^(m-1) * fb_ix, where r is the number of hybridization indices.
+
+  int r    = dlr_rf.size();
+  int o_ix = f_ix % o_ix_max; // orbital indices
+  f_ix /= o_ix_max;
+  int p_ix_max = static_cast<int>(pow(r, m - 1)); 
+  int p_ix = f_ix % p_ix_max; // pole indices
+  int fb_ix = f_ix / p_ix_max; // directions
+
+  set_directions(fb_ix);
+  set_pole_inds(p_ix, dlr_rf);
+  set_orb_inds(o_ix);
 }
 
 int Backbone::get_prefactor_Ksign(int i) { return prefactor_Ksigns(i); }
@@ -162,6 +221,7 @@ int Backbone::get_edge(int num, int pole_ind) { return edges(num, pole_ind); }
 int Backbone::get_topology(int i, int j) { return topology(i, j); }
 int Backbone::get_pole_ind(int i) { return pole_inds(i); }
 int Backbone::get_fb(int i) { return fb(i); }
+int Backbone::get_orb_ind(int i) { return orb_inds(i); }
 
 std::ostream &operator<<(std::ostream &os, Backbone &B) {
 

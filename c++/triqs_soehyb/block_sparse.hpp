@@ -96,11 +96,6 @@ class BlockOp {
 };
 
 /**
- * @class BlockOpND 
- * @brief Abstract superclass for block-sparse storage of collections of matrices with the same sparsity pattern
- */
-
-/**
  * @class BlockOp3D 
  * @brief Abstract superclass for block-sparse storage of sequences of matrices with the same sparsity pattern
  */
@@ -108,7 +103,7 @@ class BlockOp3D {
   protected:
   nda::vector<int> block_indices;
   std::vector<nda::array<dcomplex, 3>> blocks;
-  int num_block_cols; // TODO handle non-symmetry-related zeros
+  int num_block_cols;
 
   public:
   void set_block_indices(nda::vector<int> &block_indices);
@@ -213,6 +208,50 @@ class BlockOpSymSet : public BlockOp3D {
   BlockOpSymSet(int q, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes);
 };
 
+
+
+/**
+ * @class BlockOpSymSetBar
+ * @brief Class for block-sparse storage of a set of F^bar operators with the same sparsity pattern
+ */
+class BlockOpSymSetBar {
+  protected:
+  nda::vector<int> block_indices;
+  std::vector<nda::array<dcomplex, 4>> blocks;
+  int num_block_cols;
+
+  public:
+  void set_block_indices(nda::vector<int> &block_indices);
+  void set_block_index(int i, int block_index);
+  void set_blocks(std::vector<nda::array<dcomplex, 4>> &blocks);
+  void set_block(int i, nda::array_const_view<dcomplex, 4> block);
+  nda::vector_const_view<int> get_block_indices() const;
+  int get_block_index(int i) const;
+  const std::vector<nda::array<dcomplex, 4>> &get_blocks() const;
+  nda::array_const_view<dcomplex, 4> get_block(int i) const;
+  int get_num_block_cols() const;
+  int get_size_sym_set() const;
+  int get_num_time_nodes() const;
+  void add_block(int i, int s, int t, nda::array_const_view<dcomplex, 2> block); // add to block i, symmetry index s, time index t
+  
+  /**
+   * @brief Constructor for BlockOpSymSetBar
+   * @param[in] block_indices vector of block-col-indices
+   * @param[in] blocks vector of blocks
+   * @note block_indices[i] = -1 if F does not have a block in col i
+   */
+  BlockOpSymSetBar(nda::vector_const_view<int> block_indices, std::vector<nda::array<dcomplex, 4>> &blocks);
+
+  /**
+   * @brief Constructor for BlockOpSymSetBar with blocks of zeros
+   * @param[in] q number of orbital indices associated with the block-sparse structure
+   * @param[in] r rank of the DLR imaginary time object
+   * @param[in] block_indices vector of block-col-indices
+   * @param[in] block_sizes vector of sizes of blocks
+   */
+  BlockOpSymSetBar(int q, int r, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes);
+};
+
 /**
  * @class BlockOpSymQuartet (BOSQ)
  * @brief Container for multiple symmetry sets of BOSS 
@@ -221,8 +260,8 @@ class BlockOpSymQuartet {
   public:
   std::vector<BlockOpSymSet> Fs;
   std::vector<BlockOpSymSet> F_dags;
-  std::vector<std::vector<BlockOpSymSet>> F_dag_bars;
-  std::vector<std::vector<BlockOpSymSet>> F_bars_refl;
+  std::vector<BlockOpSymSetBar> F_dag_bars;
+  std::vector<BlockOpSymSetBar> F_bars_refl;
 
   /** 
    * @brief Constructor for BlockOpSymQuartet
