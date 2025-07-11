@@ -210,6 +210,12 @@ void Backbone::set_flat_index(int f_ix, nda::vector_const_view<double> dlr_rf) {
   set_orb_inds(o_ix);
 }
 
+void Backbone::reset_all_inds() {
+  reset_directions();
+  reset_pole_inds();
+  reset_orb_inds();
+}
+
 int Backbone::get_prefactor_Ksign(int i) { return prefactor_Ksigns(i); }
 int Backbone::get_prefactor_Kexp(int i) { return prefactor_Kexps(i); }
 bool Backbone::has_vertex_bar(int i) { return vertices[i].has_bar(); }

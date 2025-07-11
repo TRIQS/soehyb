@@ -88,12 +88,6 @@ class Backbone {
   nda::vector<int> orb_inds;  // orbital indices on the vertices, i.e., values of lambda, mu, ...
 
   public:
-  int m;              // order
-  int n;              // number of orbital indices
-  int fb_ix_max;      // maximum value of fb_ix, i.e., 2^m - 1
-  int o_ix_max;       // maximum value of o_ix, i.e., n^(m-1) - 1
-  int prefactor_sign; // +1 or -1, depending on the sign of the prefactor
-  std::vector<BackboneVertex> vertices;
 
   void set_directions(int fb_ix); // set directions from a single integer index in [[0, 2^m-1]]
   void set_directions(nda::vector_const_view<int> fb);
@@ -107,6 +101,14 @@ class Backbone {
   void set_flat_index(int f_ix,
                       nda::vector_const_view<double> dlr_rf); // set directions, pole indices, and orbital indices from a single integer index.
   // In terms of fb_ix, p_ix, and o_ix, f_ix = o_ix + n^(m-1) * p_ix + (n * r)^(m-1) * fb_ix, where r is the number of hybridization indices.
+  void reset_all_inds(); 
+
+  int m;              // order
+  int n;              // number of orbital indices
+  int fb_ix_max;      // maximum value of fb_ix, i.e., 2^m - 1
+  int o_ix_max;       // maximum value of o_ix, i.e., n^(m-1) - 1
+  int prefactor_sign; // +1 or -1, depending on the sign of the prefactor
+  std::vector<BackboneVertex> vertices;
 
   int get_prefactor_Ksign(int i);
   int get_prefactor_Kexp(int i);

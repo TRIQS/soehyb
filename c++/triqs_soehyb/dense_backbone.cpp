@@ -106,6 +106,18 @@ void DiagramEvaluator::multiply_zero_vertex(Backbone &backbone, bool is_forward)
   }
 }
 
+void DiagramEvaluator::eval_diagram_flat_dense(Backbone &backbone) {
+
+  int m = backbone.m;
+  // loop over all flat indices
+  int f_ix_max = static_cast<int>(backbone.fb_ix_max * backbone.o_ix_max * pow(dlr_rf.size(), m - 1));
+  for (int f_ix = 0; f_ix < f_ix_max; f_ix++) {
+    backbone.set_flat_index(f_ix, dlr_rf); // set directions, pole indices, and orbital indices from a single integer index
+    eval_diagram_fixed_orbs_poles_lines_with_prefactor_dense(backbone); // evaluate the diagram with these directions, poles, and orbital indices
+    backbone.reset_all_inds(); // reset directions, pole indices, and orbital indices for the next iteration
+  }
+}
+
 void DiagramEvaluator::eval_diagram_dense(Backbone &backbone) {
 
   int m = backbone.m;
@@ -201,4 +213,41 @@ void DiagramEvaluator::eval_diagram_fixed_orbs_poles_lines_dense(Backbone &backb
     compose_with_edge_dense(backbone, v - 1);
     multiply_vertex_dense(backbone, v);
   }
+}
+
+void DiagramEvaluator::eval_diagram_fixed_orbs_poles_lines_with_prefactor_dense(Backbone &backbone) {
+  int m = backbone.m;
+
+  // 1. Starting from tau_1, proceed right to left, performing multiplications at vertices and convolutions at edges, until reaching the vertex
+  // containing the undecomposed hybridization line Delta_{mu kappa}.
+  T = Gt; // T stores the result moving left to right
+  // T is initialized to Gt, which is always the function at the rightmost edge
+  for (int v = 1; v < backbone.get_topology(0, 1); v++) { // loop from the first vertex to before the special vertex
+    multiply_vertex_dense(backbone, v);
+    compose_with_edge_dense(backbone, v);
+  }
+
+  // 2. For each kappa, multiply by F_kappa(^dag). Then for each mu, kappa, multiply by Delta_{mu kappa}, and sum over kappa. Finally for each mu,
+  // multiply F_mu[^dag] and sum over mu.
+  multiply_zero_vertex(backbone, (not backbone.has_vertex_dag(0)));
+
+  // 3. Continue right to left until the final vertex multiplication is complete.
+  for (int v = backbone.get_topology(0, 1) + 1; v < 2 * m; v++) { // loop from the special vertex to the last vertex
+    compose_with_edge_dense(backbone, v - 1);
+    multiply_vertex_dense(backbone, v);
+  }
+
+  // Multiply by prefactor
+  for (int p = 0; p < m - 1; p++) {           // loop over hybridization indices
+    int exp = backbone.get_prefactor_Kexp(p); // exponent on K for this hybridization index
+    if (exp != 0) {
+      int Ksign = backbone.get_prefactor_Ksign(p);  // sign on K for this hybridization index
+      double om = dlr_rf(backbone.get_pole_ind(p)); // DLR frequency for this value of this hybridization index
+      double k  = k_it(0, Ksign * om);
+      for (int q = 0; q < exp; q++) T /= k;
+    }
+  }
+  int diag_order_sign = (m % 2 == 0) ? -1 : 1;
+  T *= diag_order_sign * backbone.prefactor_sign;
+  Sigma += T; 
 }
