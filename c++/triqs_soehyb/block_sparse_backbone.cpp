@@ -120,6 +120,27 @@ void DiagramBlockSparseEvaluator::multiply_zero_vertex_block(Backbone &backbone,
            nda::matmul(Fq.F_dags[0].get_block(b_ixs(1))(mu, _, _), Tmu(t, range(0, block_dims(2)), range(0, block_dims(0))));
       }
     }
+  } else {
+    for (int kap = 0; kap < n; kap++) {
+      for (int t = 0; t < r; t++) {
+        Tkaps(kap, t, range(0, block_dims(2)), range(0, block_dims(0))) =
+           nda::matmul(T(t, range(0, block_dims(2)), range(0, block_dims(1))), Fq.F_dags[0].get_block(b_ixs(0))(kap, _, _));
+      }
+    }
+    T = 0;
+    for (int mu = 0; mu < n; mu++) {
+      Tmu = 0;
+      for (int kap = 0; kap < n; kap++) {
+        for (int t = 0; t < r; t++) {
+          Tmu(t, range(0, block_dims(2)), range(0, block_dims(0))) +=
+             hyb_refl(t, mu, kap) * Tkaps(kap, t, range(0, block_dims(2)), range(0, block_dims(0)));
+        }
+      }
+      for (int t = 0; t < r; t++) {
+        T(t, range(0, block_dims(3)), range(0, block_dims(0))) +=
+           nda::matmul(Fq.Fs[0].get_block(b_ixs(1))(mu, _, _), Tmu(t, range(0, block_dims(2)), range(0, block_dims(0))));
+      }
+    }
   }
 }
 
