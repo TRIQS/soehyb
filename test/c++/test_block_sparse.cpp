@@ -899,11 +899,12 @@ TEST(DenseBackbone, one_vertex_and_edge) {
 }
 
 TEST(DenseBackbone, OCA) {
-  nda::array<int, 2> topology = {{0, 2}, {1, 3}};
-  int n = 4, N = 16;
+  int n = 4;
   double beta   = 2.0;
-  double Lambda = 100.0 * beta; // 1000.0*beta;
-  double eps    = 1.0e-10;      // 1.0e-6;
+  double Lambda = 100.0 * beta;
+  double eps    = 1.0e-10;
+
+  // load in functions from two_band.py
   auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
 
@@ -912,59 +913,24 @@ TEST(DenseBackbone, OCA) {
   auto itops         = imtime_ops(Lambda, dlr_rf);
   auto const &dlr_it = itops.get_itnodes();
   auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
-  int r              = itops.rank();
 
-  nda::array<dcomplex, 3> T(r, N, N);
-  for (int t = 0; t < r; t++) T(t, _, _) = nda::eye<dcomplex>(N);
-
-  // compute Fbars and Fdagbars
+  // compute Fbars and Fdagbars and store in Fset 
   auto hyb_coeffs      = itops.vals2coefs(Deltat); // hybridization DLR coeffs
   auto hyb_refl        = nda::make_regular(-itops.reflect(Deltat));
   auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
   auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
 
+  // initialize Backbone and DiagramEvaluator
+  nda::array<int, 2> topology = {{0, 2}, {1, 3}};
   auto B = Backbone(topology, n);
   auto D = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset);
 
+  // evaluate OCA self-energy contribution
   D.eval_diagram_dense(B);
   auto OCA_result       = D.Sigma;
+  
+  // compare against manually-computed OCA result
   auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
-
-  ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_dense_result)), eps);
-}
-
-TEST(DenseBackbone, OCA_flat) {
-  nda::array<int, 2> topology = {{0, 2}, {1, 3}};
-  int n = 4, N = 16;
-  double beta   = 2.0;
-  double Lambda = 100.0 * beta; // 1000.0*beta;
-  double eps    = 1.0e-10;      // 1.0e-6;
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
-     two_band_discrete_bath_helper(beta, Lambda, eps);
-
-  // DLR generation
-  auto dlr_rf        = build_dlr_rf(Lambda, eps);
-  auto itops         = imtime_ops(Lambda, dlr_rf);
-  auto const &dlr_it = itops.get_itnodes();
-  auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
-  int r              = itops.rank();
-
-  nda::array<dcomplex, 3> T(r, N, N);
-  for (int t = 0; t < r; t++) T(t, _, _) = nda::eye<dcomplex>(N);
-
-  // compute Fbars and Fdagbars
-  auto hyb_coeffs      = itops.vals2coefs(Deltat); // hybridization DLR coeffs
-  auto hyb_refl        = nda::make_regular(-itops.reflect(Deltat));
-  auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
-  auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
-
-  auto B = Backbone(topology, n);
-  auto D = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset);
-
-  D.eval_diagram_flat_dense(B);
-  auto OCA_result       = D.Sigma;
-  auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
-
   ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_dense_result)), eps);
 }
 
@@ -1004,9 +970,17 @@ TEST(DenseBackbone, third_order_manual) {
   nda::array<dcomplex, 3> T(r, N, N), GKt(r, N, N), Tmu(r, N, N), Sigma_generic(r, N, N);
   nda::array<dcomplex, 4> Tkaps(n, r, N, N);
   nda::vector<int> states(6);
-  D.eval_diagram_fixed_poles_lines_dense(B);
+  // f_ix = o_ix + n^(m-1) * p_ix + (n * r)^(m-1) * fb_ix
+  int pow_n_mm1  = static_cast<int>(std::pow(n, B.m - 1));
+  int pow_nr_mm1 = static_cast<int>(std::pow(n * r, B.m - 1));
+  int f_ix_start = pow_n_mm1 * (pole_inds(0) + r * pole_inds(1)) + pow_nr_mm1 * (fb(0) + 2 * fb(1) + 4 * fb(2));
+  for (int f_ix_off = 0; f_ix_off < pow_n_mm1; f_ix_off++) {
+    B.set_flat_index(f_ix_start + f_ix_off, dlr_rf);
+    D.eval_backbone_fixed_indices_dense(B);
+    B.reset_all_inds();
+  }
 
-  ASSERT_LE(nda::max_element(nda::abs(Sigma_manual(10, _, _) - D.Sigma_L(10, _, _))), eps);
+  ASSERT_LE(nda::max_element(nda::abs(Sigma_manual(10, _, _) - D.Sigma(10, _, _))), eps);
 }
 
 TEST(DenseBackbone, PYTHON_third_order) {
@@ -1057,7 +1031,6 @@ TEST(DenseBackbone, PYTHON_third_order) {
     D.eval_diagram_dense(B);
     auto eval = D.Sigma;
     third_order_result += topo_sign(i) * D.Sigma;
-    ;
     if (i == 0)
       third_order_02_result = eval;
     else if (i == 1)
@@ -1073,7 +1046,7 @@ TEST(DenseBackbone, PYTHON_third_order) {
   std::cout << "Elapsed time for dense comp'n of 3rd order diags = " << duration.count() << " seconds" << std::endl;
 
   // load results from a run of twoband.py
-  h5::file hfile("/home/paco/feynman/soehyb/test/c++/h5/two_band_py_Lambda10.h5", 'r');
+  h5::file hfile("../test/c++/h5/two_band_py_Lambda10.h5", 'r');
   h5::group hgroup(hfile);
   nda::array<dcomplex, 3> NCA_py(r, N, N), OCA_py(r, N, N);
   nda::array<dcomplex, 3> third_order_py(r, N, N);
@@ -1116,11 +1089,7 @@ TEST(DenseBackbone, PYTHON_third_order) {
 
   ASSERT_LE(nda::max_element(nda::abs(NCA_result - NCA_py_perm)), eps);
   ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_py_perm)), eps);
-  std::cout << "third_order_02_result = " << third_order_02_result(10, _, _) << std::endl;
-  std::cout << "third_order_py_02_perm = " << third_order_py_02_perm(10, _, _) << std::endl;
   ASSERT_LE(nda::max_element(nda::abs(third_order_02_result - third_order_py_02_perm)), 100 * eps);
-  std::cout << "third_order_0314_result = " << third_order_0314_result(10, _, _) << std::endl;
-  std::cout << "third_order_py_0314_perm = " << third_order_py_0314_perm(10, _, _) << std::endl;
   ASSERT_LE(nda::max_element(nda::abs(third_order_0314_result - third_order_py_0314_perm)), 100 * eps);
   ASSERT_LE(nda::max_element(nda::abs(third_order_0315_result - third_order_py_0315_perm)), 100 * eps);
   ASSERT_LE(nda::max_element(nda::abs(third_order_04_result - third_order_py_04_perm)), 100 * eps);
@@ -1130,7 +1099,7 @@ TEST(DenseBackbone, PYTHON_third_order) {
 
 TEST(Backbone, flat_index) {
   nda::array<int, 2> topology = {{0, 2}, {1, 4}, {3, 5}};
-  int n = 4, m = topology.extent(0);
+  int n                       = 4;
 
   double beta   = 2.0;
   double Lambda = 100.0 * beta;
@@ -1183,7 +1152,7 @@ TEST(Backbone, flat_index) {
 }
 
 TEST(Backbone, data_structures) {
-  int n = 4, N = 16, k = 5;
+  int n = 4, k = 5;
   double beta   = 2.0;
   double Lambda = 100.0 * beta;
   double eps    = 1.0e-10;
@@ -1302,7 +1271,7 @@ TEST(Backbone, each_vertex_and_edge) {
 
   // set up backbone and diagram evaluator
   nda::array<int, 2> topology = {{0, 2}, {1, 4}, {3, 5}};
-  auto B = Backbone(topology, n);
+  auto B                      = Backbone(topology, n);
   nda::vector<int> fb{1, 1, 0};
   nda::vector<int> pole_inds{3, 10};
   nda::vector<int> orb_inds{1, 3, 1, 2, 3, 2};
@@ -1310,12 +1279,12 @@ TEST(Backbone, each_vertex_and_edge) {
   B.set_pole_inds(pole_inds, dlr_rf);
   B.set_orb_inds(orb_inds);
   std::cout << B << std::endl;
-  auto D = DiagramBlockSparseEvaluator(beta, itops, Deltat, Deltat_refl, Gt, Fq); 
+  auto D = DiagramBlockSparseEvaluator(beta, itops, Deltat, Deltat_refl, Gt, Fq);
 
-  D.T = Gt.get_block(1); // initialize T with Gt on edge 0
-  int bd0 = 6, bd1 = 4; 
+  D.T     = Gt.get_block(1); // initialize T with Gt on edge 0
+  int bd0 = 6, bd1 = 4;
   nda::vector<int> block_dims = {bd0, bd1};
-  int b_ix = 1; 
+  int b_ix                    = 1;
 
   // check that multiplication by vertex 1 is correct
   D.multiply_vertex_block(B, 1, b_ix, block_dims);
@@ -1332,27 +1301,23 @@ TEST(Backbone, each_vertex_and_edge) {
   // check that convolution with function on first edge is correct
   D.compose_with_edge_block(B, 1, 0, block_dims);
   nda::array<dcomplex, 3> GKt_act = Gt.get_block(0);
-  auto Tact2 = itops.convolve(beta, Fermion, itops.vals2coefs(GKt_act), itops.vals2coefs(Tact), TIME_ORDERED);
+  auto Tact2                      = itops.convolve(beta, Fermion, itops.vals2coefs(GKt_act), itops.vals2coefs(Tact), TIME_ORDERED);
   ASSERT_LE(nda::max_element(nda::abs(D.T(_, range(0, bd1), range(0, bd0)) - Tact2)), 1e-12);
 
-  nda::vector<int> b_ixs = {3, 0}; 
+  nda::vector<int> b_ixs           = {3, 0};
   nda::vector<int> block_dims_zero = {4, 6, 4, 6}; // block dimensions for zero vertex
   // check that multiplication by vertex 2, which is connected to vertex 0, is correct
   D.multiply_zero_vertex_block(B, fb(0) == 1, b_ixs, block_dims_zero);
   nda::array<dcomplex, 4> Tkaps(n, r, block_dims_zero(2), block_dims_zero(0));
   for (int kap = 0; kap < n; kap++) {
-    for (int t = 0; t < r; t++) {
-      Tkaps(kap, t, _, _) = nda::matmul(Tact2(t, _, _), Fq.Fs[0].get_block(b_ixs(0))(kap, _, _));
-    }
+    for (int t = 0; t < r; t++) { Tkaps(kap, t, _, _) = nda::matmul(Tact2(t, _, _), Fq.Fs[0].get_block(b_ixs(0))(kap, _, _)); }
   }
-  auto Tmu = nda::zeros<dcomplex>(r, block_dims_zero(2), block_dims_zero(0));
+  auto Tmu   = nda::zeros<dcomplex>(r, block_dims_zero(2), block_dims_zero(0));
   auto Tact3 = nda::zeros<dcomplex>(r, block_dims_zero(3), block_dims_zero(0));
   for (int mu = 0; mu < n; mu++) {
     Tmu = 0;
     for (int kap = 0; kap < n; kap++) {
-      for (int t = 0; t < r; t++) {
-        Tmu(t, _, _) += Deltat(t, mu, kap) * Tkaps(kap, t, _, _);
-      }
+      for (int t = 0; t < r; t++) { Tmu(t, _, _) += Deltat(t, mu, kap) * Tkaps(kap, t, _, _); }
     }
     for (int t = 0; t < r; t++) {
       Tact3(t, _, _) += nda::matmul(Fq.F_dags[0].get_block(b_ixs(1))(mu, _, _), Tmu(t, _, _)); // multiply by Gt on edge 0

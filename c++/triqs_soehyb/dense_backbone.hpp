@@ -31,20 +31,16 @@ class DiagramEvaluator {
   nda::array<dcomplex, 3> GKt;      // array for storing result of edge computation
   nda::array<dcomplex, 4> Tkaps;    // intermediate storage array
   nda::array<dcomplex, 3> Tmu;      // intermediate storage array
-  nda::array<dcomplex, 3> Sigma_L;  // intermediate storage array for backbone result, including prefactor, over all orbital indices
 
   void multiply_vertex_dense(Backbone &backbone,
                              int v_ix);                           // multiply by a single vertex, v_ix, in a backbone diagram using dense storage
   void compose_with_edge_dense(Backbone &backbone, int e_ix);     // convolve with a single edge, e_ix, in a backbone diagram using dense storage
   void reset();                                                   // reset all arrays to zero
   void multiply_zero_vertex(Backbone &backbone, bool is_forward); // multiply by the zero vertex and the vertex connected to zero
-  void eval_diagram_flat_dense(Backbone &backbone);         // evaluate a diagram of a given order and topology in dense storage
-  void eval_diagram_dense(Backbone &backbone);                    // evaluate a diagram of a given order and topology in dense storage
-  void eval_diagram_fixed_lines_dense(Backbone &backbone);        // evaluate a diagram with fixed line directions in dense storage
-  void eval_diagram_fixed_poles_lines_dense(Backbone &backbone);  // evaluate a diagram with fixed poles and line directions in dense storage
-  void eval_diagram_fixed_orbs_poles_lines_dense(
-     Backbone &backbone); // evaluate a diagram with fixed orbital indices, poles, and line directions in dense storage
-  void eval_diagram_fixed_orbs_poles_lines_with_prefactor_dense(
+  void eval_diagram_dense(
+     Backbone &
+        backbone); // evaluate a diagram of a given order and topology in dense storage (i.e., evaluate and sum all backbones with different orbital indices, poles, and hybridization line directions)
+  void eval_backbone_fixed_indices_dense(
      Backbone &backbone); // evaluate a diagram with fixed orbital indices, poles, and line directions in dense storage, including prefactor
 
   /**

@@ -18,7 +18,6 @@ DiagramEvaluator::DiagramEvaluator(double beta, imtime_ops &itops, nda::array_co
   GKt     = nda::zeros<dcomplex>(r, N, N);
   Tkaps   = nda::zeros<dcomplex>(n, r, N, N);
   Tmu     = nda::zeros<dcomplex>(r, N, N);
-  Sigma_L = nda::zeros<dcomplex>(r, N, N);
   Sigma   = nda::zeros<dcomplex>(r, N, N);
 }
 
@@ -27,7 +26,6 @@ void DiagramEvaluator::reset() {
   GKt     = 0;
   Tkaps   = 0;
   Tmu     = 0;
-  Sigma_L = 0;
   Sigma   = 0;
 }
 
@@ -106,116 +104,19 @@ void DiagramEvaluator::multiply_zero_vertex(Backbone &backbone, bool is_forward)
   }
 }
 
-void DiagramEvaluator::eval_diagram_flat_dense(Backbone &backbone) {
+void DiagramEvaluator::eval_diagram_dense(Backbone &backbone) {
 
   int m = backbone.m;
   // loop over all flat indices
   int f_ix_max = static_cast<int>(backbone.fb_ix_max * backbone.o_ix_max * pow(dlr_rf.size(), m - 1));
   for (int f_ix = 0; f_ix < f_ix_max; f_ix++) {
     backbone.set_flat_index(f_ix, dlr_rf); // set directions, pole indices, and orbital indices from a single integer index
-    eval_diagram_fixed_orbs_poles_lines_with_prefactor_dense(backbone); // evaluate the diagram with these directions, poles, and orbital indices
+    eval_backbone_fixed_indices_dense(backbone); // evaluate the diagram with these directions, poles, and orbital indices
     backbone.reset_all_inds(); // reset directions, pole indices, and orbital indices for the next iteration
   }
 }
 
-void DiagramEvaluator::eval_diagram_dense(Backbone &backbone) {
-
-  int m = backbone.m;
-  for (int fb = 0; fb < pow(2, m); fb++) { // loop over 2^m combos of for/backward hybridization lines
-    int fb0 = fb;
-    // turn (int) fb into a vector of forward/backward indices
-    auto fb_vec = nda::vector<int>(m);
-    for (int i = 0; i < m; i++) {
-      fb_vec(i) = fb0 % 2; // 0 for backward, 1 for forward
-      fb0 /= 2;
-    }
-    backbone.set_directions(fb_vec);
-    eval_diagram_fixed_lines_dense(backbone); // evaluate the diagram with these directions
-    backbone.reset_directions();
-  }
-}
-
-void DiagramEvaluator::eval_diagram_fixed_lines_dense(Backbone &backbone) {
-  int r = itops.rank(), m = backbone.m;
-  // L = pole multiindex
-  for (int L = 0; L < pow(r, m - 1); L++) { // loop over all combinations of pole indices
-    Sigma_L = 0;
-    int L0  = L;
-    // turn (int) L into a vector of pole indices
-    auto pole_inds = nda::vector<int>(m - 1);
-    for (int i = 0; i < m - 1; i++) {
-      pole_inds(i) = L0 % r;
-      L0 /= r;
-    }
-    backbone.set_pole_inds(pole_inds, dlr_rf);
-
-    eval_diagram_fixed_poles_lines_dense(backbone);
-    int sign = (m % 2 == 0) ? -1 : 1;
-    Sigma += sign * Sigma_L;
-
-    backbone.reset_pole_inds();
-  }
-}
-
-void DiagramEvaluator::eval_diagram_fixed_poles_lines_dense(Backbone &backbone) {
-  int n = backbone.n, m = backbone.m;
-
-  // set up orbital (Greek) indices that are explicitly summed over
-  for (int s = 0; s < pow(n, m - 1); s++) { // loop over all combos of orbital indices
-    int s0 = s;
-    // turn (int) s into a vector of orbital indices
-    auto orb_inds = nda::vector<int>(m);
-    for (int i = 1; i < m; i++) { // loop over lines, skipping the one connected to vertex 0
-      orb_inds(backbone.get_topology(i, 0)) = s0 % n;
-      orb_inds(backbone.get_topology(i, 1)) = s0 % n;
-      // orbital indices on vertices connected by a line are the same
-      s0 /= n;
-    }
-    backbone.set_orb_inds(orb_inds);
-
-    eval_diagram_fixed_orbs_poles_lines_dense(backbone);
-
-    Sigma_L += T;
-    backbone.reset_orb_inds(); // reset orbital indices for the next iteration
-  }
-
-  // Multiply by prefactor
-  for (int p = 0; p < m - 1; p++) {           // loop over hybridization indices
-    int exp = backbone.get_prefactor_Kexp(p); // exponent on K for this hybridization index
-    if (exp != 0) {
-      int Ksign = backbone.get_prefactor_Ksign(p);  // sign on K for this hybridization index
-      double om = dlr_rf(backbone.get_pole_ind(p)); // DLR frequency for this value of this hybridization index
-      double k  = k_it(0, Ksign * om);
-      for (int q = 0; q < exp; q++) Sigma_L /= k;
-    }
-  }
-  Sigma_L *= backbone.prefactor_sign;
-}
-
-void DiagramEvaluator::eval_diagram_fixed_orbs_poles_lines_dense(Backbone &backbone) {
-  int m = backbone.m;
-
-  // 1. Starting from tau_1, proceed right to left, performing multiplications at vertices and convolutions at edges, until reaching the vertex
-  // containing the undecomposed hybridization line Delta_{mu kappa}.
-  T = Gt; // T stores the result moving left to right
-  // T is initialized to Gt, which is always the function at the rightmost edge
-  for (int v = 1; v < backbone.get_topology(0, 1); v++) { // loop from the first vertex to before the special vertex
-    multiply_vertex_dense(backbone, v);
-    compose_with_edge_dense(backbone, v);
-  }
-
-  // 2. For each kappa, multiply by F_kappa(^dag). Then for each mu, kappa, multiply by Delta_{mu kappa}, and sum over kappa. Finally for each mu,
-  // multiply F_mu[^dag] and sum over mu.
-  multiply_zero_vertex(backbone, (not backbone.has_vertex_dag(0)));
-
-  // 3. Continue right to left until the final vertex multiplication is complete.
-  for (int v = backbone.get_topology(0, 1) + 1; v < 2 * m; v++) { // loop from the special vertex to the last vertex
-    compose_with_edge_dense(backbone, v - 1);
-    multiply_vertex_dense(backbone, v);
-  }
-}
-
-void DiagramEvaluator::eval_diagram_fixed_orbs_poles_lines_with_prefactor_dense(Backbone &backbone) {
+void DiagramEvaluator::eval_backbone_fixed_indices_dense(Backbone &backbone) {
   int m = backbone.m;
 
   // 1. Starting from tau_1, proceed right to left, performing multiplications at vertices and convolutions at edges, until reaching the vertex
