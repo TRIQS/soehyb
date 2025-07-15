@@ -11,11 +11,14 @@
 #include <nda/declarations.hpp>
 #include <nda/layout_transforms.hpp>
 #include <nda/linalg/eigenelements.hpp>
+#include <nda/linalg/matmul.hpp>
 #include <nda/mapped_functions.hxx>
 #include <nda/nda.hpp>
 #include <triqs_soehyb/block_sparse.hpp>
 #include <triqs_soehyb/block_sparse_manual.hpp>
+#include <triqs_soehyb/backbone.hpp>
 #include <triqs_soehyb/dense_backbone.hpp>
+#include <triqs_soehyb/block_sparse_backbone.hpp>
 #include <gtest/gtest.h>
 
 using namespace nda;
@@ -43,7 +46,7 @@ nda::array<dcomplex, 3> Hmat_to_Gtmat(nda::array<dcomplex, 2> Hmat, double beta,
   return Gt_mat;
 }
 
-std::tuple<int, nda::array<dcomplex, 3>, nda::array<dcomplex, 3>, BlockDiagOpFun, std::vector<BlockOp>, nda::array<dcomplex, 3>,
+std::tuple<int, nda::array<dcomplex, 3>, nda::array<dcomplex, 3>, BlockDiagOpFun, std::vector<BlockOp>, std::vector<BlockOp>, nda::array<dcomplex, 3>,
            nda::array<dcomplex, 3>, nda::array<dcomplex, 3>, std::vector<std::vector<unsigned long>>, std::vector<long>>
 two_band_discrete_bath_helper(double beta, double Lambda, double eps) {
   // Helper function for setting up the two-band discrete bath model
@@ -268,7 +271,7 @@ two_band_discrete_bath_helper(double beta, double Lambda, double eps) {
   auto F_dags_dense = nda::zeros<dcomplex>(4, 16, 16);
   for (int i = 0; i < 4; i++) { F_dags_dense(i, _, _) = nda::transpose(nda::conj(Fs_dense(i, _, _))); }
 
-  return std::make_tuple(num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order);
+  return std::make_tuple(num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order);
 }
 
 TEST(BlockSparseNCA, simple) {
@@ -413,7 +416,7 @@ TEST(BlockSparseNCA, single_exponential) {
   BlockDiagOpFun NCA_result = NCA_bs(Deltat, Deltat_refl, Gt, Fs);
   auto NCA_ana              = nda::zeros<dcomplex>(r);
   for (int i = 0; i < r; i++) {
-    auto tau = dlr_it_abs(i);
+    auto tau   = dlr_it_abs(i);
     NCA_ana(i) = -exp(-(D + g) * tau) - exp((D - g) * tau);
   }
 
@@ -433,7 +436,7 @@ TEST(BlockSparseNCA, two_band_discrete_bath_bs_vs_dense) {
   auto const &dlr_it = itops.get_itnodes();
   auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
 
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
 
   // block-sparse NCA compuation
@@ -464,7 +467,7 @@ TEST(BlockSparseNCA, PYTHON_two_band_discrete_bath_bs_vs_py) {
   auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
   int r              = itops.rank();
 
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
 
   // block-sparse NCA compuation
@@ -491,7 +494,7 @@ TEST(BlockSparseNCA, PYTHON_two_band_discrete_bath_bs_vs_py) {
     ASSERT_LE(nda::max_element(nda::abs(NCA_result.get_block(i) - NCA_py_perm(_, range(s0, s1), range(s0, s1)))), 10 * eps);
     s0 = s1;
     if (i < num_blocks - 1) s1 += subspaces[i + 1].size();
-  } 
+  }
 }
 
 TEST(BlockSparseOCA, single_exponential) {
@@ -667,7 +670,7 @@ TEST(BlockSparseMisc, PYTHON_compute_nonint_gf) {
   ASSERT_LE(nda::max_element(nda::abs(Gt_mat(_, range(15, 16), range(15, 16)) - Gt.get_block(4))), 1e-13);
 
   // check that the result here agrees with the result of benchmarks/twoband.py
-  ASSERT_LE(nda::max_element(nda::abs(G0_py - Gt_mat)), 1e-13);  
+  ASSERT_LE(nda::max_element(nda::abs(G0_py - Gt_mat)), 1e-13);
 }
 
 TEST(BlockSparseOCA, PYTHON_two_band_discrete_bath_bs) {
@@ -682,7 +685,7 @@ TEST(BlockSparseOCA, PYTHON_two_band_discrete_bath_bs) {
   auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
   int r              = itops.rank();
 
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
 
   // block-sparse NCA and OCA computations
@@ -731,7 +734,7 @@ TEST(BlockSparseOCA, PYTHON_two_band_discrete_bath_dense) {
   auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
   int r              = itops.rank();
 
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
 
   // dense-matrix OCA computation
@@ -772,7 +775,7 @@ TEST(BlockSparseOCA, two_band_discrete_bath_bs_vs_dense) {
   auto const &dlr_it = itops.get_itnodes();
   auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
 
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
 
   // block-sparse OCA computation
@@ -802,7 +805,7 @@ TEST(BlockSparseOCA, PYTHON_two_band_discrete_bath_tpz) {
   auto const &dlr_it = itops.get_itnodes();
   auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
 
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
 
   // block-sparse OCA compuation
@@ -836,7 +839,7 @@ TEST(DenseBackbone, one_vertex_and_edge) {
   double beta   = 2.0;
   double Lambda = 100.0 * beta;
   double eps    = 1.0e-6;
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
   // DLR generation
   auto dlr_rf        = build_dlr_rf(Lambda, eps);
@@ -901,7 +904,7 @@ TEST(DenseBackbone, OCA) {
   double beta   = 2.0;
   double Lambda = 100.0 * beta; // 1000.0*beta;
   double eps    = 1.0e-10;      // 1.0e-6;
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
 
   // DLR generation
@@ -936,7 +939,7 @@ TEST(DenseBackbone, OCA_flat) {
   double beta   = 2.0;
   double Lambda = 100.0 * beta; // 1000.0*beta;
   double eps    = 1.0e-10;      // 1.0e-6;
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
 
   // DLR generation
@@ -970,7 +973,7 @@ TEST(DenseBackbone, third_order_manual) {
   double beta   = 2.0;
   double Lambda = 10.0 * beta; // 1000.0*beta;
   double eps    = 1.0e-10;
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
 
   // DLR generation
@@ -1015,7 +1018,7 @@ TEST(DenseBackbone, PYTHON_third_order) {
   double beta   = 2.0;
   double Lambda = 10.0 * beta; // 1000.0*beta;
   double eps    = 1.0e-10;
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
 
   // DLR generation
@@ -1134,8 +1137,8 @@ TEST(Backbone, flat_index) {
   double eps    = 1.0e-10;
 
   // DLR generation
-  auto dlr_rf        = build_dlr_rf(Lambda, eps);
-  int r = dlr_rf.size();
+  auto dlr_rf = build_dlr_rf(Lambda, eps);
+  int r       = dlr_rf.size();
 
   nda::vector<int> fb{1, 1, 0};
   nda::vector<int> pole_inds{3, 10};
@@ -1146,10 +1149,10 @@ TEST(Backbone, flat_index) {
   B.set_pole_inds(pole_inds, dlr_rf);
   B.set_orb_inds(orb_inds);
 
-  int fb_ix = 1 + 2 * 1; 
-  int p_ix = 3 + r * 10;
-  int o_ix = 3 + n * 2; 
-  auto B2 = Backbone(topology, n); 
+  int fb_ix = 1 + 2 * 1;
+  int p_ix  = 3 + r * 10;
+  int o_ix  = 3 + n * 2;
+  auto B2   = Backbone(topology, n);
   B2.set_directions(fb_ix);
   B2.set_pole_inds(p_ix, dlr_rf);
   B2.set_orb_inds(o_ix);
@@ -1164,12 +1167,12 @@ TEST(Backbone, flat_index) {
   ASSERT_EQ(B.get_orb_ind(4), B2.get_orb_ind(4));
   ASSERT_EQ(B.get_orb_ind(5), B2.get_orb_ind(5));
 
-  int f_ix = o_ix + p_ix * n * n + fb_ix * n * n * r * r; 
-  auto B3 = Backbone(topology, n);
+  int f_ix = o_ix + p_ix * n * n + fb_ix * n * n * r * r;
+  auto B3  = Backbone(topology, n);
   B3.set_flat_index(f_ix, dlr_rf);
 
   ASSERT_EQ(B.get_fb(0), B3.get_fb(0));
-  ASSERT_EQ(B.get_fb(1), B3.get_fb(1)); 
+  ASSERT_EQ(B.get_fb(1), B3.get_fb(1));
   ASSERT_EQ(B.get_fb(2), B3.get_fb(2));
   ASSERT_EQ(B.get_pole_ind(0), B3.get_pole_ind(0));
   ASSERT_EQ(B.get_pole_ind(1), B3.get_pole_ind(1));
@@ -1180,11 +1183,11 @@ TEST(Backbone, flat_index) {
 }
 
 TEST(Backbone, data_structures) {
-  int n = 4, k = 5; 
+  int n = 4, N = 16, k = 5;
   double beta   = 2.0;
   double Lambda = 100.0 * beta;
   double eps    = 1.0e-10;
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
      two_band_discrete_bath_helper(beta, Lambda, eps);
 
   // DLR generation
@@ -1201,17 +1204,161 @@ TEST(Backbone, data_structures) {
   auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
 
   // compute creation and annihilation operators in dense storage
-  auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
+  auto Fset = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
 
   // compute creation and annihilation operators in block-sparse storage
-  auto Fs_sym = BlockOpSymSet(n, Fs[0].get_block_indices(), Fs[0].get_block_sizes()); 
+  auto F_sym = BlockOpSymSet(n, Fs[0].get_block_indices(), Fs[0].get_block_sizes());
   for (int i = 0; i < k; i++) {
     if (Fs[0].get_block_index(i) == -1) continue; // skip empty blocks
-    auto Fs_sym_block = nda::zeros<dcomplex>(n, Fs[0].get_block_size(i,0), Fs[0].get_block_size(i,1));
-    for (int j = 0; j < n; j++) {
-      Fs_sym_block(j, _, _) = Fs[j].get_block(i);
-    }
-    Fs_sym.set_block(i, Fs_sym_block);
+    auto Fs_sym_block = nda::zeros<dcomplex>(n, Fs[0].get_block_size(i, 0), Fs[0].get_block_size(i, 1));
+    for (int j = 0; j < n; j++) { Fs_sym_block(j, _, _) = Fs[j].get_block(i); }
+    F_sym.set_block(i, Fs_sym_block);
   }
-  std::cout << "Fs_sym block = " << Fs_sym.get_block(1)(0,_,_) << std::endl;
+  std::vector<BlockOpSymSet> F_sym_vec{F_sym};
+
+  auto F_dag_sym = BlockOpSymSet(n, Fdags[0].get_block_indices(), Fdags[0].get_block_sizes());
+  for (int i = 0; i < k; i++) {
+    if (Fdags[0].get_block_index(i) == -1) continue; // skip empty blocks
+    auto F_dags_sym_block = nda::zeros<dcomplex>(n, Fdags[0].get_block_size(i, 0), Fdags[0].get_block_size(i, 1));
+    for (int j = 0; j < n; j++) { F_dags_sym_block(j, _, _) = Fdags[j].get_block(i); }
+    F_dag_sym.set_block(i, F_dags_sym_block);
+  }
+  std::vector<BlockOpSymSet> F_dag_sym_vec{F_dag_sym};
+
+  // TODO test compares Fs_sym and F_dags_sym here with read from atom_diag
+
+  // compute F^{dag bar} and F^bar in block-sparse storage
+  auto F_dag_bar_sym = BlockOpSymSetBar(n, r, F_dag_sym.get_block_indices(), F_dag_sym.get_block_sizes());
+  for (int i = 0; i < k; i++) {
+    if (F_dag_sym.get_block_index(i) == -1) continue; // skip empty blocks
+    auto F_dags_bar_sym_block = nda::zeros<dcomplex>(n, r, F_dag_sym.get_block_size(i, 0), F_dag_sym.get_block_size(i, 1));
+    for (int nu = 0; nu < n; nu++) {
+      for (int lam = 0; lam < n; lam++) {
+        for (int l = 0; l < r; l++) { F_dags_bar_sym_block(lam, l, _, _) += hyb_coeffs(l, nu, lam) * F_dag_sym.get_block(i)(nu, _, _); }
+      }
+    }
+    F_dag_bar_sym.set_block(i, F_dags_bar_sym_block);
+  }
+
+  // compute F^{bar} in block-sparse storage
+  auto F_bar_sym = BlockOpSymSetBar(n, r, F_sym.get_block_indices(), F_sym.get_block_sizes());
+  for (int i = 0; i < k; i++) {
+    if (F_sym.get_block_index(i) == -1) continue; // skip empty blocks
+    auto F_bar_sym_block = nda::zeros<dcomplex>(n, r, F_sym.get_block_size(i, 0), F_sym.get_block_size(i, 1));
+    for (int lam = 0; lam < n; lam++) {
+      for (int nu = 0; nu < n; nu++) {
+        for (int l = 0; l < r; l++) { F_bar_sym_block(nu, l, _, _) += hyb_refl_coeffs(l, lam, nu) * F_sym.get_block(i)(lam, _, _); }
+      }
+    }
+    F_bar_sym.set_block(i, F_bar_sym_block);
+  }
+
+  std::cout << F_dag_bar_sym.get_block(0)(0, 10, _, _) << std::endl;
+  auto F_quartet = BlockOpSymQuartet(F_sym_vec, F_dag_sym_vec, hyb_coeffs, hyb_refl_coeffs);
+  std::cout << "F_quartet = " << F_quartet.F_dag_bars[0].get_block(0)(0, 10, _, _) << std::endl;
+}
+
+TEST(Backbone, each_vertex_and_edge) {
+  int n = 4, k = 5;
+
+  double beta   = 2.0;
+  double Lambda = 100.0 * beta;
+  double eps    = 1.0e-10;
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+     two_band_discrete_bath_helper(beta, Lambda, eps);
+
+  // DLR generation
+  auto dlr_rf        = build_dlr_rf(Lambda, eps);
+  auto itops         = imtime_ops(Lambda, dlr_rf);
+  auto const &dlr_it = itops.get_itnodes();
+  int r              = itops.rank();
+
+  // create cre/ann operators
+  auto hyb_coeffs      = itops.vals2coefs(Deltat); // hybridization DLR coeffs
+  auto hyb_refl        = nda::make_regular(-itops.reflect(Deltat));
+  auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
+
+  // TODO replace this with read from atom_diag
+  // compute creation and annihilation operators in block-sparse storage
+  auto F_sym = BlockOpSymSet(n, Fs[0].get_block_indices(), Fs[0].get_block_sizes());
+  for (int i = 0; i < k; i++) {
+    if (Fs[0].get_block_index(i) == -1) continue; // skip empty blocks
+    auto Fs_sym_block = nda::zeros<dcomplex>(n, Fs[0].get_block_size(i, 0), Fs[0].get_block_size(i, 1));
+    for (int j = 0; j < n; j++) { Fs_sym_block(j, _, _) = Fs[j].get_block(i); }
+    F_sym.set_block(i, Fs_sym_block);
+  }
+  std::vector<BlockOpSymSet> F_sym_vec{F_sym};
+
+  auto F_dag_sym = BlockOpSymSet(n, Fdags[0].get_block_indices(), Fdags[0].get_block_sizes());
+  for (int i = 0; i < k; i++) {
+    if (Fdags[0].get_block_index(i) == -1) continue; // skip empty blocks
+    auto F_dags_sym_block = nda::zeros<dcomplex>(n, Fdags[0].get_block_size(i, 0), Fdags[0].get_block_size(i, 1));
+    for (int j = 0; j < n; j++) { F_dags_sym_block(j, _, _) = Fdags[j].get_block(i); }
+    F_dag_sym.set_block(i, F_dags_sym_block);
+  }
+  std::vector<BlockOpSymSet> F_dag_sym_vec{F_dag_sym};
+
+  auto Fq = BlockOpSymQuartet(F_sym_vec, F_dag_sym_vec, hyb_coeffs, hyb_refl_coeffs);
+
+  // set up backbone and diagram evaluator
+  nda::array<int, 2> topology = {{0, 2}, {1, 4}, {3, 5}};
+  auto B = Backbone(topology, n);
+  nda::vector<int> fb{1, 1, 0};
+  nda::vector<int> pole_inds{3, 10};
+  nda::vector<int> orb_inds{1, 3, 1, 2, 3, 2};
+  B.set_directions(fb);
+  B.set_pole_inds(pole_inds, dlr_rf);
+  B.set_orb_inds(orb_inds);
+  std::cout << B << std::endl;
+  auto D = DiagramBlockSparseEvaluator(beta, itops, Deltat, Deltat_refl, Gt, Fq); 
+
+  D.T = Gt.get_block(1); // initialize T with Gt on edge 0
+  int bd0 = 6, bd1 = 4; 
+  nda::vector<int> block_dims = {bd0, bd1};
+  int b_ix = 1; 
+
+  // check that multiplication by vertex 1 is correct
+  D.multiply_vertex_block(B, 1, b_ix, block_dims);
+  auto Tact = nda::zeros<dcomplex>(r, bd1, bd0);
+  // std::cout << "Fq.Fs[0] = " << Fq.Fs[0].get_block(b_ix)(3, _, _) << std::endl;
+  for (int t = 0; t < r; t++) {
+    Tact(t, _, _) = nda::make_regular(k_it(dlr_it(t), -dlr_rf(pole_inds(0))) * Fq.Fs[0].get_block(b_ix)(3, _, _));
+    Tact(t, _, _) = nda::matmul(Tact(t, _, _), Gt.get_block(1)(t, _, _)); // multiply by Gt on edge 0
+  }
+  // std::cout << "Tact = " << Tact(0, _, _) << std::endl;
+  // std::cout << "D.T = " << D.T(0, _, _) << std::endl;
+  ASSERT_LE(nda::max_element(nda::abs(D.T(_, range(0, bd1), range(0, bd0)) - Tact)), 1e-12);
+
+  // check that convolution with function on first edge is correct
+  D.compose_with_edge_block(B, 1, 0, block_dims);
+  nda::array<dcomplex, 3> GKt_act = Gt.get_block(0);
+  auto Tact2 = itops.convolve(beta, Fermion, itops.vals2coefs(GKt_act), itops.vals2coefs(Tact), TIME_ORDERED);
+  ASSERT_LE(nda::max_element(nda::abs(D.T(_, range(0, bd1), range(0, bd0)) - Tact2)), 1e-12);
+
+  nda::vector<int> b_ixs = {3, 0}; 
+  nda::vector<int> block_dims_zero = {4, 6, 4, 6}; // block dimensions for zero vertex
+  // check that multiplication by vertex 2, which is connected to vertex 0, is correct
+  D.multiply_zero_vertex_block(B, fb(0) == 1, b_ixs, block_dims_zero);
+  nda::array<dcomplex, 4> Tkaps(n, r, block_dims_zero(2), block_dims_zero(0));
+  for (int kap = 0; kap < n; kap++) {
+    for (int t = 0; t < r; t++) {
+      Tkaps(kap, t, _, _) = nda::matmul(Tact2(t, _, _), Fq.Fs[0].get_block(b_ixs(0))(kap, _, _));
+    }
+  }
+  auto Tmu = nda::zeros<dcomplex>(r, block_dims_zero(2), block_dims_zero(0));
+  auto Tact3 = nda::zeros<dcomplex>(r, block_dims_zero(3), block_dims_zero(0));
+  for (int mu = 0; mu < n; mu++) {
+    Tmu = 0;
+    for (int kap = 0; kap < n; kap++) {
+      for (int t = 0; t < r; t++) {
+        Tmu(t, _, _) += Deltat(t, mu, kap) * Tkaps(kap, t, _, _);
+      }
+    }
+    for (int t = 0; t < r; t++) {
+      Tact3(t, _, _) += nda::matmul(Fq.F_dags[0].get_block(b_ixs(1))(mu, _, _), Tmu(t, _, _)); // multiply by Gt on edge 0
+    }
+  }
+
+  std::cout << "D.T = " << D.T(0, _, _) << std::endl;
+  std::cout << "Tact3 = " << Tact3(0, _, _) << std::endl;
 }

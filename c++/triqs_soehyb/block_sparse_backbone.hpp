@@ -1,3 +1,4 @@
+#pragma once
 #include <cppdlr/dlr_kernels.hpp>
 #include <nda/blas/tools.hpp>
 #include <nda/declarations.hpp>
@@ -16,16 +17,16 @@ using namespace nda;
  */
 class DiagramBlockSparseEvaluator {
   public:
-  double beta;                      // inverse temperature
-  int r;                            // rank of the DLR imaginary time object
-  int n;                            // number of orbitals
-  int Nmax;                         // maximum block size in the Green's function
-  nda::vector<int> block_dims;      // dimensions of intermediate arrays
+  double beta; // inverse temperature
+  int r;       // rank of the DLR imaginary time object
+  int n;       // number of orbitals
+  int Nmax;    // maximum block size in the Green's function
+  // nda::vector<int> block_dims;      // dimensions of intermediate arrays
   imtime_ops itops;                 // DLR imaginary time object
   nda::array<dcomplex, 3> hyb;      // hybridization function at imaginary time nodes
   nda::array<dcomplex, 3> hyb_refl; // hybridization function at (beta - tau) nodes
   BlockDiagOpFun Gt;                // Green's function at imaginary time nodes
-  BlockOpSymQuartet Fset;           // BlockOpSymQuartet (cre/ann operators with and without bars)
+  BlockOpSymQuartet Fq;             // BlockOpSymQuartet (cre/ann operators with and without bars)
   nda::vector<double> dlr_it;       // DLR imaginary time nodes in relative ordering
   nda::vector<double> dlr_rf;       // DLR frequency nodes
   BlockDiagOpFun Sigma;             // array for storing self-energy contribution (final result)
@@ -35,12 +36,17 @@ class DiagramBlockSparseEvaluator {
   nda::array<dcomplex, 3> Tmu;      // intermediate storage array
   nda::array<dcomplex, 3> Sigma_L;  // intermediate storage array for backbone result, including prefactor, over all orbital indices
 
-  void multiply_vertex_block(Backbone &backbone, int v_ix,
-                             int b_ix); // for block b_ix, multiply by a single vertex, v_ix, in a backbone diagram using block-sparse storage
-  void compose_with_edge_block(Backbone &backbone, int e_ix,
-                               int b_ix); // for block b_ix, convolve with a single edge, e_ix, in a backbone diagram using block-sparse storage
-  void reset();                           // reset all arrays to zero
-  void eval_diagram_block_sparse(Backbone &backbone); // evaluate a diagram of a given order and topology in block-sparse storage
+  void multiply_vertex_block(
+     Backbone &backbone, int v_ix, int b_ix,
+     nda::vector_const_view<int> block_dims); // for block b_ix, multiply by a single vertex, v_ix, in a backbone diagram using block-sparse storage
+  void compose_with_edge_block(
+     Backbone &backbone, int e_ix, int b_ix,
+     nda::vector_const_view<int> block_dims); // for block b_ix, convolve with a single edge, e_ix, in a backbone diagram using block-sparse storage
+  void multiply_zero_vertex_block(Backbone &backbone, bool is_forward, nda::vector_const_view<int> b_ixs, 
+                                  nda::vector_const_view<int> block_dims); // multiply by the zero vertex and the vertex connected to zero
+  void reset();                               // reset all arrays to zero
+  void eval_diagram_block_sparse(Backbone &backbone,
+                                 nda::vector_const_view<int> block_dims); // evaluate a diagram of a given order and topology in block-sparse storage
 
   /**
    * @brief Constructor for DiagramBlockSparseEvaluator
@@ -52,5 +58,5 @@ class DiagramBlockSparseEvaluator {
    * @param[in] Fset BlockOpSymQuartet (cre/ann operators with and without bars)
    */
   DiagramBlockSparseEvaluator(double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl,
-                              BlockDiagOpFun &Gt, BlockOpSymQuartet &Fset);
+                              BlockDiagOpFun &Gt, BlockOpSymQuartet &Fq);
 };

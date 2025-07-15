@@ -4,6 +4,7 @@
 #include <cppdlr/utils.hpp>
 #include <h5/format.hpp>
 #include <cppdlr/dlr_kernels.hpp>
+#include <iomanip>
 #include <nda/algorithms.hpp>
 #include <nda/declarations.hpp>
 #include <nda/basic_functions.hpp>

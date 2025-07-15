@@ -1,3 +1,4 @@
+#pragma once
 #include <cppdlr/dlr_kernels.hpp>
 #include <nda/declarations.hpp>
 #include <triqs_soehyb/block_sparse.hpp>

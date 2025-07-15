@@ -70,9 +70,7 @@ int BlockDiagOpFun::get_num_time_nodes() const {
   return 0; // BlockDiagOpFun is all zeros anyways
 }
 
-void BlockDiagOpFun::add_block(int i, nda::array_const_view<dcomplex, 3> block) {
-  blocks[i] = nda::make_regular(blocks[i] + block);
-}
+void BlockDiagOpFun::add_block(int i, nda::array_const_view<dcomplex, 3> block) { blocks[i] = nda::make_regular(blocks[i] + block); }
 
 std::string BlockDiagOpFun::hdf5_format() { return "BlockDiagOpFun"; }
 
@@ -255,6 +253,14 @@ nda::vector<int> BlockOp3D::get_block_size(int i) const {
   return block_size;
 }
 
+int BlockOp3D::get_block_size(int block_ind, int dim) const {
+  if (block_indices(block_ind) != -1) {
+    return blocks[block_ind].shape(dim + 1); // dim = 0 for time, 1 for row, 2 for col
+  } else {
+    return -1;
+  }
+}
+
 /////////////// BlockOpFun (BOF) class ///////////////
 
 BlockOpFun::BlockOpFun(nda::vector_const_view<int> block_indices, std::vector<nda::array<dcomplex, 3>> &blocks) : BlockOp3D{block_indices, blocks} {}
@@ -313,6 +319,7 @@ BlockOpSymSetBar::BlockOpSymSetBar(nda::vector_const_view<int> block_indices, st
 BlockOpSymSetBar::BlockOpSymSetBar(int q, int r, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes)
    : block_indices(block_indices), num_block_cols(block_indices.size()) {
 
+  std::vector<nda::array<dcomplex, 4>> blocks(num_block_cols);
   for (int i = 0; i < num_block_cols; i++) {
     if (block_indices(i) != -1) {
       blocks[i] = nda::zeros<dcomplex>(q, r, block_sizes(i, 0), block_sizes(i, 1));
@@ -320,6 +327,7 @@ BlockOpSymSetBar::BlockOpSymSetBar(int q, int r, nda::vector_const_view<int> blo
       blocks[i] = nda::zeros<dcomplex>(q, r, 1, 1);
     }
   }
+  this->blocks = blocks;
 }
 
 void BlockOpSymSetBar::set_block_indices(nda::vector<int> &block_indices) {
@@ -366,15 +374,13 @@ int BlockOpSymSetBar::get_num_time_nodes() const {
 }
 
 void BlockOpSymSetBar::add_block(int i, int s, int t, nda::array_const_view<dcomplex, 2> block) {
-  if (block_indices(i) != -1) {
-    blocks[i](s, t, _, _) += block;
-  }
+  if (block_indices(i) != -1) { blocks[i](s, t, _, _) += block; }
 }
 
 ////////////// BlockOpSymQuartet class ///////////////
 
 BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<BlockOpSymSet> F_dags, nda::array_const_view<dcomplex, 3> hyb_coeffs,
-                                       nda::array_const_view<dcomplex, 3> hyb_refl_coeffs)
+                                     nda::array_const_view<dcomplex, 3> hyb_refl_coeffs)
    : Fs(Fs), F_dags(F_dags) {
 
   // Fs and F_dags are vectors of BOSS
@@ -382,9 +388,7 @@ BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<
   // Fs and F_dags have the same number of entries
   // if k = # of entries of Fs, and each entry f_i has q_i operators, then n = sum(q_i) = number of orbital indices
   int k = Fs.size();
-  if (k != F_dags.size()) {
-    throw std::invalid_argument("Fs and F_dags must have the same number of entries");
-  }
+  if (k != F_dags.size()) { throw std::invalid_argument("Fs and F_dags must have the same number of entries"); }
 
   // initialize F_dag_bars and F_bars_refl
   int r = hyb_coeffs.extent(0);
@@ -400,13 +404,17 @@ BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<
           for (int b = 0; b < F_dags[i].get_num_block_cols(); b++) {
             if (F_dags[i].get_block_index(b) != -1) {
               F_dag_bars[i].add_block(b, lam, l, nda::make_regular(hyb_coeffs(l, nu, lam) * F_dags[i].get_block(b)(nu, _, _)));
-              F_bars_refl[i].add_block(b, lam, l, nda::make_regular(hyb_refl_coeffs(l, lam, nu) * Fs[i].get_block(b)(nu, _, _)));
+            }
+            if (Fs[i].get_block_index(b) != -1) {
+              F_bars_refl[i].add_block(b, nu, l, nda::make_regular(hyb_refl_coeffs(l, nu, lam) * Fs[i].get_block(b)(lam, _, _)));
             }
           }
         }
       }
     }
   }
+  this->F_dag_bars  = F_dag_bars;
+  this->F_bars_refl = F_bars_refl;
 }
 
 /////////////// Utilities and operator overrides ///////////////

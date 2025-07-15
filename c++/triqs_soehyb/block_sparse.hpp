@@ -117,6 +117,7 @@ class BlockOp3D {
   int get_num_block_cols() const;
   nda::array<int, 2> get_block_sizes() const;
   nda::vector<int> get_block_size(int i) const;
+  int get_block_size(int block_ind, int dim) const;
 
   /**
    * @brief Constructor for BlockOpFun 
