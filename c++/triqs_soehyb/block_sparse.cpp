@@ -406,7 +406,7 @@ BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<
               F_dag_bars[i].add_block(b, lam, l, nda::make_regular(hyb_coeffs(l, nu, lam) * F_dags[i].get_block(b)(nu, _, _)));
             }
             if (Fs[i].get_block_index(b) != -1) {
-              F_bars_refl[i].add_block(b, nu, l, nda::make_regular(hyb_refl_coeffs(l, nu, lam) * Fs[i].get_block(b)(lam, _, _)));
+              F_bars_refl[i].add_block(b, lam, l, nda::make_regular(hyb_refl_coeffs(l, lam, nu) * Fs[i].get_block(b)(nu, _, _)));
             }
           }
         }

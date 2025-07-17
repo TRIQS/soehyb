@@ -1327,3 +1327,63 @@ TEST(Backbone, each_vertex_and_edge) {
   std::cout << "D.T = " << D.T(0, _, _) << std::endl;
   std::cout << "Tact3 = " << Tact3(0, _, _) << std::endl;
 }
+
+TEST(Backbone, OCA) {
+  int n = 4, k = 5;
+
+  double beta   = 2.0;
+  double Lambda = 100.0 * beta;
+  double eps    = 1.0e-10;
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+     two_band_discrete_bath_helper(beta, Lambda, eps);
+
+  // DLR generation
+  auto dlr_rf        = build_dlr_rf(Lambda, eps);
+  auto itops         = imtime_ops(Lambda, dlr_rf);
+  auto const &dlr_it = itops.get_itnodes();
+  int r              = itops.rank();
+
+  // create cre/ann operators
+  auto hyb_coeffs      = itops.vals2coefs(Deltat); // hybridization DLR coeffs
+  auto hyb_refl        = nda::make_regular(-itops.reflect(Deltat));
+  auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
+
+  // TODO replace this with read from atom_diag
+  // compute creation and annihilation operators in block-sparse storage
+  auto F_sym = BlockOpSymSet(n, Fs[0].get_block_indices(), Fs[0].get_block_sizes());
+  for (int i = 0; i < k; i++) {
+    if (Fs[0].get_block_index(i) == -1) continue; // skip empty blocks
+    auto Fs_sym_block = nda::zeros<dcomplex>(n, Fs[0].get_block_size(i, 0), Fs[0].get_block_size(i, 1));
+    for (int j = 0; j < n; j++) { Fs_sym_block(j, _, _) = Fs[j].get_block(i); }
+    F_sym.set_block(i, Fs_sym_block);
+  }
+  std::vector<BlockOpSymSet> F_sym_vec{F_sym};
+
+  auto F_dag_sym = BlockOpSymSet(n, Fdags[0].get_block_indices(), Fdags[0].get_block_sizes());
+  for (int i = 0; i < k; i++) {
+    if (Fdags[0].get_block_index(i) == -1) continue; // skip empty blocks
+    auto F_dags_sym_block = nda::zeros<dcomplex>(n, Fdags[0].get_block_size(i, 0), Fdags[0].get_block_size(i, 1));
+    for (int j = 0; j < n; j++) { F_dags_sym_block(j, _, _) = Fdags[j].get_block(i); }
+    F_dag_sym.set_block(i, F_dags_sym_block);
+  }
+  std::vector<BlockOpSymSet> F_dag_sym_vec{F_dag_sym};
+
+  auto Fq = BlockOpSymQuartet(F_sym_vec, F_dag_sym_vec, hyb_coeffs, hyb_refl_coeffs);
+
+  // set up backbone and diagram evaluator
+  nda::array<int, 2> topology = {{0, 2}, {1, 3}};
+  auto B                      = Backbone(topology, n);
+  DiagramBlockSparseEvaluator D(beta, itops, Deltat, Deltat_refl, Gt, Fq);
+
+  D.eval_diagram_block_sparse(B);
+  auto OCA_result = D.Sigma;
+
+  // compare against manually-computed OCA result
+  auto OCA_dense_result = OCA_dense(Deltat, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
+  std::cout << "OCA dense result = " << OCA_dense_result(0, _, _) << std::endl;
+  std::cout << "OCA block sparse result = " << OCA_result.get_block(0)(0, _, _) << std::endl;
+  std::cout << "OCA block sparse result = " << OCA_result.get_block(1)(0, _, _) << std::endl;
+  std::cout << "OCA block sparse result = " << OCA_result.get_block(2)(0, _, _) << std::endl;
+  std::cout << "OCA block sparse result = " << OCA_result.get_block(3)(0, _, _) << std::endl;
+  std::cout << "OCA block sparse result = " << OCA_result.get_block(4)(0, _, _) << std::endl;
+}

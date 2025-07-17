@@ -34,19 +34,21 @@ class DiagramBlockSparseEvaluator {
   nda::array<dcomplex, 3> GKt;      // array for storing result of edge computation
   nda::array<dcomplex, 4> Tkaps;    // intermediate storage array
   nda::array<dcomplex, 3> Tmu;      // intermediate storage array
-  nda::array<dcomplex, 3> Sigma_L;  // intermediate storage array for backbone result, including prefactor, over all orbital indices
 
   void multiply_vertex_block(
-     Backbone &backbone, int v_ix, int b_ix,
+     Backbone &backbone, int v_ix, int b_ix, 
      nda::vector_const_view<int> block_dims); // for block b_ix, multiply by a single vertex, v_ix, in a backbone diagram using block-sparse storage
   void compose_with_edge_block(
      Backbone &backbone, int e_ix, int b_ix,
      nda::vector_const_view<int> block_dims); // for block b_ix, convolve with a single edge, e_ix, in a backbone diagram using block-sparse storage
-  void multiply_zero_vertex_block(Backbone &backbone, bool is_forward, nda::vector_const_view<int> b_ixs, 
+  void multiply_zero_vertex_block(Backbone &backbone, bool is_forward, nda::vector_const_view<int> b_ixs,
                                   nda::vector_const_view<int> block_dims); // multiply by the zero vertex and the vertex connected to zero
-  void reset();                               // reset all arrays to zero
-  void eval_diagram_block_sparse(Backbone &backbone,
-                                 nda::vector_const_view<int> block_dims); // evaluate a diagram of a given order and topology in block-sparse storage
+  void reset();                                                            // reset all arrays to zero
+  void eval_diagram_block_sparse(Backbone &backbone);                      // evaluate a diagram of a given order and topology in block-sparse storage
+  void eval_backbone_fixed_indices_block_sparse(
+     Backbone &backbone, int b_ix, nda::vector_const_view<int> ind_path,
+     nda::vector_const_view<int>
+        block_dims); // evaluate a diagram with fixed orbital indices, poles, and line directions in dense storage, including prefactor
 
   /**
    * @brief Constructor for DiagramBlockSparseEvaluator
