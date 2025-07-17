@@ -31,10 +31,11 @@ DiagramBlockSparseEvaluator::DiagramBlockSparseEvaluator(double beta, imtime_ops
   Tmu   = nda::zeros<dcomplex>(r, Nmax, Nmax);
 }
 
-void DiagramBlockSparseEvaluator::multiply_vertex_block(Backbone &backbone, int v_ix, int b_ix, nda::vector_const_view<int> block_dims) {
+void DiagramBlockSparseEvaluator::multiply_vertex_block(Backbone &backbone, int v_ix, nda::vector_const_view<int> ind_path, nda::vector_const_view<int> block_dims) {
   int o_ix    = backbone.get_vertex_orb(v_ix); // orbital_index
   int l_ix    = backbone.get_pole_ind(backbone.get_vertex_hyb_ind(v_ix));
   int n_col_r = v_ix < backbone.get_topology(0, 1) ? block_dims(1) : block_dims(0);
+  int b_ix = ind_path(v_ix - 1); // block index for the vertex v_ix
 
   if (backbone.has_vertex_bar(v_ix)) {   // F has bar
     if (backbone.has_vertex_dag(v_ix)) { // F has dagger
@@ -76,9 +77,10 @@ void DiagramBlockSparseEvaluator::multiply_vertex_block(Backbone &backbone, int 
   }
 }
 
-void DiagramBlockSparseEvaluator::compose_with_edge_block(Backbone &backbone, int e_ix, int b_ix, nda::vector_const_view<int> block_dims) {
+void DiagramBlockSparseEvaluator::compose_with_edge_block(Backbone &backbone, int e_ix, nda::vector_const_view<int> ind_path, nda::vector_const_view<int> block_dims) {
 
   int n_col_r = e_ix < backbone.get_topology(0, 1) ? block_dims(1) : block_dims(0);
+  int b_ix = ind_path(e_ix); // block index for the edge e_ix
   // TODO check block dims
   GKt(_, range(0, block_dims(e_ix + 1)), range(0, block_dims(e_ix + 1))) = Gt.get_block(b_ix);
   int m                                                                  = backbone.m;
@@ -90,25 +92,23 @@ void DiagramBlockSparseEvaluator::compose_with_edge_block(Backbone &backbone, in
            k_it(dlr_it(t), be * dlr_rf(backbone.get_pole_ind(x))) * GKt(t, range(0, block_dims(e_ix + 1)), range(0, block_dims(e_ix + 1)));
       }
     }
-    std::cout << "Edge " << e_ix << ", pole ind " << x << ", be = " << be << std::endl; // debug output
+    // std::cout << "Edge " << e_ix << ", pole ind " << x << ", be = " << be << std::endl; // debug output
   }
   T(_, range(0, block_dims(e_ix + 1)), range(0, n_col_r)) =
      itops.convolve(beta, Fermion, itops.vals2coefs(GKt(_, range(0, block_dims(e_ix + 1)), range(0, block_dims(e_ix + 1)))),
                     itops.vals2coefs(T(_, range(0, block_dims(e_ix + 1)), range(0, n_col_r))), TIME_ORDERED);
 }
 
-void DiagramBlockSparseEvaluator::multiply_zero_vertex_block(Backbone &backbone, bool is_forward, nda::vector_const_view<int> b_ixs,
+void DiagramBlockSparseEvaluator::multiply_zero_vertex_block(Backbone &backbone, bool is_forward, int b_ix_0, nda::vector_const_view<int> ind_path,
                                                              nda::vector_const_view<int> block_dims) {
 
-  // b_ixs should have two entries, {b_ix_kap, b_ix_mu}, the relevant block indices for Fkap and Fmu, resp.
-  // block_dims should have four entries, {a, b, c, d}
-  // if q is the size of the symmetry group F_kap is q x b x a, T_kap is q x r x c x a, T_mu is r x c x a, T at the end is r x d x a
+  int b_ix_mu = ind_path(backbone.get_topology(0, 1) - 1); // block index for F_mu
   int n = backbone.n;
   if (is_forward) {
     for (int kap = 0; kap < n; kap++) {
       for (int t = 0; t < r; t++) {
-        Tkaps(kap, t, range(0, block_dims(2)), range(0, block_dims(0))) =
-           nda::matmul(T(t, range(0, block_dims(2)), range(0, block_dims(1))), Fq.Fs[0].get_block(b_ixs(0))(kap, _, _));
+        Tkaps(kap, t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0))) =
+           nda::matmul(T(t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(1))), Fq.Fs[0].get_block(b_ix_0)(kap, _, _));
       }
     }
     T = 0;
@@ -116,20 +116,20 @@ void DiagramBlockSparseEvaluator::multiply_zero_vertex_block(Backbone &backbone,
       Tmu = 0;
       for (int kap = 0; kap < n; kap++) {
         for (int t = 0; t < r; t++) {
-          Tmu(t, range(0, block_dims(2)), range(0, block_dims(0))) +=
-             hyb(t, mu, kap) * Tkaps(kap, t, range(0, block_dims(2)), range(0, block_dims(0)));
+          Tmu(t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0))) +=
+             hyb(t, mu, kap) * Tkaps(kap, t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0)));
         }
       }
       for (int t = 0; t < r; t++) {
-        T(t, range(0, block_dims(3)), range(0, block_dims(0))) +=
-           nda::matmul(Fq.F_dags[0].get_block(b_ixs(1))(mu, _, _), Tmu(t, range(0, block_dims(2)), range(0, block_dims(0))));
+        T(t, range(0, block_dims(backbone.get_topology(0, 1) + 1)), range(0, block_dims(0))) +=
+           nda::matmul(Fq.F_dags[0].get_block(b_ix_mu)(mu, _, _), Tmu(t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0))));
       }
     }
   } else {
     for (int kap = 0; kap < n; kap++) {
       for (int t = 0; t < r; t++) {
-        Tkaps(kap, t, range(0, block_dims(2)), range(0, block_dims(0))) =
-           nda::matmul(T(t, range(0, block_dims(2)), range(0, block_dims(1))), Fq.F_dags[0].get_block(b_ixs(0))(kap, _, _));
+        Tkaps(kap, t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0))) =
+           nda::matmul(T(t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(1))), Fq.F_dags[0].get_block(b_ix_0)(kap, _, _));
       }
     }
     T = 0;
@@ -137,13 +137,13 @@ void DiagramBlockSparseEvaluator::multiply_zero_vertex_block(Backbone &backbone,
       Tmu = 0;
       for (int kap = 0; kap < n; kap++) {
         for (int t = 0; t < r; t++) {
-          Tmu(t, range(0, block_dims(2)), range(0, block_dims(0))) +=
-             hyb_refl(t, mu, kap) * Tkaps(kap, t, range(0, block_dims(2)), range(0, block_dims(0)));
+          Tmu(t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0))) +=
+             hyb_refl(t, mu, kap) * Tkaps(kap, t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0)));
         }
       }
       for (int t = 0; t < r; t++) {
-        T(t, range(0, block_dims(3)), range(0, block_dims(0))) +=
-           nda::matmul(Fq.Fs[0].get_block(b_ixs(1))(mu, _, _), Tmu(t, range(0, block_dims(2)), range(0, block_dims(0))));
+        T(t, range(0, block_dims(backbone.get_topology(0, 1) + 1)), range(0, block_dims(0))) +=
+           nda::matmul(Fq.Fs[0].get_block(b_ix_mu)(mu, _, _), Tmu(t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0))));
       }
     }
   }
@@ -167,7 +167,6 @@ void DiagramBlockSparseEvaluator::eval_diagram_block_sparse(Backbone &backbone) 
   int f_ix_max = static_cast<int>(backbone.fb_ix_max * backbone.o_ix_max * pow(dlr_rf.size(), m - 1));
   for (int f_ix = 0; f_ix < f_ix_max; f_ix++) {
     backbone.set_flat_index(f_ix, dlr_rf); // set directions, pole indices, and orbital indices from a single integer index
-
     /*  Example of block_dims for m = 2 (OCA): each number is an index of block_dims, and each square represents a block of a matrix 
             3            3            2            2            1            1            0
         --------     --------     --------     --------     --------     --------     --------
@@ -205,9 +204,6 @@ void DiagramBlockSparseEvaluator::eval_diagram_block_sparse(Backbone &backbone) 
   }
 }
 
-// TODO test block_dims
-// TODO check ind_path
-
 void DiagramBlockSparseEvaluator::eval_backbone_fixed_indices_block_sparse(Backbone &backbone, int b_ix, nda::vector_const_view<int> ind_path,
                                                                            nda::vector_const_view<int> block_dims) {
 
@@ -215,21 +211,25 @@ void DiagramBlockSparseEvaluator::eval_backbone_fixed_indices_block_sparse(Backb
 
   T(_, range(0, block_dims(1)), range(0, block_dims(1))) = Gt.get_block(ind_path(0));
   for (int v = 1; v < backbone.get_topology(0, 1); v++) {
-    multiply_vertex_block(backbone, v, ind_path(v - 1), block_dims);
-    compose_with_edge_block(backbone, v, ind_path(v), block_dims);
+    // multiply_vertex_block(backbone, v, ind_path(v - 1), block_dims);
+    // compose_with_edge_block(backbone, v, ind_path(v), block_dims);
+    multiply_vertex_block(backbone, v, ind_path, block_dims);
+    compose_with_edge_block(backbone, v, ind_path, block_dims);
   }
-  std::cout << "======================" << std::endl;
 
   // TODO check b_ixs and block_dims_zero
   nda::vector<int> b_ixs           = {b_ix, ind_path(backbone.get_topology(0, 1) - 1)}; // block indices for F_kap and F_mu
   nda::vector<int> block_dims_zero = {block_dims(0), block_dims(1), block_dims(backbone.get_topology(0, 1)),
                                       block_dims(backbone.get_topology(0, 1) + 1)};
-  multiply_zero_vertex_block(backbone, (not backbone.has_vertex_dag(0)), b_ixs, block_dims_zero);
+  // multiply_zero_vertex_block(backbone, (not backbone.has_vertex_dag(0)), b_ix, ind_path(backbone.get_topology(0, 1) - 1), block_dims);
+  multiply_zero_vertex_block(backbone, (not backbone.has_vertex_dag(0)), b_ix, ind_path, block_dims);
 
   for (int v = backbone.get_topology(0, 1) + 1; v < 2 * m; v++) {
-    compose_with_edge_block(backbone, v - 1, ind_path(v - 1), block_dims);
-    if (b_ix == 1) std::cout << T(10, range(0, block_dims(2 * m - 1)), range(0, block_dims(0))) << std::endl; // debug output
-    multiply_vertex_block(backbone, v, ind_path(v - 1), block_dims);
+    // compose_with_edge_block(backbone, v - 1, ind_path(v - 1), block_dims);
+    // if (b_ix == 1) std::cout << T(10, range(0, block_dims(2 * m - 1)), range(0, block_dims(0))) << std::endl; // debug output
+    // multiply_vertex_block(backbone, v, ind_path(v - 1), block_dims);
+    compose_with_edge_block(backbone, v - 1, ind_path, block_dims);
+    multiply_vertex_block(backbone, v, ind_path, block_dims);
   }
   // if (b_ix == 1) std::cout << T(10, range(0, block_dims(2 * m)), range(0, block_dims(0))) << std::endl; // debug output
 

@@ -1285,9 +1285,11 @@ TEST(Backbone, each_vertex_and_edge) {
   int bd0 = 6, bd1 = 4;
   nda::vector<int> block_dims = {bd0, bd1};
   int b_ix                    = 1;
+  nda::vector<int> ind_path = {3, 1, 0};
 
   // check that multiplication by vertex 1 is correct
-  D.multiply_vertex_block(B, 1, b_ix, block_dims);
+  // D.multiply_vertex_block(B, 1, b_ix, block_dims);
+  D.multiply_vertex_block(B, 1, ind_path, block_dims); 
   auto Tact = nda::zeros<dcomplex>(r, bd1, bd0);
   // std::cout << "Fq.Fs[0] = " << Fq.Fs[0].get_block(b_ix)(3, _, _) << std::endl;
   for (int t = 0; t < r; t++) {
@@ -1299,18 +1301,19 @@ TEST(Backbone, each_vertex_and_edge) {
   ASSERT_LE(nda::max_element(nda::abs(D.T(_, range(0, bd1), range(0, bd0)) - Tact)), 1e-12);
 
   // check that convolution with function on first edge is correct
-  D.compose_with_edge_block(B, 1, 0, block_dims);
+  // D.compose_with_edge_block(B, 1, 0, block_dims);
+  D.compose_with_edge_block(B, 1, ind_path, block_dims);
   nda::array<dcomplex, 3> GKt_act = Gt.get_block(0);
   auto Tact2                      = itops.convolve(beta, Fermion, itops.vals2coefs(GKt_act), itops.vals2coefs(Tact), TIME_ORDERED);
   ASSERT_LE(nda::max_element(nda::abs(D.T(_, range(0, bd1), range(0, bd0)) - Tact2)), 1e-12);
 
-  nda::vector<int> b_ixs           = {3, 0};
   nda::vector<int> block_dims_zero = {4, 6, 4, 6}; // block dimensions for zero vertex
   // check that multiplication by vertex 2, which is connected to vertex 0, is correct
-  D.multiply_zero_vertex_block(B, fb(0) == 1, b_ixs, block_dims_zero);
+  // multiply_zero_vertex_block(B, fb(0) == 1, 3, 0, block_dims_zero);
+  D.multiply_zero_vertex_block(B, fb(0) == 1, 3, ind_path, block_dims_zero);
   nda::array<dcomplex, 4> Tkaps(n, r, block_dims_zero(2), block_dims_zero(0));
   for (int kap = 0; kap < n; kap++) {
-    for (int t = 0; t < r; t++) { Tkaps(kap, t, _, _) = nda::matmul(Tact2(t, _, _), Fq.Fs[0].get_block(b_ixs(0))(kap, _, _)); }
+    for (int t = 0; t < r; t++) { Tkaps(kap, t, _, _) = nda::matmul(Tact2(t, _, _), Fq.Fs[0].get_block(3)(kap, _, _)); }
   }
   auto Tmu   = nda::zeros<dcomplex>(r, block_dims_zero(2), block_dims_zero(0));
   auto Tact3 = nda::zeros<dcomplex>(r, block_dims_zero(3), block_dims_zero(0));
@@ -1320,7 +1323,7 @@ TEST(Backbone, each_vertex_and_edge) {
       for (int t = 0; t < r; t++) { Tmu(t, _, _) += Deltat(t, mu, kap) * Tkaps(kap, t, _, _); }
     }
     for (int t = 0; t < r; t++) {
-      Tact3(t, _, _) += nda::matmul(Fq.F_dags[0].get_block(b_ixs(1))(mu, _, _), Tmu(t, _, _)); // multiply by Gt on edge 0
+      Tact3(t, _, _) += nda::matmul(Fq.F_dags[0].get_block(0)(mu, _, _), Tmu(t, _, _)); // multiply by Gt on edge 0
     }
   }
 
@@ -1386,4 +1389,9 @@ TEST(Backbone, OCA) {
   std::cout << "OCA block sparse result = " << OCA_result.get_block(2)(0, _, _) << std::endl;
   std::cout << "OCA block sparse result = " << OCA_result.get_block(3)(0, _, _) << std::endl;
   std::cout << "OCA block sparse result = " << OCA_result.get_block(4)(0, _, _) << std::endl;
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(0) - OCA_dense_result(_, range(0, 4), range(0, 4)))), eps);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(1) - OCA_dense_result(_, range(4, 10), range(4, 10)))), eps);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(2) - OCA_dense_result(_, range(10, 11), range(10, 11)))), eps);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(3) - OCA_dense_result(_, range(11, 15), range(11, 15)))), eps);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(4) - OCA_dense_result(_, range(15, 16), range(15, 16)))), eps);
 }

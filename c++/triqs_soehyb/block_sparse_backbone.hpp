@@ -36,12 +36,12 @@ class DiagramBlockSparseEvaluator {
   nda::array<dcomplex, 3> Tmu;      // intermediate storage array
 
   void multiply_vertex_block(
-     Backbone &backbone, int v_ix, int b_ix, 
+     Backbone &backbone, int v_ix, nda::vector_const_view<int> ind_path,
      nda::vector_const_view<int> block_dims); // for block b_ix, multiply by a single vertex, v_ix, in a backbone diagram using block-sparse storage
   void compose_with_edge_block(
-     Backbone &backbone, int e_ix, int b_ix,
+     Backbone &backbone, int e_ix, nda::vector_const_view<int> ind_path,
      nda::vector_const_view<int> block_dims); // for block b_ix, convolve with a single edge, e_ix, in a backbone diagram using block-sparse storage
-  void multiply_zero_vertex_block(Backbone &backbone, bool is_forward, nda::vector_const_view<int> b_ixs,
+  void multiply_zero_vertex_block(Backbone &backbone, bool is_forward, int b_ix_0, nda::vector_const_view<int> ind_path,
                                   nda::vector_const_view<int> block_dims); // multiply by the zero vertex and the vertex connected to zero
   void reset();                                                            // reset all arrays to zero
   void eval_diagram_block_sparse(Backbone &backbone);                      // evaluate a diagram of a given order and topology in block-sparse storage
