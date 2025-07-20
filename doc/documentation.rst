@@ -9,6 +9,14 @@ Documentation
    (a + b)^2  &=  (a + b)(a + b) \\
               &=  a^2 + 2ab + b^2
 
+Tutorials
+---------
+
+.. toctree::
+   :maxdepth: 1
+
+   user_guides/Semi infinite chain.ipynb
+
 
 C++ reference manual
 ====================
