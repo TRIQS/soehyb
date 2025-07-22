@@ -2,6 +2,7 @@
 #include <cppdlr/dlr_imtime.hpp>
 #include <cppdlr/utils.hpp>
 #include <h5/format.hpp>
+#include <h5/group.hpp>
 #include <iostream>
 #include <cppdlr/dlr_kernels.hpp>
 #include <nda/algorithms.hpp>
@@ -179,7 +180,7 @@ int BlockOp::get_block_size(int block_ind, int dim) const {
 /////////////// BlockOp3D class ///////////////
 
 BlockOp3D::BlockOp3D(nda::vector_const_view<int> block_indices, std::vector<nda::array<dcomplex, 3>> &blocks)
-   : block_indices(block_indices), blocks(blocks), num_block_cols(block_indices.size()) {}
+   : block_indices(block_indices), blocks(blocks), num_block_cols(block_indices.size()), zero(nda::zeros<dcomplex>(1, 1, 1)) {}
 
 BlockOp3D::BlockOp3D(int r, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes)
    : block_indices(block_indices), num_block_cols(block_indices.size()) {
@@ -219,8 +220,7 @@ const std::vector<nda::array<dcomplex, 3>> &BlockOp3D::get_blocks() const { retu
 
 nda::array_const_view<dcomplex, 3> BlockOp3D::get_block(int i) const {
   if (block_indices(i) == -1) {
-    auto arr = nda::zeros<dcomplex>(1, 1, 1);
-    return arr;
+    return zero;
   } else {
     return blocks[i];
   }
@@ -406,7 +406,7 @@ BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<
               F_dag_bars[i].add_block(b, lam, l, nda::make_regular(hyb_coeffs(l, nu, lam) * F_dags[i].get_block(b)(nu, _, _)));
             }
             if (Fs[i].get_block_index(b) != -1) {
-              F_bars_refl[i].add_block(b, lam, l, nda::make_regular(hyb_refl_coeffs(l, lam, nu) * Fs[i].get_block(b)(nu, _, _)));
+              F_bars_refl[i].add_block(b, nu, l, nda::make_regular(hyb_refl_coeffs(l, nu, lam) * Fs[i].get_block(b)(lam, _, _)));
             }
           }
         }
@@ -452,15 +452,14 @@ BlockOp dagger_bs(BlockOp const &F) {
   // @return F^dagger operator
 
   int num_block_cols = F.get_num_block_cols();
-  int i, j;
 
   // find block indices for F^dagger
   nda::vector<int> block_indices_dag(num_block_cols);
   // initialize indices with -1
   block_indices_dag = -1;
   std::vector<nda::array<dcomplex, 2>> blocks_dag(num_block_cols);
-  for (i = 0; i < num_block_cols; ++i) {
-    j = F.get_block_indices()[i];
+  for (int i = 0; i < num_block_cols; ++i) {
+    int j = F.get_block_indices()[i];
     if (j != -1) {
       block_indices_dag[j] = i;
       blocks_dag[j]        = nda::transpose(F.get_blocks()[i]);
@@ -522,13 +521,13 @@ BlockDiagOpFun BOFtoBDOF(BlockOpFun const &A) {
 }
 
 BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double, 2>> H_blocks, nda::vector<int> H_block_inds, double beta,
-                              nda::vector_const_view<double> dlr_it) {
+                              nda::vector_const_view<double> dlr_it_abs) {
 
   int num_block_cols = H_block_inds.size();
   nda::vector<int> H_block_sizes(num_block_cols);
   for (int i = 0; i < num_block_cols; i++) { H_block_sizes(i) = H_blocks[i].extent(0); }
 
-  int r = dlr_it.size();
+  int r = dlr_it_abs.size();
 
   double tr_exp_minusbetaH = 0;
   std::vector<nda::array<double, 1>> H_evals(num_block_cols);
@@ -557,11 +556,57 @@ BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double, 2>> H_blocks, nda::
     auto Gt_block = nda::array<dcomplex, 3>(r, H_block_sizes(i), H_block_sizes(i));
     auto Gt_temp  = nda::make_regular(0 * H_blocks[i]);
     for (int t = 0; t < r; t++) {
-      for (int j = 0; j < H_block_sizes(i); j++) { Gt_temp(j, j) = -exp(-beta * dlr_it(t) * (H_evals[i](j) + eta_0)); }
+      for (int j = 0; j < H_block_sizes(i); j++) { Gt_temp(j, j) = -exp(-beta * dlr_it_abs(t) * (H_evals[i](j) + eta_0)); }
       Gt_block(t, _, _) = nda::matmul(H_evecs[i], nda::matmul(Gt_temp, nda::transpose(H_evecs[i])));
     }
     Gt.set_block(i, Gt_block);
   }
 
   return Gt;
+}
+
+std::tuple<BlockDiagOpFun, BlockOpSymQuartet> load_from_hdf5(const std::string &filename, double beta, double Lambda, double eps,
+                                                             nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl) {
+
+  // DLR generation
+  auto dlr_rf     = build_dlr_rf(Lambda, eps);
+  auto itops      = imtime_ops(Lambda, dlr_rf);
+  auto dlr_it     = itops.get_itnodes();
+  auto dlr_it_abs = rel2abs(dlr_it);
+
+  h5::file f(filename, 'r');
+  h5::group g(f);
+
+  long n = 0, k = 0;
+  h5::read(g, "norb", n);
+  h5::read(g, "num_blocks", k);
+
+  nda::vector<long> H_block_inds = nda::zeros<long>(k);
+  h5::read(g, "H_mat_block_inds", H_block_inds);
+
+  nda::array<long, 2> ann_conn = nda::zeros<long>(n, k), cre_conn = nda::zeros<long>(n, k);
+  h5::read(g, "ad/annihilation_connection", ann_conn);
+  h5::read(g, "ad/creation_connection", cre_conn);
+  // TODO handle different symmetry sets
+  nda::vector<int> F_block_inds     = ann_conn(0, _);
+  nda::vector<int> F_dag_block_inds = cre_conn(0, _);
+
+  std::vector<nda::array<double, 2>> H_blocks(k);
+  h5::read(g, "H_mat_blocks", H_blocks);
+
+  std::vector<nda::array<dcomplex, 3>> F_blocks(k), F_dag_blocks(k);
+  h5::read(g, "c_blocks", F_blocks);
+  h5::read(g, "cdag_blocks", F_dag_blocks);
+
+  // compute creation and annihilation operators in block-sparse storage
+  auto F_sym = BlockOpSymSet(F_block_inds, F_blocks);
+  std::vector<BlockOpSymSet> F_sym_vec{F_sym};
+
+  auto F_dag_sym = BlockOpSymSet(F_dag_block_inds, F_dag_blocks);
+  std::vector<BlockOpSymSet> F_dag_sym_vec{F_dag_sym};
+
+  BlockDiagOpFun Gt = nonint_gf_BDOF(H_blocks, H_block_inds, beta, dlr_it_abs);
+  BlockOpSymQuartet Fq(F_sym_vec, F_dag_sym_vec, hyb, hyb_refl);
+
+  return std::make_tuple(Gt, Fq);
 }

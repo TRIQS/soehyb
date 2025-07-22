@@ -326,7 +326,6 @@ BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex, 3> hyb, imtime_ops &itops,
             }
           }
         }
-        // std::cout << "fb1: " << fb1 << ", fb2: " << fb2 << ", block: " << i << ", ind_path: " << ind_path << ", block_dims: " << block_dims << std::endl;
 
         // matmuls and convolutions
         if (path_all_nonzero) {
@@ -339,7 +338,6 @@ BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex, 3> hyb, imtime_ops &itops,
           nda::array<dcomplex, 3> Tmu(r, block_dims(2), block_dims(0));           // storage in OCA_bs_middle
           nda::array<dcomplex, 3> Tleft(r, block_dims(4), block_dims(0));         // output of OCA_bs_left
           nda::array<dcomplex, 3> GKt(r, block_dims(3), block_dims(3));           // storage in OCA_bs_left
-          nda::array<dcomplex, 3> Tlefttemp(r, block_dims(4), block_dims(0));  // TODO delete this, used for debugging
 
           // TODO: make Fs have blocks that are 3D nda::array?
           auto Fkaps = nda::zeros<dcomplex>(num_Fs, F1list[0].get_block_size(i, 0), F1list[0].get_block_size(i, 1));
@@ -354,29 +352,9 @@ BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex, 3> hyb, imtime_ops &itops,
             for (int lam = 0; lam < num_Fs; lam++) {
               OCA_bs_right_in_place(beta, itops, dlr_it, dlr_rf(l), (fb2 == 1), Gt.get_block(ind_path(0)), Gt.get_block(ind_path(1)),
                                     F2list[lam].get_block(ind_path(0)), Tright);
-              if (i == 1) std::cout << "=================" << std::endl;
-              // std::cout << Tright(10, _, _) << std::endl;
               OCA_bs_middle_in_place((fb1 == 1), hyb, hyb_refl, Fkaps, Fmus, Tright, Tmid, Tkaps, Tmu);
-              // if (i == 1) std::cout << Tmid(10, _, _) << std::endl;
               OCA_bs_left_in_place(beta, itops, dlr_it, dlr_rf(l), (fb2 == 1), Gt.get_block(ind_path(2)), Fbar_array[lam][l].get_block(ind_path(2)),
                                    Tmid, Tleft, GKt);
-              if (i == 1) {
-                if (fb2 == 1) {
-                  if (dlr_rf(l) <= 0) {
-                    for (int t = 0; t < r; t++) { Tlefttemp(t, _, _) = k_it(dlr_it(t), dlr_rf(l)) * Tleft(t, _, _); }
-                    // std ::cout << "Tlefttemp = " << Tlefttemp(10, _, _) << std::endl;
-                  } else {
-                    // std::cout << "Tleft = " << Tleft(10, _, _) << std::endl;
-                  }
-                } else {
-                  if (dlr_rf(l) >= 0) {
-                    for (int t = 0; t < r; t++) { Tlefttemp(t, _, _) = k_it(dlr_it(t), -dlr_rf(l)) * Tleft(t, _, _); }
-                    // std::cout << "Tlefttemp = " << Tlefttemp(10, _, _) << std::endl;
-                  } else {
-                    // std::cout << "Tleft = " << Tleft(10, _, _) << std::endl;
-                  }
-                }
-              }
               Sigma_l += Tleft;
             } // sum over lambda
 

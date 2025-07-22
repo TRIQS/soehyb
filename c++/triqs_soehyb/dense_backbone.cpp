@@ -69,7 +69,6 @@ void DiagramEvaluator::compose_with_edge_dense(Backbone &backbone, int e_ix) {
     if (be != 0) {
       for (int t = 0; t < r; t++) { GKt(t, _, _) = k_it(dlr_it(t), be * dlr_rf(backbone.get_pole_ind(x))) * GKt(t, _, _); }
     }
-    std::cout << "Edge " << e_ix << ", pole ind " << x << ", be = " << be << std::endl; // debug output
   }
   T = itops.convolve(beta, Fermion, itops.vals2coefs(GKt), itops.vals2coefs(T), TIME_ORDERED);
 }
@@ -128,7 +127,6 @@ void DiagramEvaluator::eval_backbone_fixed_indices_dense(Backbone &backbone) {
     multiply_vertex_dense(backbone, v);
     compose_with_edge_dense(backbone, v);
   }
-  std::cout << "======================" << std::endl;
 
   // 2. For each kappa, multiply by F_kappa(^dag). Then for each mu, kappa, multiply by Delta_{mu kappa}, and sum over kappa. Finally for each mu,
   // multiply F_mu[^dag] and sum over mu.
@@ -137,7 +135,6 @@ void DiagramEvaluator::eval_backbone_fixed_indices_dense(Backbone &backbone) {
   // 3. Continue right to left until the final vertex multiplication is complete.
   for (int v = backbone.get_topology(0, 1) + 1; v < 2 * m; v++) { // loop from the special vertex to the last vertex
     compose_with_edge_dense(backbone, v - 1);
-    std::cout << T(10, _, _) << std::endl; // debug output
     multiply_vertex_dense(backbone, v);
   }
 

@@ -104,6 +104,7 @@ class BlockOp3D {
   nda::vector<int> block_indices;
   std::vector<nda::array<dcomplex, 3>> blocks;
   int num_block_cols;
+  nda::array<dcomplex, 3> zero;
 
   public:
   void set_block_indices(nda::vector<int> &block_indices);
@@ -209,8 +210,6 @@ class BlockOpSymSet : public BlockOp3D {
   BlockOpSymSet(int q, nda::vector_const_view<int> block_indices, nda::array_const_view<int, 2> block_sizes);
 };
 
-
-
 /**
  * @class BlockOpSymSetBar
  * @brief Class for block-sparse storage of a set of F^bar operators with the same sparsity pattern
@@ -234,7 +233,7 @@ class BlockOpSymSetBar {
   int get_size_sym_set() const;
   int get_num_time_nodes() const;
   void add_block(int i, int s, int t, nda::array_const_view<dcomplex, 2> block); // add to block i, symmetry index s, time index t
-  
+
   /**
    * @brief Constructor for BlockOpSymSetBar
    * @param[in] block_indices vector of block-col-indices
@@ -271,8 +270,8 @@ class BlockOpSymQuartet {
    * @param[in] F_dag_bars vector of vectors of linear combinations of creation operator BOSS 
    * @param[in] F_bars_refl vector of vectors of linear combinations of annihilation operator BOSS
    */
-   BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<BlockOpSymSet> F_dags, nda::array_const_view<dcomplex, 3> hyb_coeffs, 
-                     nda::array_const_view<dcomplex, 3> hyb_refl_coeffs); 
+  BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<BlockOpSymSet> F_dags, nda::array_const_view<dcomplex, 3> hyb_coeffs,
+                    nda::array_const_view<dcomplex, 3> hyb_refl_coeffs);
 };
 
 /**
@@ -322,26 +321,20 @@ BlockDiagOpFun BOFtoBDOF(BlockOpFun const &A);
  * @param[in] H_blocks vector of blocks of Hamiltonian
  * @param[in] H_block_inds vector, -1 if Hamiltonian has zero block in corresponding block column
  * @param[in] beta inverse temperature
- * @param[in] dlr_it imaginary time nodes in absolute format
+ * @param[in] dlr_it_abs imaginary time nodes in absolute format
  */
 BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double, 2>> H_blocks, nda::vector<int> H_block_inds, double beta,
-                              nda::vector_const_view<double> dlr_it);
+                              nda::vector_const_view<double> dlr_it_abs);
 
 /**
- * @brief Compute noninteracting Green's function from Hamiltonian as a BDOF
- * @param[in] H_blocks vector of blocks of Hamiltonian
- * @param[in] H_block_inds vector, -1 if Hamiltonian has zero block in corresponding block column
+ * @brief Load block-sparse operator from HDF5 file
+ * @param[in] filename path to the HDF5 file
  * @param[in] beta inverse temperature
- * @param[in] dlr_it imaginary time nodes in absolute format
+ * @param[in] Lambda cutoff for DLR coefficients
+ * @param[in] eps numerical precision for DLR coefficients
+ * @param[in] hyb hybridization function
+ * @param[in] hyb_refl reflected hybridization function
+ * @return tuple containing the Green's function as a BDOF and the creation/annihilation operators as a BlockOpSymQuartet
  */
-BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double, 2>> H_blocks, nda::vector<int> H_block_inds, double beta,
-                              nda::vector_const_view<double> dlr_it);
-/**
- * @brief Compute noninteracting Green's function from Hamiltonian as a BDOF
- * @param[in] H_blocks vector of blocks of Hamiltonian
- * @param[in] H_block_inds vector, -1 if Hamiltonian has zero block in corresponding block column
- * @param[in] beta inverse temperature
- * @param[in] dlr_it imaginary time nodes in absolute format
- */
-BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double, 2>> H_blocks, nda::vector<int> H_block_inds, double beta,
-                              nda::vector_const_view<double> dlr_it);
+std::tuple<BlockDiagOpFun, BlockOpSymQuartet> load_from_hdf5(const std::string &filename, double beta, double Lambda, double eps,
+                                                             nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl);
