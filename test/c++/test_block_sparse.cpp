@@ -93,7 +93,7 @@ std::tuple<nda::array<dcomplex, 3>, nda::array<dcomplex, 3>> discrete_bath_helpe
   return std::make_tuple(Deltat, Deltat_refl);
 }
 
-std::tuple<nda::array<dcomplex, 3>, nda::array<dcomplex, 3>> discrete_bath_spin_flip_helper(double beta, double Lambda, double eps) {
+std::tuple<nda::array<dcomplex, 3>, nda::array<dcomplex, 3>> discrete_bath_spin_flip_helper(double beta, double Lambda, double eps, int n) {
   // Helper function for setting up the discrete bath model
 
   auto dlr_rf        = build_dlr_rf(Lambda, eps);
@@ -118,15 +118,15 @@ std::tuple<nda::array<dcomplex, 3>, nda::array<dcomplex, 3>> discrete_bath_spin_
   }
   
   // orbital index order: do 0, up 0, do 1, up 1
-  auto Deltat      = nda::array<dcomplex, 3>(r, 4, 4);
-  auto Deltat_refl = nda::array<dcomplex, 3>(r, 4, 4);
-  
-  for (int i = 0; i < Deltat.extent(1); i++) {
-    for (int j = i; j < Deltat.extent(2); j++) {
+  auto Deltat      = nda::array<dcomplex, 3>(r, n, n);
+  auto Deltat_refl = nda::array<dcomplex, 3>(r, n, n);
+
+  for (int i = 0; i < n; i++) {
+    for (int j = i; j < n; j++) {
       if (i == j) {
         Deltat(_, i, j)      = Jt(_, 0, 0);
         Deltat_refl(_, i, j) = Jt_refl(_, 0, 0);
-      } else if ((i == 0 && j == 2) || (i == 2 && j == 0) || (i == 1 && j == 3) || (i == 3 && j == 1)) {
+      } else if ((i + j) % 2 == 0) { // i and j have the same parity
         Deltat(_, i, j)      = s * Jt(_, 0, 0);
         Deltat_refl(_, i, j) = s * Jt_refl(_, 0, 0);
       }
@@ -1519,21 +1519,21 @@ TEST(Backbone, spin_flip_fermion) {
   auto itops  = imtime_ops(Lambda, dlr_rf);
 
   std::string filename = "../test/c++/h5/spin_flip_fermion.h5";
-  auto [hyb, hyb_refl] = discrete_bath_spin_flip_helper(beta, Lambda, eps);
+  int n = 8; // 2 * number of orbitals
+  auto [hyb, hyb_refl] = discrete_bath_spin_flip_helper(beta, Lambda, eps, n);
   auto hyb_coeffs      = itops.vals2coefs(hyb); // hybridization DLR coeffs
   auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
   auto [Gt, Fq] = load_from_hdf5(filename, beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs);
 
   // set up backbone and diagram evaluator
   nda::array<int, 2> topology = {{0, 2}, {1, 3}};
-  int n = 4; // number of orbitals
   auto B = Backbone(topology, n);
   DiagramBlockSparseEvaluator D(beta, itops, hyb, hyb_refl, Gt, Fq);
   auto start = std::chrono::high_resolution_clock::now();
   D.eval_diagram_block_sparse(B);
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> duration = end - start;
-  std::cout << "Block-sparse OCA evaluation for n = " << n << " took " << duration.count() << " seconds." << std::endl;
+  std::cout << std::setprecision(16) << "Block-sparse OCA evaluation for n = " << n << " took " << duration.count() << " seconds." << std::endl;
   auto result = D.Sigma;
 
   // compare to dense result
@@ -1563,14 +1563,6 @@ TEST(Backbone, spin_flip_fermion) {
   duration = end - start;
   std::cout << "Block-sparse trivial OCA evaluation for n = " << n << " took " << duration.count() << " seconds." << std::endl;
   auto result_trivial_bs = D3.Sigma;
-
-  std::cout << "Result from block-sparse OCA evaluation: " << result.get_block(0)(10, _, _) << std::endl;
-  std::cout << result.get_block(1)(10, _, _) << std::endl;
-  std::cout << result.get_block(2)(10, _, _) << std::endl;
-  std::cout << result.get_block(3)(10, _, _) << std::endl;
-  std::cout << result.get_block(4)(10, _, _) << std::endl;
-  std::cout << "Result from dense OCA evaluation: " << result_dense(10, _, _) << std::endl;
-  std::cout << "Result from trivial block-sparse OCA evaluation: " << result_trivial_bs.get_block(0)(10, _, _) << std::endl;
 
   ASSERT_LE(nda::max_element(nda::abs(result_dense - result_trivial_bs.get_block(0))), 1e-10);
   int i = 0, s0 = 0, s1 = 0; 

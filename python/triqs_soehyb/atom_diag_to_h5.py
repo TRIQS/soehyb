@@ -7,7 +7,7 @@ import atom_diag_utils as utils
 
 if __name__ == "__main__":
     # parameters to tune
-    norb = 2
+    norb = 4
     h5_fname = "spin_flip_fermion.h5"
     
     N = 0
@@ -74,10 +74,9 @@ if __name__ == "__main__":
     # save dense creation and annihilation operators
     c_dense = np.zeros((2 * norb, 4 ** norb, 4 ** norb))
     cdag_dense = np.zeros((2 * norb, 4 ** norb, 4 ** norb))
-    fop_perm = [0, 1, 2, 3]
     for oidx in range(2 * norb):
-        c_dense[oidx, :, :] = utils.get_full_c_matrix(ad, fop_perm[oidx])[H_perm][:, H_perm]
-        cdag_dense[oidx, :, :] = utils.get_full_cdag_matrix(ad, fop_perm[oidx])[H_perm][:, H_perm]
+        c_dense[oidx, :, :] = utils.get_full_c_matrix(ad, oidx)[H_perm][:, H_perm]
+        cdag_dense[oidx, :, :] = utils.get_full_cdag_matrix(ad, oidx)[H_perm][:, H_perm]
 
     with HDFArchive("/home/paco/feynman/soehyb/test/c++/h5/" + h5_fname) as ar:
         ar['norb'] = norb
