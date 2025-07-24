@@ -95,3 +95,30 @@ class TriqsSolver:
             sidx += size
 
         return G
+
+
+    def __skip_keys(self):
+        return []
+
+
+    def __reduce_to_dict__(self):
+        d = self.__dict__.copy()
+        keys = set(d.keys()).intersection(self.__skip_keys())
+        for key in keys: del d[key]
+        return d
+
+
+    @classmethod
+    def __factory_from_dict__(cls, name, d):
+        arg_keys = ['beta', 'gf_struct', 'eps', 'w_max']
+        argv_keys = []
+        ret = cls(*[ d[key] for key in arg_keys ],
+                  **{ key : d[key] for key in argv_keys })
+        ret.__dict__.update(d)
+        return ret
+
+
+# -- Register Solver in Triqs formats
+
+from h5.formats import register_class
+register_class(TriqsSolver)
