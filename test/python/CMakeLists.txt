@@ -13,6 +13,7 @@ set(all_tests
   test_diag
   unitary_invariance
   h5_io
+  dense
   )
 
 foreach(test ${all_tests})

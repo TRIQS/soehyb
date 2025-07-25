@@ -57,7 +57,7 @@ nda::array<dcomplex, 3> eval_eq(imtime_ops &itops, nda::array_const_view<dcomple
  * @param[in] Fs F operator
  * @return OCA term of self-energy
  */
-nda::array<dcomplex, 3> OCA_dense(nda::array_const_view<dcomplex, 3> hyb, imtime_ops &itops, double beta, nda::array_const_view<dcomplex, 3> Gt,
+nda::array<dcomplex, 3> OCA_dense(nda::array_const_view<dcomplex, 3> hyb, imtime_ops itops, double beta, nda::array_const_view<dcomplex, 3> Gt,
                                   nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags);
 
 /**
