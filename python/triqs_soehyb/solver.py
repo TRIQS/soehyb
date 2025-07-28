@@ -217,11 +217,10 @@ class Solver(object):
         if is_root():
             print(logo())
             print()
-            print(f'beta = {self.beta}')
-            print(f'lamb = {self.lamb:2.2E}, eps = {self.eps:2.2E}, N_DLR = {self.ito.rank()}')
+            print(f'beta = {self.beta}, lamb = {self.lamb:2.2E}, eps = {self.eps:2.2E}, N_DLR = {self.ito.rank()}')
             print(f'fundamental_operators = {self.fundamental_operators}')
-            print(f'H_loc = {self.H_loc}')
             print(f'H_mat.shape = {self.H_mat.shape}')
+            print(f'H_loc = {self.H_loc}')
             print()
 
         
@@ -290,20 +289,16 @@ class Solver(object):
             weights, pol, error = polefitting(
                 Deltaiw_dense, 1.j*dlr_if_dense, delta_iaa, self.tau_i, Deltat, self.tau_f,self.beta,
                 eps=epstol, Np_max=Npmax, Hermitian=Hermitian)
-
-            if is_root() and verbose:
-                
-                print(f"PPSC: Hybridization fit tau-diff {error:2.2E}")
         
             if error < epstol and len(pol)<=len(self.tau_i):
                 if is_root() and verbose:
-                    print(f"PPSC: Hybridization using {len(pol)} AAA poles.")
+                    print(f"AdaPol: Hybridization fit accuracy {error:2.2E}, using {len(pol)} poles.")
                 
                 self.fd.copy_aaa_result(pol, weights)
                 self.fd.hyb_decomposition(poledlrflag=False, eps=eps_svd)
             else:
                 if is_root() and verbose:
-                    print(f"PPSC: Hybridization using all {self.ito.rank()} DLR poles.")
+                    print(f"AdaPol: Hybridization using all {self.ito.rank()} DLR poles.")
             
                 self.fd.hyb_init(delta_iaa, poledlrflag=True)
                 self.fd.hyb_decomposition(poledlrflag=True, eps=eps_svd)
@@ -341,7 +336,7 @@ class Solver(object):
             return sol.root
 
 
-    @timer('Eta search (Newton)')
+    #@timer('Eta search (Newton)')
     def energyshift_newton(self, Sigma_iaa, tol=1e-10, verbose=True):
 
         def target_function(eta):
@@ -504,7 +499,7 @@ class Solver(object):
             #    print(f'PPSC: eta = {self.eta}, dmu = {self.dmu}')
             #    print(f'PPSc: deta = {self.eta - eta_old}')
                 print(f'PPSC: Fix N mix = {mix}')
-            
+              
             G_iaa_new = self.solve_dyson(self.Sigma_iaa, self.eta, tol, dmu=self.dmu)
 
             diff = np.max(np.abs(self.G_iaa - G_iaa_new))
@@ -524,7 +519,7 @@ class Solver(object):
         return diff
 
 
-    def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True, mix=1.0, verbose=True, G0_iaa=None):
+    def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True, mix=1.0, verbose=False, G0_iaa=None):
 
         if G0_iaa is not None:
             assert( type(G0_iaa) == np.ndarray )
@@ -535,13 +530,18 @@ class Solver(object):
 
         self.G0_iaa = self.fd.free_greens_ppsc(self.beta, self.H_mat)        
         self.G0_xaa = self.ito.vals2coefs(self.G0_iaa)
+
+        if is_root():
+            print()
+            print(" iter |   conv   |    Z-1    ")
+            print("------+----------+-----------")
         
-        for iter in range(maxiter):
+        for iter in range(1, maxiter+1):
             
             #Sigma_iaa = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=verbose)
             Sigma_iaa = self.calc_Sigma(max_order, verbose=verbose)
 
-            if verbose:
+            if is_root() and verbose:
                 dyson_start_time = time.time()
 
             if update_eta_exact:
@@ -563,10 +563,7 @@ class Solver(object):
                 dyson_elapsed_time = dyson_end_time - dyson_start_time
                 print(f"PPSC: Dyson time {dyson_elapsed_time:2.2E}s.")
                 
-            if is_root():
-                # Expect Z = 1
-                Z = self.partition_function(G_iaa_new)
-                print(f"PPSC: Z-1 = {Z-1:+2.2E}")
+            Z = self.partition_function(G_iaa_new)
 
             diff = np.max(np.abs(self.G_iaa - G_iaa_new))
             
@@ -574,16 +571,18 @@ class Solver(object):
             #self.G_iaa = make_hermitian(self.G_iaa)
             self.Sigma_iaa = Sigma_iaa
 
-            if is_root(): print(f'PPSC: iter = {iter:3d} diff = {diff:2.2E}')
+            if is_root():
+                #print(f"PPSC: Z-1 = {Z-1:+2.2E}")
+                print(f' {iter:4d} | {diff:2.2E} | {Z-1:+2.2E}')
             if diff < tol: break
 
-        if is_root():
+        if is_root() and verbose:
             print(); self.timer.write()
 
         return diff
             
 
-    @timer('Dyson')
+    @timer('Dyson equation')
     def solve_dyson(self, Sigma_iaa, eta, tol, iterative=False, dmu=0.0):
         """ Dyson solver frontend
 
@@ -633,20 +632,20 @@ class Solver(object):
         return G_iaa
     
 
-    @timer('Z')
+    #@timer('Partition function')
     def partition_function(self, G_iaa):
         Z = self.fd.partition_function(G_iaa)
         return Z
     
 
-    @timer('Diag Sigma')
+    @timer('Pseudo-particle self-energy')
     def calc_Sigma(self, max_order, verbose=True):
 
         Sigma_iaa = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=verbose)
         return Sigma_iaa
 
     
-    @timer('Diag SPGF')
+    @timer("Single particle Green's function")
     def calc_spgf(self, max_order, verbose=True):
         
         n_g = self.F.shape[0]

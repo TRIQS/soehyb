@@ -1,5 +1,23 @@
-
-
+################################################################################
+#
+# triqs_soehyb: Sum-Of-Exponentials bold HYBridization expansion impurity solver
+#
+# Copyright (C) 2025 by H. U.R. Strand
+#
+# triqs_soehyb is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# triqs_soehyb is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# triqs_soehyb. If not, see <http://www.gnu.org/licenses/>.
+#
+################################################################################
 
 
 import numpy as np
@@ -8,48 +26,48 @@ import numpy as np
 from triqs.gf import MeshDLR, MeshDLRImTime, BlockGf
 from triqs.operators import c, Operator
 
-from triqs_soehyb.solver import Solver
+
+from triqs_soehyb.solver import Solver, is_root
 
 
 class TriqsSolver:
 
-    def __init__(self, beta, gf_struct, eps, w_max):
+    def __init__(self, beta, gf_struct, eps, w_max, verbose=True):
 
+        self.verbose = verbose
+        
         self.beta = beta
         self.gf_struct = gf_struct
         self.eps = eps
         self.w_max = w_max
         
-        print("--> triqs_soehyb.triqs_solver.TriqsSolver")
-
         self.dmesh = MeshDLR(beta=beta, statistic='Fermion', eps=eps, w_max=w_max)        
         self.tmesh = MeshDLRImTime(beta=beta, statistic='Fermion', eps=eps, w_max=w_max)        
 
         self.Delta_tau = BlockGf(mesh=self.tmesh, gf_struct=self.gf_struct)
         
         # gf_struct -> fundamental_operators
-
-        print(f'gf_struct = {gf_struct}')
         
         fundamental_operators = []
         for s, n in gf_struct:
             fundamental_operators += [ c(s, i) for i in range(n) ]
             
-        print(f'fundamental_operators = {fundamental_operators}')
-        
         H_loc = 0 * Operator()
-
-        print(f'H_loc = {H_loc}')
         
         lamb = beta * w_max
-        self.S = Solver(beta, lamb, eps, H_loc, fundamental_operators)
-
+        self.S = Solver(beta, lamb, eps, H_loc, fundamental_operators, verbose=verbose)
+        
         np.testing.assert_array_almost_equal(self.dmesh.values(), self.S.dlr_rf)
         np.testing.assert_array_almost_equal(self.tmesh.values(), self.S.tau_i)
 
 
     def solve(self, h_int, order, **kwargs):
 
+        if is_root():
+            order_n_diags = [ (o, self.S.fd.number_of_diagrams(o)) for o in range(1,order+1) ]
+            print(f'max_order = {order}')
+            print(f'(Order, N_Diags) = {order_n_diags}')
+        
         self.order = order
         self.h_int = h_int
         
@@ -61,8 +79,11 @@ class TriqsSolver:
 
         self.S.solve(order, **kwargs)
 
-        self.g_iaa = self.S.calc_spgf(order)        
+        self.g_iaa = self.S.calc_spgf(order, verbose=False)
         self.G_tau = self.__from_array_to_blockgf(self.g_iaa)
+
+        if is_root():
+            print(); self.S.timer.write()      
 
                 
     def __from_blockgf_to_array(self, G):
@@ -114,10 +135,13 @@ class TriqsSolver:
     @classmethod
     def __factory_from_dict__(cls, name, d):
         arg_keys = ['beta', 'gf_struct', 'eps', 'w_max']
-        argv_keys = []
+        argv_keys = ['verbose']
+        verbose = d['verbose']
+        d['verbose'] = False # -- Suppress printouts on reconstruction from dict
         ret = cls(*[ d[key] for key in arg_keys ],
                   **{ key : d[key] for key in argv_keys })
         ret.__dict__.update(d)
+        ret.verbose = verbose
         return ret
 
 
