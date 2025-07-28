@@ -15,7 +15,10 @@ class TriqsSolver:
 
     def __init__(self, beta, gf_struct, eps, w_max):
 
+        self.beta = beta
         self.gf_struct = gf_struct
+        self.eps = eps
+        self.w_max = w_max
         
         print("--> triqs_soehyb.triqs_solver.TriqsSolver")
 
