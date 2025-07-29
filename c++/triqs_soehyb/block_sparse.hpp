@@ -336,5 +336,6 @@ BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double, 2>> H_blocks, nda::
  * @param[in] hyb_refl reflected hybridization function
  * @return tuple containing the Green's function as a BDOF and the creation/annihilation operators as a BlockOpSymQuartet
  */
-std::tuple<BlockDiagOpFun, BlockOpSymQuartet> load_from_hdf5(const std::string &filename, double beta, double Lambda, double eps,
-                                                             nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl);
+std::tuple<BlockDiagOpFun, BlockOpSymQuartet, nda::vector<long>> load_from_hdf5(const std::string &filename, double beta, double Lambda, double eps,
+                                                                                nda::array_const_view<dcomplex, 3> hyb,
+                                                                                nda::array_const_view<dcomplex, 3> hyb_refl);

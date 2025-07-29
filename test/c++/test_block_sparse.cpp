@@ -71,11 +71,11 @@ std::tuple<nda::array<dcomplex, 3>, nda::array<dcomplex, 3>> discrete_bath_helpe
       Jt_refl(u, 0, 0) += k_it(-dlr_it_abs(u), e(i), beta);
     }
   }
-  
+
   // orbital index order: do 0, do 1, up 0, up 1. same level <-> same parity index
   auto Deltat      = nda::array<dcomplex, 3>(r, 4, 4);
   auto Deltat_refl = nda::array<dcomplex, 3>(r, 4, 4);
-  
+
   for (int i = 0; i < Deltat.extent(1); i++) {
     for (int j = i; j < Deltat.extent(2); j++) {
       if (i == j) {
@@ -116,7 +116,7 @@ std::tuple<nda::array<dcomplex, 3>, nda::array<dcomplex, 3>> discrete_bath_spin_
       Jt_refl(u, 0, 0) += k_it(-dlr_it_abs(u), e(i), beta);
     }
   }
-  
+
   // orbital index order: do 0, up 0, do 1, up 1
   auto Deltat      = nda::array<dcomplex, 3>(r, n, n);
   auto Deltat_refl = nda::array<dcomplex, 3>(r, n, n);
@@ -375,8 +375,8 @@ two_band_discrete_bath_helper_sym(double beta, double Lambda, double eps) {
 
   int n = 4, k = num_blocks;
   // DLR generation
-  auto dlr_rf        = build_dlr_rf(Lambda, eps);
-  auto itops         = imtime_ops(Lambda, dlr_rf);
+  auto dlr_rf = build_dlr_rf(Lambda, eps);
+  auto itops  = imtime_ops(Lambda, dlr_rf);
 
   // create cre/ann operators
   auto hyb_coeffs      = itops.vals2coefs(Deltat); // hybridization DLR coeffs
@@ -408,8 +408,9 @@ two_band_discrete_bath_helper_sym(double beta, double Lambda, double eps) {
   return std::make_tuple(num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order, Fq);
 }
 
-std::tuple<nda::array<dcomplex, 3>, DenseFSet, std::vector<nda::vector<int>>> spin_flip_fermion_dense_helper(double beta, double Lambda, double eps, nda::array_const_view<dcomplex, 3> hyb_coeffs, 
-                                                                                     nda::array_const_view<dcomplex, 3> hyb_refl_coeffs) {
+std::tuple<nda::array<dcomplex, 3>, DenseFSet, std::vector<nda::vector<int>>>
+spin_flip_fermion_dense_helper(double beta, double Lambda, double eps, nda::array_const_view<dcomplex, 3> hyb_coeffs,
+                               nda::array_const_view<dcomplex, 3> hyb_refl_coeffs) {
   // DLR generation
   auto dlr_rf     = build_dlr_rf(Lambda, eps);
   auto itops      = imtime_ops(Lambda, dlr_rf);
@@ -421,10 +422,10 @@ std::tuple<nda::array<dcomplex, 3>, DenseFSet, std::vector<nda::vector<int>>> sp
 
   long n = 0;
   h5::read(g, "norb", n);
-  int N = static_cast<int>(pow(4, static_cast<double>(n))); // number of Fock states
+  int N                           = static_cast<int>(pow(4, static_cast<double>(n))); // number of Fock states
   nda::array<dcomplex, 2> H_dense = nda::zeros<dcomplex>(N, N);
   h5::read(g, "H_mat_dense", H_dense);
-  auto Gt_dense = Hmat_to_Gtmat(H_dense, beta, dlr_it_abs);
+  auto Gt_dense                    = Hmat_to_Gtmat(H_dense, beta, dlr_it_abs);
   nda::array<dcomplex, 3> Fs_dense = nda::zeros<dcomplex>(2 * n, N, N);
   h5::read(g, "c_dense", Fs_dense);
   nda::array<dcomplex, 3> F_dags_dense = nda::zeros<dcomplex>(2 * n, N, N);
@@ -432,7 +433,7 @@ std::tuple<nda::array<dcomplex, 3>, DenseFSet, std::vector<nda::vector<int>>> sp
 
   DenseFSet Fset(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
 
-  long k = 0; 
+  long k = 0;
   h5::read(g, "num_blocks", k);
   std::vector<nda::vector<int>> subspaces(k, nda::vector<int>());
   for (int i = 0; i < k; ++i) {
@@ -441,7 +442,7 @@ std::tuple<nda::array<dcomplex, 3>, DenseFSet, std::vector<nda::vector<int>>> sp
     subspaces[i] = subspace;
   }
 
-  return std::make_tuple(Gt_dense, Fset, subspaces); 
+  return std::make_tuple(Gt_dense, Fset, subspaces);
 }
 
 TEST(BlockSparseNCA, simple) {
@@ -1416,11 +1417,12 @@ TEST(Backbone, OCA) {
   auto B                      = Backbone(topology, n);
 
   // block-sparse diagram evaluation
-  DiagramBlockSparseEvaluator D(beta, itops, Deltat, Deltat_refl, Gt, Fq);
+  auto sym_set_labels = nda::zeros<long>(n);
+  DiagramBlockSparseEvaluator D(beta, itops, Deltat, Deltat_refl, Gt, Fq, sym_set_labels);
   auto start = std::chrono::high_resolution_clock::now();
   D.eval_diagram_block_sparse(B);
-  auto end = std::chrono::high_resolution_clock::now();
-  auto OCA_result = D.Sigma;
+  auto end                              = std::chrono::high_resolution_clock::now();
+  auto OCA_result                       = D.Sigma;
   std::chrono::duration<double> elapsed = end - start;
   std::cout << "OCA (block-sparse) elapsed time: " << elapsed.count() << " s" << std::endl;
 
@@ -1429,31 +1431,31 @@ TEST(Backbone, OCA) {
   auto hyb_refl        = nda::make_regular(-itops.reflect(Deltat));
   auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
   auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
-  DiagramEvaluator D2(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset); 
+  DiagramEvaluator D2(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset);
   start = std::chrono::high_resolution_clock::now();
   D2.eval_diagram_dense(B);
-  end = std::chrono::high_resolution_clock::now();
+  end                   = std::chrono::high_resolution_clock::now();
   auto OCA_dense_result = D2.Sigma;
-  elapsed = end - start;
+  elapsed               = end - start;
   std::cout << "OCA (dense) elapsed time: " << elapsed.count() << " s" << std::endl;
 
   // use block-sparse solver but with trivial sparsity
-  std::vector<nda::array<dcomplex, 3>> Gt_dense_vec{Gt_dense}; 
+  std::vector<nda::array<dcomplex, 3>> Gt_dense_vec{Gt_dense};
   nda::vector<int> triv_bi{0};
-  BlockDiagOpFun Gt_triv(Gt_dense_vec, triv_bi); 
+  BlockDiagOpFun Gt_triv(Gt_dense_vec, triv_bi);
 
   std::vector<nda::array<dcomplex, 3>> Fs_dense_vec{Fs_dense};
-  auto F_sym_triv = BlockOpSymSet(triv_bi, Fs_dense_vec); 
+  auto F_sym_triv = BlockOpSymSet(triv_bi, Fs_dense_vec);
   std::vector<nda::array<dcomplex, 3>> F_dags_dense_vec{F_dags_dense};
   auto F_dag_sym_triv = BlockOpSymSet(triv_bi, F_dags_dense_vec);
-  auto Fq_triv = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs);
+  auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs);
 
-  DiagramBlockSparseEvaluator D3(beta, itops, Deltat, Deltat_refl, Gt_triv, Fq_triv);
+  DiagramBlockSparseEvaluator D3(beta, itops, Deltat, Deltat_refl, Gt_triv, Fq_triv, sym_set_labels);
   start = std::chrono::high_resolution_clock::now();
   D3.eval_diagram_block_sparse(B);
-  end = std::chrono::high_resolution_clock::now();
+  end                 = std::chrono::high_resolution_clock::now();
   auto OCA_trivial_bs = D3.Sigma;
-  elapsed = end - start;
+  elapsed             = end - start;
   std::cout << "OCA (block-sparse, trivial) elapsed time: " << elapsed.count() << " s" << std::endl;
 
   ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(0) - OCA_dense_result(_, range(0, 4), range(0, 4)))), 5e-16);
@@ -1483,26 +1485,27 @@ TEST(Backbone, third_order) {
      two_band_discrete_bath_helper_sym(beta, Lambda, eps);
 
   // set up backbone and diagram evaluator
-  nda::array<int, 2> topology = {{0, 2}, {1, 4}, {3, 5}}; 
-  int n = 4; 
-  auto B = Backbone(topology, n); 
-  DiagramBlockSparseEvaluator D(beta, itops, Deltat, Deltat_refl, Gt, Fq); 
+  nda::array<int, 2> topology = {{0, 2}, {1, 4}, {3, 5}};
+  int n                       = 4;
+  auto B                      = Backbone(topology, n);
+  auto sym_set_labels         = nda::zeros<long>(n); // for block-sparse symmetries
+  DiagramBlockSparseEvaluator D(beta, itops, Deltat, Deltat_refl, Gt, Fq, sym_set_labels);
 
-  D.eval_diagram_block_sparse(B); 
-  auto third_result = D.Sigma; 
+  D.eval_diagram_block_sparse(B);
+  auto third_result = D.Sigma;
 
   // compare to dense result
   auto hyb_coeffs      = itops.vals2coefs(Deltat); // hybridization DLR coeffs
   auto hyb_refl        = nda::make_regular(-itops.reflect(Deltat));
   auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
   auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
-  DiagramEvaluator D2(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset); 
+  DiagramEvaluator D2(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset);
 
-  D2.eval_diagram_dense(B); 
-  auto third_result_dense = D2.Sigma; 
+  D2.eval_diagram_dense(B);
+  auto third_result_dense = D2.Sigma;
 
-  std::cout << third_result.get_block(0)(10,_,_) << std::endl;
-  std::cout << third_result_dense(10,_,_) << std::endl;
+  std::cout << third_result.get_block(0)(10, _, _) << std::endl;
+  std::cout << third_result_dense(10, _, _) << std::endl;
 }
 
 // option to turn off symmetries (i.e. trivial block-sparsity), compare this to actual dense code
@@ -1518,20 +1521,20 @@ TEST(Backbone, spin_flip_fermion) {
   auto dlr_rf = build_dlr_rf(Lambda, eps);
   auto itops  = imtime_ops(Lambda, dlr_rf);
 
-  std::string filename = "../test/c++/h5/spin_flip_fermion.h5";
-  int n = 8; // 2 * number of orbitals
-  auto [hyb, hyb_refl] = discrete_bath_spin_flip_helper(beta, Lambda, eps, n);
-  auto hyb_coeffs      = itops.vals2coefs(hyb); // hybridization DLR coeffs
-  auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
-  auto [Gt, Fq] = load_from_hdf5(filename, beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs);
+  std::string filename          = "../test/c++/h5/spin_flip_fermion.h5";
+  int n                         = 4; // 2 * number of orbitals
+  auto [hyb, hyb_refl]          = discrete_bath_spin_flip_helper(beta, Lambda, eps, n);
+  auto hyb_coeffs               = itops.vals2coefs(hyb); // hybridization DLR coeffs
+  auto hyb_refl_coeffs          = itops.vals2coefs(hyb_refl);
+  auto [Gt, Fq, sym_set_labels] = load_from_hdf5(filename, beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs);
 
   // set up backbone and diagram evaluator
   nda::array<int, 2> topology = {{0, 2}, {1, 3}};
-  auto B = Backbone(topology, n);
-  DiagramBlockSparseEvaluator D(beta, itops, hyb, hyb_refl, Gt, Fq);
+  auto B                      = Backbone(topology, n);
+  DiagramBlockSparseEvaluator D(beta, itops, hyb, hyb_refl, Gt, Fq, sym_set_labels);
   auto start = std::chrono::high_resolution_clock::now();
   D.eval_diagram_block_sparse(B);
-  auto end = std::chrono::high_resolution_clock::now();
+  auto end                               = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> duration = end - start;
   std::cout << std::setprecision(16) << "Block-sparse OCA evaluation for n = " << n << " took " << duration.count() << " seconds." << std::endl;
   auto result = D.Sigma;
@@ -1542,7 +1545,7 @@ TEST(Backbone, spin_flip_fermion) {
   DiagramEvaluator D2(beta, itops, hyb, hyb_refl, Gt_dense, Fset);
   start = std::chrono::high_resolution_clock::now();
   D2.eval_diagram_dense(B);
-  end = std::chrono::high_resolution_clock::now();
+  end      = std::chrono::high_resolution_clock::now();
   duration = end - start;
   std::cout << "Dense OCA evaluation for n = " << n << " took " << duration.count() << " seconds." << std::endl;
   auto result_dense = D2.Sigma;
@@ -1555,21 +1558,90 @@ TEST(Backbone, spin_flip_fermion) {
   auto F_sym_triv = BlockOpSymSet(triv_bi, Fs_dense_vec);
   std::vector<nda::array<dcomplex, 3>> F_dags_dense_vec{Fset.F_dags};
   auto F_dag_sym_triv = BlockOpSymSet(triv_bi, F_dags_dense_vec);
-  auto Fq_triv = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs);
-  DiagramBlockSparseEvaluator D3(beta, itops, hyb, hyb_refl, Gt_triv, Fq_triv);
+  auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs);
+  DiagramBlockSparseEvaluator D3(beta, itops, hyb, hyb_refl, Gt_triv, Fq_triv, sym_set_labels);
   start = std::chrono::high_resolution_clock::now();
   D3.eval_diagram_block_sparse(B);
-  end = std::chrono::high_resolution_clock::now();
+  end      = std::chrono::high_resolution_clock::now();
   duration = end - start;
   std::cout << "Block-sparse trivial OCA evaluation for n = " << n << " took " << duration.count() << " seconds." << std::endl;
   auto result_trivial_bs = D3.Sigma;
 
   ASSERT_LE(nda::max_element(nda::abs(result_dense - result_trivial_bs.get_block(0))), 1e-10);
-  int i = 0, s0 = 0, s1 = 0; 
+  int i = 0, s0 = 0, s1 = 0;
   for (nda::vector_view<int> subspace : subspaces) {
     s1 += subspace.size();
     ASSERT_LE(nda::max_element(nda::abs(result.get_block(i) - result_dense(_, range(s0, s1), range(s0, s1)))), 1e-10);
-    i += 1; 
-    s0 = s1; 
+    i += 1;
+    s0 = s1;
+  }
+}
+
+TEST(Backbone, spin_flip_fermion_sym_sets) {
+  double beta   = 2.0;
+  double Lambda = 100.0 * beta;
+  double eps    = 1.0e-10;
+
+  // DLR generation
+  auto dlr_rf = build_dlr_rf(Lambda, eps);
+  auto itops  = imtime_ops(Lambda, dlr_rf);
+
+  std::string filename          = "../test/c++/h5/spin_flip_fermion_all_sym.h5";
+  int n                         = 4; // 2 * number of orbitals
+  auto [hyb, hyb_refl]          = discrete_bath_spin_flip_helper(beta, Lambda, eps, n);
+  auto hyb_coeffs               = itops.vals2coefs(hyb); // hybridization DLR coeffs
+  auto hyb_refl_coeffs          = itops.vals2coefs(hyb_refl);
+  auto [Gt, Fq, sym_set_labels] = load_from_hdf5(filename, beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs);
+
+  std::cout << "Fq size = " << Fq.Fs.size() << std::endl;
+
+  // set up backbone and diagram evaluator
+  nda::array<int, 2> topology = {{0, 2}, {1, 3}};
+  auto B                      = Backbone(topology, n);
+  DiagramBlockSparseEvaluator D(beta, itops, hyb, hyb_refl, Gt, Fq, sym_set_labels);
+  auto start = std::chrono::high_resolution_clock::now();
+  D.eval_diagram_block_sparse(B);
+  auto end                               = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> duration = end - start;
+  std::cout << std::setprecision(16) << "Block-sparse OCA evaluation for n = " << n << " took " << duration.count() << " seconds." << std::endl;
+  auto result = D.Sigma;
+
+  // compare to dense result
+  auto [Gt_dense, Fset, subspaces] = spin_flip_fermion_dense_helper(beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs);
+
+  DiagramEvaluator D2(beta, itops, hyb, hyb_refl, Gt_dense, Fset);
+  start = std::chrono::high_resolution_clock::now();
+  D2.eval_diagram_dense(B);
+  end      = std::chrono::high_resolution_clock::now();
+  duration = end - start;
+  std::cout << "Dense OCA evaluation for n = " << n << " took " << duration.count() << " seconds." << std::endl;
+  auto result_dense = D2.Sigma;
+
+  // use block-sparse solver but with trivial sparsity
+  std::vector<nda::array<dcomplex, 3>> Gt_dense_vec{Gt_dense};
+  nda::vector<int> triv_bi{0};
+  BlockDiagOpFun Gt_triv(Gt_dense_vec, triv_bi);
+  std::vector<nda::array<dcomplex, 3>> Fs_dense_vec{Fset.Fs};
+  auto F_sym_triv = BlockOpSymSet(triv_bi, Fs_dense_vec);
+  std::vector<nda::array<dcomplex, 3>> F_dags_dense_vec{Fset.F_dags};
+  auto F_dag_sym_triv = BlockOpSymSet(triv_bi, F_dags_dense_vec);
+  auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs);
+  nda::vector<long> sym_set_labels_triv(n);
+  sym_set_labels_triv = 0; 
+  DiagramBlockSparseEvaluator D3(beta, itops, hyb, hyb_refl, Gt_triv, Fq_triv, sym_set_labels_triv);
+  start = std::chrono::high_resolution_clock::now();
+  D3.eval_diagram_block_sparse(B);
+  end      = std::chrono::high_resolution_clock::now();
+  duration = end - start;
+  std::cout << "Block-sparse trivial OCA evaluation for n = " << n << " took " << duration.count() << " seconds." << std::endl;
+  auto result_trivial_bs = D3.Sigma;
+
+  ASSERT_LE(nda::max_element(nda::abs(result_dense - result_trivial_bs.get_block(0))), 1e-10);
+  int i = 0, s0 = 0, s1 = 0;
+  for (nda::vector_view<int> subspace : subspaces) {
+    s1 += subspace.size();
+    ASSERT_LE(nda::max_element(nda::abs(result.get_block(i) - result_dense(_, range(s0, s1), range(s0, s1)))), 1e-10);
+    i += 1;
+    s0 = s1;
   }
 }

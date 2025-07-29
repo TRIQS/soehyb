@@ -17,11 +17,14 @@ using namespace nda;
  */
 class DiagramBlockSparseEvaluator {
   public:
-  double beta; // inverse temperature
-  int r;       // rank of the DLR imaginary time object
-  int n;       // number of orbitals
-  int Nmax;    // maximum block size in the Green's function
-  // nda::vector<int> block_dims;      // dimensions of intermediate arrays
+  double beta;                      // inverse temperature
+  int r;                            // rank of the DLR imaginary time object
+  int n;                            // number of orbitals
+  int q;                            // number of symmetry sets
+  int Nmax;                         // maximum block size in the Green's function
+  nda::vector<long> sym_set_labels; // mapping from backbone orbital index to symmetry set index
+  nda::vector<long> sym_set_inds;   // mapping from backbone orbital index to index within the symmetry set
+  nda::vector<long> sym_set_sizes;  // sizes of the symmetry sets
   imtime_ops itops;                 // DLR imaginary time object
   nda::array<dcomplex, 3> hyb;      // hybridization function at imaginary time nodes
   nda::array<dcomplex, 3> hyb_refl; // hybridization function at (beta - tau) nodes
@@ -41,12 +44,12 @@ class DiagramBlockSparseEvaluator {
   void compose_with_edge_block(
      Backbone &backbone, int e_ix, nda::vector_const_view<int> ind_path,
      nda::vector_const_view<int> block_dims); // for block b_ix, convolve with a single edge, e_ix, in a backbone diagram using block-sparse storage
-  void multiply_zero_vertex_block(Backbone &backbone, bool is_forward, int b_ix_0, nda::vector_const_view<int> ind_path,
+  void multiply_zero_vertex_block(Backbone &backbone, bool is_forward, int b_ix_0, int p_kap, int p_mu, nda::vector_const_view<int> ind_path,
                                   nda::vector_const_view<int> block_dims); // multiply by the zero vertex and the vertex connected to zero
   void reset();                                                            // reset all arrays to zero
   void eval_diagram_block_sparse(Backbone &backbone);                      // evaluate a diagram of a given order and topology in block-sparse storage
   void eval_backbone_fixed_indices_block_sparse(
-     Backbone &backbone, int b_ix, nda::vector_const_view<int> ind_path,
+     Backbone &backbone, int b_ix, int p_kap, int p_mu, nda::vector_const_view<int> ind_path,
      nda::vector_const_view<int>
         block_dims); // evaluate a diagram with fixed orbital indices, poles, and line directions in dense storage, including prefactor
 
@@ -60,5 +63,5 @@ class DiagramBlockSparseEvaluator {
    * @param[in] Fset BlockOpSymQuartet (cre/ann operators with and without bars)
    */
   DiagramBlockSparseEvaluator(double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl,
-                              BlockDiagOpFun &Gt, BlockOpSymQuartet &Fq);
+                              BlockDiagOpFun &Gt, BlockOpSymQuartet &Fq, nda::vector_const_view<long> sym_set_labels);
 };

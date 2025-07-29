@@ -392,8 +392,13 @@ BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<
 
   // initialize F_dag_bars and F_bars_refl
   int r = hyb_coeffs.extent(0);
-  std::vector<BlockOpSymSetBar> F_dag_bars(k, {F_dags[0].get_size_sym_set(), r, F_dags[0].get_block_indices(), F_dags[0].get_block_sizes()});
-  std::vector<BlockOpSymSetBar> F_bars_refl(k, {Fs[0].get_size_sym_set(), r, Fs[0].get_block_indices(), Fs[0].get_block_sizes()});
+  std::vector<BlockOpSymSetBar> F_dag_bars, F_bars_refl;
+  for (int i = 0; i < k; i++) {
+    F_dag_bars.emplace_back(F_dags[i].get_size_sym_set(), r, F_dags[i].get_block_indices(), F_dags[i].get_block_sizes());
+    F_bars_refl.emplace_back(Fs[i].get_size_sym_set(), r, Fs[i].get_block_indices(), Fs[i].get_block_sizes());
+  }
+  // std::vector<BlockOpSymSetBar> F_dag_bars(k, {F_dags[0].get_size_sym_set(), r, F_dags[0].get_block_indices(), F_dags[0].get_block_sizes()});
+  // std::vector<BlockOpSymSetBar> F_bars_refl(k, {Fs[0].get_size_sym_set(), r, Fs[0].get_block_indices(), Fs[0].get_block_sizes()});
 
   // compute F_dag_bars and F_bars_refl
   for (int i = 0; i < k; i++) {
@@ -565,8 +570,9 @@ BlockDiagOpFun nonint_gf_BDOF(std::vector<nda::array<double, 2>> H_blocks, nda::
   return Gt;
 }
 
-std::tuple<BlockDiagOpFun, BlockOpSymQuartet> load_from_hdf5(const std::string &filename, double beta, double Lambda, double eps,
-                                                             nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl) {
+std::tuple<BlockDiagOpFun, BlockOpSymQuartet, nda::vector<long>> load_from_hdf5(const std::string &filename, double beta, double Lambda, double eps,
+                                                                                nda::array_const_view<dcomplex, 3> hyb,
+                                                                                nda::array_const_view<dcomplex, 3> hyb_refl) {
 
   // DLR generation
   auto dlr_rf     = build_dlr_rf(Lambda, eps);
@@ -577,9 +583,10 @@ std::tuple<BlockDiagOpFun, BlockOpSymQuartet> load_from_hdf5(const std::string &
   h5::file f(filename, 'r');
   h5::group g(f);
 
-  long n = 0, k = 0;
+  long n = 0, k = 0, q = 0;
   h5::read(g, "norb", n);
   h5::read(g, "num_blocks", k);
+  h5::read(g, "num_sym_sets", q);
 
   nda::vector<long> H_block_inds = nda::zeros<long>(k);
   h5::read(g, "H_mat_block_inds", H_block_inds);
@@ -588,25 +595,44 @@ std::tuple<BlockDiagOpFun, BlockOpSymQuartet> load_from_hdf5(const std::string &
   h5::read(g, "ad/annihilation_connection", ann_conn);
   h5::read(g, "ad/creation_connection", cre_conn);
   // TODO handle different symmetry sets
-  nda::vector<int> F_block_inds     = ann_conn(0, _);
-  nda::vector<int> F_dag_block_inds = cre_conn(0, _);
+  auto sym_set_labels = nda::zeros<long>(n);
+  h5::read(g, "sym_set_labels", sym_set_labels);
+  nda::array<int, 2> F_block_inds = nda::zeros<int>(q, k), F_dag_block_inds = nda::zeros<int>(q, k);
+  auto filled_F_block_inds = nda::zeros<int>(n);
+  for (int i = 0; i < n; i++) {
+    long label = sym_set_labels(i);
+    if (filled_F_block_inds(label) == 0) {
+      F_block_inds(label, _)     = ann_conn(i, _);
+      filled_F_block_inds(label) = 1;
+    }
+  }
+  auto filled_F_dag_block_inds = nda::zeros<int>(n);
+  for (int i = 0; i < n; i++) {
+    long label = sym_set_labels(i);
+    if (filled_F_dag_block_inds(label) == 0) {
+      F_dag_block_inds(label, _)     = cre_conn(i, _);
+      filled_F_dag_block_inds(label) = 1;
+    }
+  }
 
   std::vector<nda::array<double, 2>> H_blocks(k);
   h5::read(g, "H_mat_blocks", H_blocks);
 
-  std::vector<nda::array<dcomplex, 3>> F_blocks(k), F_dag_blocks(k);
+  std::vector<std::vector<nda::array<dcomplex, 3>>> F_blocks(q, std::vector<nda::array<dcomplex, 3>>(k)),
+     F_dag_blocks(q, std::vector<nda::array<dcomplex, 3>>(k));
   h5::read(g, "c_blocks", F_blocks);
   h5::read(g, "cdag_blocks", F_dag_blocks);
 
   // compute creation and annihilation operators in block-sparse storage
-  auto F_sym = BlockOpSymSet(F_block_inds, F_blocks);
-  std::vector<BlockOpSymSet> F_sym_vec{F_sym};
+  std::vector<BlockOpSymSet> F_sym_vec;
+  for (int i = 0; i < q; i++) { F_sym_vec.emplace_back(F_block_inds(i, _), F_blocks[i]); }
 
-  auto F_dag_sym = BlockOpSymSet(F_dag_block_inds, F_dag_blocks);
-  std::vector<BlockOpSymSet> F_dag_sym_vec{F_dag_sym};
+  // auto F_dag_sym = BlockOpSymSet(F_dag_block_inds, F_dag_blocks);
+  std::vector<BlockOpSymSet> F_dag_sym_vec;
+  for (int i = 0; i < q; i++) { F_dag_sym_vec.emplace_back(F_dag_block_inds(i, _), F_dag_blocks[i]); }
 
   BlockDiagOpFun Gt = nonint_gf_BDOF(H_blocks, H_block_inds, beta, dlr_it_abs);
   BlockOpSymQuartet Fq(F_sym_vec, F_dag_sym_vec, hyb, hyb_refl);
 
-  return std::make_tuple(Gt, Fq);
+  return std::make_tuple(Gt, Fq, sym_set_labels);
 }
