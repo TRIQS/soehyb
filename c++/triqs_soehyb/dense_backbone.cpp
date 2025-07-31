@@ -11,22 +11,24 @@ DiagramEvaluator::DiagramEvaluator(double beta, imtime_ops &itops, nda::array_co
   dlr_rf = itops.get_rfnodes();
 
   // allocate arrays
-  int r   = dlr_it.extent(0);
-  int n   = hyb.extent(1);
-  int N   = Gt.extent(1);
-  T       = nda::zeros<dcomplex>(r, N, N);
-  GKt     = nda::zeros<dcomplex>(r, N, N);
-  Tkaps   = nda::zeros<dcomplex>(n, r, N, N);
-  Tmu     = nda::zeros<dcomplex>(r, N, N);
-  Sigma   = nda::zeros<dcomplex>(r, N, N);
+  int r  = dlr_it.extent(0);
+  int n  = hyb.extent(1);
+  int N  = Gt.extent(1);
+  T      = nda::zeros<dcomplex>(r, N, N);
+  GKt    = nda::zeros<dcomplex>(r, N, N);
+  Tkaps  = nda::zeros<dcomplex>(n, r, N, N);
+  Tmu    = nda::zeros<dcomplex>(r, N, N);
+  Sigma  = nda::zeros<dcomplex>(r, N, N);
+  Tdebug = nda::zeros<dcomplex>(r, N, N); // debugging array
 }
 
 void DiagramEvaluator::reset() {
-  T       = 0;
-  GKt     = 0;
-  Tkaps   = 0;
-  Tmu     = 0;
-  Sigma   = 0;
+  T      = 0;
+  GKt    = 0;
+  Tkaps  = 0;
+  Tmu    = 0;
+  Sigma  = 0;
+  Tdebug = 0; // reset all arrays to zero
 }
 
 void DiagramEvaluator::multiply_vertex_dense(Backbone &backbone, int v_ix) {
@@ -99,6 +101,9 @@ void DiagramEvaluator::multiply_zero_vertex(Backbone &backbone, bool is_forward)
       for (int kap = 0; kap < n; kap++) {
         for (int t = 0; t < r; t++) { Tmu(t, _, _) += hyb_refl(t, mu, kap) * Tkaps(kap, t, _, _); }
       }
+      // if (backbone.get_flat_index() == 0) {
+      //   std::cout << "Tmu, mu = " << mu << " = " << Tmu(10, _, _) << std::endl; // debugging condition, remove in production
+      // }
       for (int t = 0; t < r; t++) { T(t, _, _) += nda::matmul(Fset.Fs(mu, _, _), Tmu(t, _, _)); }
     }
   }
@@ -110,8 +115,9 @@ void DiagramEvaluator::eval_diagram_dense(Backbone &backbone) {
   // loop over all flat indices
   int f_ix_max = static_cast<int>(backbone.fb_ix_max * backbone.o_ix_max * pow(dlr_rf.size(), m - 1));
   for (int f_ix = 0; f_ix < f_ix_max; f_ix++) {
-    backbone.set_flat_index(f_ix, dlr_rf); // set directions, pole indices, and orbital indices from a single integer index
+    backbone.set_flat_index(f_ix, dlr_rf);       // set directions, pole indices, and orbital indices from a single integer index
     eval_backbone_fixed_indices_dense(backbone); // evaluate the diagram with these directions, poles, and orbital indices
+    // std::cout << "f_ix = " << f_ix << ", Sigma(10) = " << Sigma(10, _, _) << std::endl;
     backbone.reset_all_inds(); // reset directions, pole indices, and orbital indices for the next iteration
   }
 }
@@ -127,16 +133,19 @@ void DiagramEvaluator::eval_backbone_fixed_indices_dense(Backbone &backbone) {
     multiply_vertex_dense(backbone, v);
     compose_with_edge_dense(backbone, v);
   }
+  // std::cout << "T after vertex and edge blocks: " << T(10, _, _) << std::endl; // debugging condition, remove in production
 
   // 2. For each kappa, multiply by F_kappa(^dag). Then for each mu, kappa, multiply by Delta_{mu kappa}, and sum over kappa. Finally for each mu,
   // multiply F_mu[^dag] and sum over mu.
   multiply_zero_vertex(backbone, (not backbone.has_vertex_dag(0)));
+  // std::cout << "T after special vertex, f_ix = " << backbone.get_flat_index() << ": " << T(10, _, _) << std::endl;
 
   // 3. Continue right to left until the final vertex multiplication is complete.
   for (int v = backbone.get_topology(0, 1) + 1; v < 2 * m; v++) { // loop from the special vertex to the last vertex
     compose_with_edge_dense(backbone, v - 1);
     multiply_vertex_dense(backbone, v);
   }
+  std::cout << "T after vertex and edge blocks: " << T(10, _, _) << std::endl; // debugging condition, remove in production
 
   // Multiply by prefactor
   for (int p = 0; p < m - 1; p++) {           // loop over hybridization indices
@@ -150,5 +159,5 @@ void DiagramEvaluator::eval_backbone_fixed_indices_dense(Backbone &backbone) {
   }
   int diag_order_sign = (m % 2 == 0) ? -1 : 1;
   T *= diag_order_sign * backbone.prefactor_sign;
-  Sigma += T; 
+  Sigma += T;
 }

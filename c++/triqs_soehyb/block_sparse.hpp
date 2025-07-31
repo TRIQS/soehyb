@@ -262,6 +262,10 @@ class BlockOpSymQuartet {
   std::vector<BlockOpSymSet> F_dags;
   std::vector<BlockOpSymSetBar> F_dag_bars;
   std::vector<BlockOpSymSetBar> F_bars_refl;
+  nda::vector<long> sym_set_labels; // labels for each symmetry set, e.g. for symmetry breaking
+  nda::vector<long> sym_set_inds;     // mapping from backbone orbital index to index within the symmetry set
+  nda::vector<long> sym_set_sizes;    // sizes of the symmetry sets
+  nda::array<long, 2> sym_set_to_orb; // mapping from symmetry set index to backbone orbital index
 
   /** 
    * @brief Constructor for BlockOpSymQuartet
@@ -271,7 +275,7 @@ class BlockOpSymQuartet {
    * @param[in] F_bars_refl vector of vectors of linear combinations of annihilation operator BOSS
    */
   BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<BlockOpSymSet> F_dags, nda::array_const_view<dcomplex, 3> hyb_coeffs,
-                    nda::array_const_view<dcomplex, 3> hyb_refl_coeffs);
+                    nda::array_const_view<dcomplex, 3> hyb_refl_coeffs, nda::vector_const_view<long> sym_set_labels);
 };
 
 /**

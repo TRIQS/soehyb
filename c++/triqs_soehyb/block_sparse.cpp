@@ -380,8 +380,8 @@ void BlockOpSymSetBar::add_block(int i, int s, int t, nda::array_const_view<dcom
 ////////////// BlockOpSymQuartet class ///////////////
 
 BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<BlockOpSymSet> F_dags, nda::array_const_view<dcomplex, 3> hyb_coeffs,
-                                     nda::array_const_view<dcomplex, 3> hyb_refl_coeffs)
-   : Fs(Fs), F_dags(F_dags) {
+                                     nda::array_const_view<dcomplex, 3> hyb_refl_coeffs, nda::vector_const_view<long> sym_set_labels)
+   : Fs(Fs), F_dags(F_dags), sym_set_labels(sym_set_labels) {
 
   // Fs and F_dags are vectors of BOSS
   // Each entry corresponds to a set of operators with the same block-sparse structure
@@ -397,21 +397,56 @@ BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<
     F_dag_bars.emplace_back(F_dags[i].get_size_sym_set(), r, F_dags[i].get_block_indices(), F_dags[i].get_block_sizes());
     F_bars_refl.emplace_back(Fs[i].get_size_sym_set(), r, Fs[i].get_block_indices(), Fs[i].get_block_sizes());
   }
-  // std::vector<BlockOpSymSetBar> F_dag_bars(k, {F_dags[0].get_size_sym_set(), r, F_dags[0].get_block_indices(), F_dags[0].get_block_sizes()});
-  // std::vector<BlockOpSymSetBar> F_bars_refl(k, {Fs[0].get_size_sym_set(), r, Fs[0].get_block_indices(), Fs[0].get_block_sizes()});
+
+  // calculate symmetry set indices
+  long n         = sym_set_labels.size();                // number of orbital indices
+  long q         = nda::max_element(sym_set_labels) + 1; // number of symmetry sets
+  sym_set_inds   = nda::zeros<long>(n);                  // indices of orbital indices in symmetry sets
+  sym_set_sizes  = nda::zeros<long>(q);                  // sizes of symmetry sets
+  sym_set_to_orb = nda::ones<long>(q, n);                // map label and index to orbital index
+  sym_set_to_orb *= -1;                                  // initialize with -1
+  for (int i = 0; i < n; i++) {
+    sym_set_inds(i) = sym_set_sizes(sym_set_labels(i));
+    sym_set_sizes(sym_set_labels(i))++;
+    sym_set_to_orb(sym_set_labels(i), sym_set_inds(i)) = i; // map symmetry set index to backbone orbital index
+  }
 
   // compute F_dag_bars and F_bars_refl
-  for (int i = 0; i < k; i++) {
+  /*
+  for (int i = 0; i < q; i++) {
     int qi = Fs[i].get_size_sym_set();
     for (int l = 0; l < r; l++) {
       for (int lam = 0; lam < qi; lam++) {
         for (int nu = 0; nu < qi; nu++) {
           for (int b = 0; b < F_dags[i].get_num_block_cols(); b++) {
             if (F_dags[i].get_block_index(b) != -1) {
-              F_dag_bars[i].add_block(b, lam, l, nda::make_regular(hyb_coeffs(l, nu, lam) * F_dags[i].get_block(b)(nu, _, _)));
+              F_dag_bars[i].add_block(b, lam, l, nda::make_regular(hyb_coeffs(l, sym_set_to_orb(nu), sym_set_to_orb(lam)) * F_dags[i].get_block(b)(nu, _, _)));
             }
             if (Fs[i].get_block_index(b) != -1) {
               F_bars_refl[i].add_block(b, nu, l, nda::make_regular(hyb_refl_coeffs(l, nu, lam) * Fs[i].get_block(b)(lam, _, _)));
+            }
+          }
+        }
+      }
+    }
+  }
+  */
+  for (int l = 0; l < r; l++) {
+    for (int p_lam = 0; p_lam < q; p_lam++) {
+      for (int p_nu = 0; p_nu < q; p_nu++) {
+        for (int lam = 0; lam < sym_set_sizes(p_lam); lam++) {
+          for (int nu = 0; nu < sym_set_sizes(p_nu); nu++) {
+            long lam_orb = sym_set_to_orb(p_lam, lam);
+            long nu_orb  = sym_set_to_orb(p_nu, nu);
+            for (int b = 0; b < F_dags[p_lam].get_num_block_cols(); b++) {
+              if (F_dags[p_lam].get_block_index(b) != -1) {
+                F_dag_bars[p_lam].add_block(b, lam, l, nda::make_regular(hyb_coeffs(l, nu_orb, lam_orb) * F_dags[p_lam].get_block(b)(nu, _, _)));
+              }
+            }
+            for (int b = 0; b < Fs[p_nu].get_num_block_cols(); b++) {
+              if (Fs[p_nu].get_block_index(b) != -1) {
+                F_bars_refl[p_nu].add_block(b, nu, l, nda::make_regular(hyb_refl_coeffs(l, nu_orb, lam_orb) * Fs[p_nu].get_block(b)(lam, _, _)));
+              }
             }
           }
         }
@@ -632,7 +667,7 @@ std::tuple<BlockDiagOpFun, BlockOpSymQuartet, nda::vector<long>> load_from_hdf5(
   for (int i = 0; i < q; i++) { F_dag_sym_vec.emplace_back(F_dag_block_inds(i, _), F_dag_blocks[i]); }
 
   BlockDiagOpFun Gt = nonint_gf_BDOF(H_blocks, H_block_inds, beta, dlr_it_abs);
-  BlockOpSymQuartet Fq(F_sym_vec, F_dag_sym_vec, hyb, hyb_refl);
+  BlockOpSymQuartet Fq(F_sym_vec, F_dag_sym_vec, hyb, hyb_refl, sym_set_labels);
 
   return std::make_tuple(Gt, Fq, sym_set_labels);
 }

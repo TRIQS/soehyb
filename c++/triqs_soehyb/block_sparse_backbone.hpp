@@ -17,26 +17,28 @@ using namespace nda;
  */
 class DiagramBlockSparseEvaluator {
   public:
-  double beta;                      // inverse temperature
-  int r;                            // rank of the DLR imaginary time object
-  int n;                            // number of orbitals
-  int q;                            // number of symmetry sets
-  int Nmax;                         // maximum block size in the Green's function
-  nda::vector<long> sym_set_labels; // mapping from backbone orbital index to symmetry set index
-  nda::vector<long> sym_set_inds;   // mapping from backbone orbital index to index within the symmetry set
-  nda::vector<long> sym_set_sizes;  // sizes of the symmetry sets
-  imtime_ops itops;                 // DLR imaginary time object
-  nda::array<dcomplex, 3> hyb;      // hybridization function at imaginary time nodes
-  nda::array<dcomplex, 3> hyb_refl; // hybridization function at (beta - tau) nodes
-  BlockDiagOpFun Gt;                // Green's function at imaginary time nodes
-  BlockOpSymQuartet Fq;             // BlockOpSymQuartet (cre/ann operators with and without bars)
-  nda::vector<double> dlr_it;       // DLR imaginary time nodes in relative ordering
-  nda::vector<double> dlr_rf;       // DLR frequency nodes
-  BlockDiagOpFun Sigma;             // array for storing self-energy contribution (final result)
-  nda::array<dcomplex, 3> T;        // array for storing intermediate result
-  nda::array<dcomplex, 3> GKt;      // array for storing result of edge computation
-  nda::array<dcomplex, 4> Tkaps;    // intermediate storage array
-  nda::array<dcomplex, 3> Tmu;      // intermediate storage array
+  double beta;                        // inverse temperature
+  int r;                              // rank of the DLR imaginary time object
+  int n;                              // number of orbitals
+  int q;                              // number of symmetry sets
+  int Nmax;                           // maximum block size in the Green's function
+  nda::vector<long> sym_set_labels;   // mapping from backbone orbital index to symmetry set index
+  nda::vector<long> sym_set_inds;     // mapping from backbone orbital index to index within the symmetry set
+  nda::vector<long> sym_set_sizes;    // sizes of the symmetry sets
+  nda::array<long, 2> sym_set_to_orb; // mapping from symmetry set index to backbone orbital index
+  imtime_ops itops;                   // DLR imaginary time object
+  nda::array<dcomplex, 3> hyb;        // hybridization function at imaginary time nodes
+  nda::array<dcomplex, 3> hyb_refl;   // hybridization function at (beta - tau) nodes
+  BlockDiagOpFun Gt;                  // Green's function at imaginary time nodes
+  BlockOpSymQuartet Fq;               // BlockOpSymQuartet (cre/ann operators with and without bars)
+  nda::vector<double> dlr_it;         // DLR imaginary time nodes in relative ordering
+  nda::vector<double> dlr_rf;         // DLR frequency nodes
+  BlockDiagOpFun Sigma;               // array for storing self-energy contribution (final result)
+  nda::array<dcomplex, 3> T;          // array for storing intermediate result
+  nda::array<dcomplex, 3> GKt;        // array for storing result of edge computation
+  nda::array<dcomplex, 4> Tkaps;      // intermediate storage array
+  nda::array<dcomplex, 3> Tmu;        // intermediate storage array
+  nda::array<dcomplex, 3> Tdebug;     // debugging array
 
   void multiply_vertex_block(
      Backbone &backbone, int v_ix, nda::vector_const_view<int> ind_path,

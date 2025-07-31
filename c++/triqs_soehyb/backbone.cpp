@@ -198,6 +198,7 @@ void Backbone::set_flat_index(int f_ix, nda::vector_const_view<double> dlr_rf) {
   // In terms of fb_ix, p_ix, and o_ix,
   // f_ix = o_ix + n^(m-1) * p_ix + (n * r)^(m-1) * fb_ix, where r is the number of hybridization indices.
 
+  this->f_ix = f_ix; 
   int r    = dlr_rf.size();
   int o_ix = f_ix % o_ix_max; // orbital indices
   f_ix /= o_ix_max;
@@ -228,6 +229,7 @@ int Backbone::get_topology(int i, int j) { return topology(i, j); }
 int Backbone::get_pole_ind(int i) { return pole_inds(i); }
 int Backbone::get_fb(int i) { return fb(i); }
 int Backbone::get_orb_ind(int i) { return orb_inds(i); }
+int Backbone::get_flat_index() { return f_ix; }
 
 std::ostream &operator<<(std::ostream &os, Backbone &B) {
 

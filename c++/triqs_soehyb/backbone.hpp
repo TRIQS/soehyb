@@ -87,6 +87,7 @@ class Backbone {
   nda::vector<int> fb;        // directions of the hybridization lines, 0 for backward, 1 for forward
   nda::vector<int> pole_inds; // values of the hybridization indices (i.e. values of l, l`, ...)
   nda::vector<int> orb_inds;  // orbital indices on the vertices, i.e., values of lambda, mu, ...
+  int f_ix; // flat index
 
   public:
 
@@ -125,6 +126,7 @@ class Backbone {
   int get_pole_ind(int i);
   int get_fb(int i);
   int get_orb_ind(int i); 
+  int get_flat_index();
 
   /**
    * @brief Constructor for Backbone

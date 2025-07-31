@@ -6,6 +6,7 @@
 #include <h5/complex.hpp>
 #include <h5/generic.hpp>
 #include <h5/object.hpp>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <nda/algorithms.hpp>
@@ -402,22 +403,24 @@ two_band_discrete_bath_helper_sym(double beta, double Lambda, double eps) {
     F_dag_sym.set_block(i, F_dags_sym_block);
   }
   std::vector<BlockOpSymSet> F_dag_sym_vec{F_dag_sym};
+  nda::vector<long> sym_set_labels_triv(n);
+  sym_set_labels_triv = 0;
 
-  auto Fq = BlockOpSymQuartet(F_sym_vec, F_dag_sym_vec, hyb_coeffs, hyb_refl_coeffs);
+  auto Fq = BlockOpSymQuartet(F_sym_vec, F_dag_sym_vec, hyb_coeffs, hyb_refl_coeffs, sym_set_labels_triv);
 
   return std::make_tuple(num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order, Fq);
 }
 
 std::tuple<nda::array<dcomplex, 3>, DenseFSet, std::vector<nda::vector<int>>>
 spin_flip_fermion_dense_helper(double beta, double Lambda, double eps, nda::array_const_view<dcomplex, 3> hyb_coeffs,
-                               nda::array_const_view<dcomplex, 3> hyb_refl_coeffs) {
+                               nda::array_const_view<dcomplex, 3> hyb_refl_coeffs, std::string filename) {
   // DLR generation
   auto dlr_rf     = build_dlr_rf(Lambda, eps);
   auto itops      = imtime_ops(Lambda, dlr_rf);
   auto dlr_it     = itops.get_itnodes();
   auto dlr_it_abs = rel2abs(dlr_it);
 
-  h5::file f("../test/c++/h5/spin_flip_fermion.h5", 'r');
+  h5::file f(filename, 'r');
   h5::group g(f);
 
   long n = 0;
@@ -1394,7 +1397,8 @@ TEST(Backbone, data_structures) {
   }
 
   std::cout << F_dag_bar_sym.get_block(0)(0, 10, _, _) << std::endl;
-  auto F_quartet = BlockOpSymQuartet(F_sym_vec, F_dag_sym_vec, hyb_coeffs, hyb_refl_coeffs);
+  auto sym_set_labels = nda::zeros<long>(n);
+  auto F_quartet      = BlockOpSymQuartet(F_sym_vec, F_dag_sym_vec, hyb_coeffs, hyb_refl_coeffs, sym_set_labels);
   std::cout << "F_quartet = " << F_quartet.F_dag_bars[0].get_block(0)(0, 10, _, _) << std::endl;
 }
 
@@ -1448,7 +1452,7 @@ TEST(Backbone, OCA) {
   auto F_sym_triv = BlockOpSymSet(triv_bi, Fs_dense_vec);
   std::vector<nda::array<dcomplex, 3>> F_dags_dense_vec{F_dags_dense};
   auto F_dag_sym_triv = BlockOpSymSet(triv_bi, F_dags_dense_vec);
-  auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs);
+  auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs, sym_set_labels);
 
   DiagramBlockSparseEvaluator D3(beta, itops, Deltat, Deltat_refl, Gt_triv, Fq_triv, sym_set_labels);
   start = std::chrono::high_resolution_clock::now();
@@ -1540,7 +1544,8 @@ TEST(Backbone, spin_flip_fermion) {
   auto result = D.Sigma;
 
   // compare to dense result
-  auto [Gt_dense, Fset, subspaces] = spin_flip_fermion_dense_helper(beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs);
+  auto [Gt_dense, Fset, subspaces] =
+     spin_flip_fermion_dense_helper(beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs, "../test/c++/h5/spin_flip_fermion.h5");
 
   DiagramEvaluator D2(beta, itops, hyb, hyb_refl, Gt_dense, Fset);
   start = std::chrono::high_resolution_clock::now();
@@ -1558,7 +1563,9 @@ TEST(Backbone, spin_flip_fermion) {
   auto F_sym_triv = BlockOpSymSet(triv_bi, Fs_dense_vec);
   std::vector<nda::array<dcomplex, 3>> F_dags_dense_vec{Fset.F_dags};
   auto F_dag_sym_triv = BlockOpSymSet(triv_bi, F_dags_dense_vec);
-  auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs);
+  nda::vector<long> sym_set_labels_triv(n);
+  sym_set_labels_triv = 0;
+  auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs, sym_set_labels_triv);
   DiagramBlockSparseEvaluator D3(beta, itops, hyb, hyb_refl, Gt_triv, Fq_triv, sym_set_labels);
   start = std::chrono::high_resolution_clock::now();
   D3.eval_diagram_block_sparse(B);
@@ -1592,6 +1599,7 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   auto hyb_coeffs               = itops.vals2coefs(hyb); // hybridization DLR coeffs
   auto hyb_refl_coeffs          = itops.vals2coefs(hyb_refl);
   auto [Gt, Fq, sym_set_labels] = load_from_hdf5(filename, beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs);
+  std::cout << std::setprecision(16) << std::endl;
 
   std::cout << "Fq size = " << Fq.Fs.size() << std::endl;
 
@@ -1607,7 +1615,8 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   auto result = D.Sigma;
 
   // compare to dense result
-  auto [Gt_dense, Fset, subspaces] = spin_flip_fermion_dense_helper(beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs);
+  auto [Gt_dense, Fset, subspaces] =
+     spin_flip_fermion_dense_helper(beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs, "../test/c++/h5/spin_flip_fermion_all_sym.h5");
 
   DiagramEvaluator D2(beta, itops, hyb, hyb_refl, Gt_dense, Fset);
   start = std::chrono::high_resolution_clock::now();
@@ -1625,9 +1634,9 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   auto F_sym_triv = BlockOpSymSet(triv_bi, Fs_dense_vec);
   std::vector<nda::array<dcomplex, 3>> F_dags_dense_vec{Fset.F_dags};
   auto F_dag_sym_triv = BlockOpSymSet(triv_bi, F_dags_dense_vec);
-  auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs);
   nda::vector<long> sym_set_labels_triv(n);
-  sym_set_labels_triv = 0; 
+  sym_set_labels_triv = 0;
+  auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs, sym_set_labels_triv);
   DiagramBlockSparseEvaluator D3(beta, itops, hyb, hyb_refl, Gt_triv, Fq_triv, sym_set_labels_triv);
   start = std::chrono::high_resolution_clock::now();
   D3.eval_diagram_block_sparse(B);
