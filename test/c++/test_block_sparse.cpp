@@ -411,7 +411,7 @@ two_band_discrete_bath_helper_sym(double beta, double Lambda, double eps) {
   return std::make_tuple(num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order, Fq);
 }
 
-std::tuple<nda::array<dcomplex, 3>, DenseFSet, std::vector<nda::vector<int>>>
+std::tuple<nda::array<dcomplex, 3>, DenseFSet, std::vector<nda::vector<unsigned long>>>
 spin_flip_fermion_dense_helper(double beta, double Lambda, double eps, nda::array_const_view<dcomplex, 3> hyb_coeffs,
                                nda::array_const_view<dcomplex, 3> hyb_refl_coeffs, std::string filename) {
   // DLR generation
@@ -438,9 +438,9 @@ spin_flip_fermion_dense_helper(double beta, double Lambda, double eps, nda::arra
 
   long k = 0;
   h5::read(g, "num_blocks", k);
-  std::vector<nda::vector<int>> subspaces(k, nda::vector<int>());
+  std::vector<nda::vector<unsigned long>> subspaces(k, nda::vector<unsigned long>());
   for (int i = 0; i < k; ++i) {
-    nda::vector<int> subspace;
+    nda::vector<unsigned long> subspace;
     h5::read(g, "ad/sub_hilbert_spaces/" + std::to_string(i) + "/fock_states", subspace);
     subspaces[i] = subspace;
   }
@@ -1422,7 +1422,7 @@ TEST(Backbone, OCA) {
 
   // block-sparse diagram evaluation
   auto sym_set_labels = nda::zeros<long>(n);
-  DiagramBlockSparseEvaluator D(beta, itops, Deltat, Deltat_refl, Gt, Fq, sym_set_labels);
+  DiagramBlockSparseEvaluator D(beta, itops, Deltat, Deltat_refl, Gt, Fq);
   auto start = std::chrono::high_resolution_clock::now();
   D.eval_diagram_block_sparse(B);
   auto end                              = std::chrono::high_resolution_clock::now();
@@ -1454,7 +1454,7 @@ TEST(Backbone, OCA) {
   auto F_dag_sym_triv = BlockOpSymSet(triv_bi, F_dags_dense_vec);
   auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs, sym_set_labels);
 
-  DiagramBlockSparseEvaluator D3(beta, itops, Deltat, Deltat_refl, Gt_triv, Fq_triv, sym_set_labels);
+  DiagramBlockSparseEvaluator D3(beta, itops, Deltat, Deltat_refl, Gt_triv, Fq_triv);
   start = std::chrono::high_resolution_clock::now();
   D3.eval_diagram_block_sparse(B);
   end                 = std::chrono::high_resolution_clock::now();
@@ -1493,7 +1493,7 @@ TEST(Backbone, third_order) {
   int n                       = 4;
   auto B                      = Backbone(topology, n);
   auto sym_set_labels         = nda::zeros<long>(n); // for block-sparse symmetries
-  DiagramBlockSparseEvaluator D(beta, itops, Deltat, Deltat_refl, Gt, Fq, sym_set_labels);
+  DiagramBlockSparseEvaluator D(beta, itops, Deltat, Deltat_refl, Gt, Fq);
 
   D.eval_diagram_block_sparse(B);
   auto third_result = D.Sigma;
@@ -1535,7 +1535,7 @@ TEST(Backbone, spin_flip_fermion) {
   // set up backbone and diagram evaluator
   nda::array<int, 2> topology = {{0, 2}, {1, 3}};
   auto B                      = Backbone(topology, n);
-  DiagramBlockSparseEvaluator D(beta, itops, hyb, hyb_refl, Gt, Fq, sym_set_labels);
+  DiagramBlockSparseEvaluator D(beta, itops, hyb, hyb_refl, Gt, Fq);
   auto start = std::chrono::high_resolution_clock::now();
   D.eval_diagram_block_sparse(B);
   auto end                               = std::chrono::high_resolution_clock::now();
@@ -1566,7 +1566,7 @@ TEST(Backbone, spin_flip_fermion) {
   nda::vector<long> sym_set_labels_triv(n);
   sym_set_labels_triv = 0;
   auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs, sym_set_labels_triv);
-  DiagramBlockSparseEvaluator D3(beta, itops, hyb, hyb_refl, Gt_triv, Fq_triv, sym_set_labels);
+  DiagramBlockSparseEvaluator D3(beta, itops, hyb, hyb_refl, Gt_triv, Fq_triv);
   start = std::chrono::high_resolution_clock::now();
   D3.eval_diagram_block_sparse(B);
   end      = std::chrono::high_resolution_clock::now();
@@ -1576,7 +1576,7 @@ TEST(Backbone, spin_flip_fermion) {
 
   ASSERT_LE(nda::max_element(nda::abs(result_dense - result_trivial_bs.get_block(0))), 1e-10);
   int i = 0, s0 = 0, s1 = 0;
-  for (nda::vector_view<int> subspace : subspaces) {
+  for (nda::vector_view<unsigned long> subspace : subspaces) {
     s1 += subspace.size();
     ASSERT_LE(nda::max_element(nda::abs(result.get_block(i) - result_dense(_, range(s0, s1), range(s0, s1)))), 1e-10);
     i += 1;
@@ -1606,7 +1606,7 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   // set up backbone and diagram evaluator
   nda::array<int, 2> topology = {{0, 2}, {1, 3}};
   auto B                      = Backbone(topology, n);
-  DiagramBlockSparseEvaluator D(beta, itops, hyb, hyb_refl, Gt, Fq, sym_set_labels);
+  DiagramBlockSparseEvaluator D(beta, itops, hyb, hyb_refl, Gt, Fq);
   auto start = std::chrono::high_resolution_clock::now();
   D.eval_diagram_block_sparse(B);
   auto end                               = std::chrono::high_resolution_clock::now();
@@ -1637,7 +1637,7 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   nda::vector<long> sym_set_labels_triv(n);
   sym_set_labels_triv = 0;
   auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs, sym_set_labels_triv);
-  DiagramBlockSparseEvaluator D3(beta, itops, hyb, hyb_refl, Gt_triv, Fq_triv, sym_set_labels_triv);
+  DiagramBlockSparseEvaluator D3(beta, itops, hyb, hyb_refl, Gt_triv, Fq_triv);
   start = std::chrono::high_resolution_clock::now();
   D3.eval_diagram_block_sparse(B);
   end      = std::chrono::high_resolution_clock::now();
@@ -1647,7 +1647,7 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
 
   ASSERT_LE(nda::max_element(nda::abs(result_dense - result_trivial_bs.get_block(0))), 1e-10);
   int i = 0, s0 = 0, s1 = 0;
-  for (nda::vector_view<int> subspace : subspaces) {
+  for (nda::vector_view<unsigned long> subspace : subspaces) {
     s1 += subspace.size();
     ASSERT_LE(nda::max_element(nda::abs(result.get_block(i) - result_dense(_, range(s0, s1), range(s0, s1)))), 1e-10);
     i += 1;

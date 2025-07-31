@@ -31,7 +31,6 @@ class DiagramEvaluator {
   nda::array<dcomplex, 3> GKt;      // array for storing result of edge computation
   nda::array<dcomplex, 4> Tkaps;    // intermediate storage array
   nda::array<dcomplex, 3> Tmu;      // intermediate storage array
-  nda::array<dcomplex, 3> Tdebug;   // debugging array
 
   void multiply_vertex_dense(Backbone &backbone,
                              int v_ix);                           // multiply by a single vertex, v_ix, in a backbone diagram using dense storage
