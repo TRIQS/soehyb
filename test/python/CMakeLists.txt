@@ -14,6 +14,7 @@ set(all_tests
   unitary_invariance
   h5_io
   triqs_solver
+  one_spinful_fermion
   )
 
 foreach(test ${all_tests})

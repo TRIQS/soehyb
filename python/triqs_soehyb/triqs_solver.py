@@ -62,11 +62,6 @@ class TriqsSolver:
 
 
     def solve(self, h_int, order, **kwargs):
-
-        if is_root():
-            order_n_diags = [ (o, self.S.fd.number_of_diagrams(o)) for o in range(1,order+1) ]
-            print(f'max_order = {order}')
-            print(f'(Order, N_Diags) = {order_n_diags}')
         
         self.order = order
         self.h_int = h_int
@@ -77,6 +72,11 @@ class TriqsSolver:
         self.delta_iaa = self.__from_blockgf_to_array(self.Delta_tau)
         self.S.set_hybridization(self.delta_iaa, compress=True)
 
+        if is_root():
+            order_n_diags = [ (o, self.S.fd.number_of_diagrams(o)) for o in range(1,order+1) ]
+            print(f'(Order, N_Diags) = {order_n_diags}')
+            print(f'max_order = {order}')
+        
         self.S.solve(order, **kwargs)
 
         self.g_iaa = self.S.calc_spgf(order, verbose=False)
