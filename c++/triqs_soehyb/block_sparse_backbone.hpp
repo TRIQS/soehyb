@@ -60,5 +60,5 @@ class DiagramBlockSparseEvaluator {
    * @param[in] Fset BlockOpSymQuartet (cre/ann operators with and without bars)
    */
   DiagramBlockSparseEvaluator(double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl,
-                              BlockDiagOpFun &Gt, BlockOpSymQuartet &Fq); // , nda::vector_const_view<long> sym_set_labels);
+                              BlockDiagOpFun &Gt, BlockOpSymQuartet &Fq);
 };

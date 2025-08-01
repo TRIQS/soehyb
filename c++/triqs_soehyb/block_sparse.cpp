@@ -441,11 +441,13 @@ BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<
             for (int b = 0; b < F_dags[p_lam].get_num_block_cols(); b++) {
               if (F_dags[p_lam].get_block_index(b) != -1) {
                 F_dag_bars[p_lam].add_block(b, lam, l, nda::make_regular(hyb_coeffs(l, nu_orb, lam_orb) * F_dags[p_lam].get_block(b)(nu, _, _)));
+                // std::cout << "F_dag_bars[" << p_lam << "].get_block(" << b << ") = " << F_dag_bars[p_lam].get_block(b)(lam, l, _, _) << "\n";
               }
             }
             for (int b = 0; b < Fs[p_nu].get_num_block_cols(); b++) {
               if (Fs[p_nu].get_block_index(b) != -1) {
                 F_bars_refl[p_nu].add_block(b, nu, l, nda::make_regular(hyb_refl_coeffs(l, nu_orb, lam_orb) * Fs[p_nu].get_block(b)(lam, _, _)));
+                // std::cout << "F_bars_refl[" << p_nu << "].get_block(" << b << ") = " << F_bars_refl[p_nu].get_block(b)(nu, l, _, _) << "\n";
               }
             }
           }

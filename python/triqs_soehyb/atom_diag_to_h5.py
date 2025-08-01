@@ -7,21 +7,24 @@ import atom_diag_utils as utils
 
 if __name__ == "__main__":
     # parameters to tune 
-    norb = 2
+    norb = 3
     h5_fname = "spin_flip_fermion_all_sym.h5"
     
     N = 0
     N0 = 0
     N1 = 0
+    N2 = 0
     for kap in range(norb):
         for sig in ['up', 'do']:
             N += n(sig, kap)
             if kap == 0:
                 N0 += n(sig, kap)
-            else:
+            elif kap == 1:
                 N1 += n(sig, kap)
+            else:
+                N2 += n(sig, kap)
 
-    sym_ops = [N0, N1]
+    sym_ops = [N]#[N0, N1, N2]
 
     # fixed parameters
     beta = 2.0
@@ -38,7 +41,7 @@ if __name__ == "__main__":
         fops += [ ('do', i) ]
     for i in range(0, norb):
         fops += [ ('up', i)]
-    ad = AtomDiag(H, fops, sym_ops)
+    ad = AtomDiag(H, fops)#, sym_ops)
 
     # look at c_connection and cdag_connection of ad
     # find groups that are the same
@@ -82,6 +85,7 @@ if __name__ == "__main__":
             H_mat_block_inds[s] = -1 # set -1 if block-column has no nonzero block
     H_perm = H_perm.astype(np.int64)
     H_mat_perm = H_mat[H_perm][:,H_perm]
+    print(H_perm)
 
     # need num_sym_sets copies of these
     # c_blocks = [[] for _ in range(ad.n_subspaces)]
@@ -114,6 +118,7 @@ if __name__ == "__main__":
         c_dense[oidx, :, :] = utils.get_full_c_matrix(ad, oidx)[H_perm][:, H_perm]
         cdag_dense[oidx, :, :] = utils.get_full_cdag_matrix(ad, oidx)[H_perm][:, H_perm]
 
+    print("Number of blocks: ", ad.n_subspaces)
     with HDFArchive("/home/paco/feynman/soehyb/test/c++/h5/" + h5_fname) as ar:
         ar['norb'] = norb
         ar['num_blocks'] = ad.n_subspaces

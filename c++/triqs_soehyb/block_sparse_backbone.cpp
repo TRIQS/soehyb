@@ -278,13 +278,16 @@ void DiagramBlockSparseEvaluator::eval_backbone_fixed_indices_block_sparse(Backb
     multiply_vertex_block(backbone, v, ind_path, block_dims);
     compose_with_edge_block(backbone, v, ind_path, block_dims);
   }
+  if (backbone.get_flat_index() == 0) std::cout << "block-sparse T slice after step 1, b_ix = " << b_ix << ": " << T(10, range(0, block_dims(2)), range(0, block_dims(1))) << std::endl;
 
   multiply_zero_vertex_block(backbone, (not backbone.has_vertex_dag(0)), b_ix, p_kap, p_mu, ind_path, block_dims);
+  if (backbone.get_flat_index() == 0) std::cout << "block-sparse T slice after step 2, b_ix = " << b_ix << ": " << T(10, range(0, block_dims(3)), range(0, block_dims(0))) << std::endl;
 
   for (int v = backbone.get_topology(0, 1) + 1; v < 2 * m; v++) {
     compose_with_edge_block(backbone, v - 1, ind_path, block_dims);
     multiply_vertex_block(backbone, v, ind_path, block_dims);
   }
+  if (backbone.get_flat_index() == 0) std::cout << "block-sparse T slice after step 3, b_ix = " << b_ix << ": " << T(10, range(0, block_dims(4)), range(0, block_dims(0))) << std::endl;
 
   for (int p = 0; p < m - 1; p++) {
     int exp = backbone.get_prefactor_Kexp(p);
@@ -298,4 +301,5 @@ void DiagramBlockSparseEvaluator::eval_backbone_fixed_indices_block_sparse(Backb
   int diag_order_sign = (m % 2 == 0) ? -1 : 1;
   T(_, range(0, block_dims(2 * m)), range(0, block_dims(0))) *= diag_order_sign * backbone.prefactor_sign;
   Sigma.add_block(b_ix, T(_, range(0, block_dims(2 * m)), range(0, block_dims(0))));
+  if (backbone.get_flat_index() == 0) std::cout << "Sigma block sparse slice, b_ix = " << b_ix << " = " << Sigma.get_block(b_ix)(10, _, _) << std::endl;
 }

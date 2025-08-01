@@ -127,16 +127,19 @@ void DiagramEvaluator::eval_backbone_fixed_indices_dense(Backbone &backbone) {
     multiply_vertex_dense(backbone, v);
     compose_with_edge_dense(backbone, v);
   }
+  if (backbone.get_flat_index() == 0) std::cout << "dense T slice after step 1: " << T(10, _, _) << std::endl;
 
   // 2. For each kappa, multiply by F_kappa(^dag). Then for each mu, kappa, multiply by Delta_{mu kappa}, and sum over kappa. Finally for each mu,
   // multiply F_mu[^dag] and sum over mu.
   multiply_zero_vertex(backbone, (not backbone.has_vertex_dag(0)));
+  if (backbone.get_flat_index() == 0) std::cout << "dense T slice after step 2: " << T(10, _, _) << std::endl;
 
   // 3. Continue right to left until the final vertex multiplication is complete.
   for (int v = backbone.get_topology(0, 1) + 1; v < 2 * m; v++) { // loop from the special vertex to the last vertex
     compose_with_edge_dense(backbone, v - 1);
     multiply_vertex_dense(backbone, v);
   }
+  if (backbone.get_flat_index() == 0) std::cout << "dense T slice after step 3: " << T(10, _, _) << std::endl;
 
   // Multiply by prefactor
   for (int p = 0; p < m - 1; p++) {           // loop over hybridization indices
@@ -151,4 +154,5 @@ void DiagramEvaluator::eval_backbone_fixed_indices_dense(Backbone &backbone) {
   int diag_order_sign = (m % 2 == 0) ? -1 : 1;
   T *= diag_order_sign * backbone.prefactor_sign;
   Sigma += T;
+  if (backbone.get_flat_index() == 0) std::cout << "Sigma dense slice = " << Sigma(10, _, _) << std::endl;
 }

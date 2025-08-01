@@ -123,11 +123,11 @@ std::tuple<nda::array<dcomplex, 3>, nda::array<dcomplex, 3>> discrete_bath_spin_
   auto Deltat_refl = nda::array<dcomplex, 3>(r, n, n);
 
   for (int i = 0; i < n; i++) {
-    for (int j = i; j < n; j++) {
+    for (int j = 0; j < n; j++) {
       if (i == j) {
         Deltat(_, i, j)      = Jt(_, 0, 0);
         Deltat_refl(_, i, j) = Jt_refl(_, 0, 0);
-      } else if ((i + j) % 2 == 0) { // i and j have the same parity
+      } else if ((j - i) % (n / 2) == 0) { // i and j have the same parity
         Deltat(_, i, j)      = s * Jt(_, 0, 0);
         Deltat_refl(_, i, j) = s * Jt_refl(_, 0, 0);
       }
@@ -1526,7 +1526,7 @@ TEST(Backbone, spin_flip_fermion) {
   auto itops  = imtime_ops(Lambda, dlr_rf);
 
   std::string filename          = "../test/c++/h5/spin_flip_fermion.h5";
-  int n                         = 4; // 2 * number of orbitals
+  int n                         = 6; // 2 * number of orbitals
   auto [hyb, hyb_refl]          = discrete_bath_spin_flip_helper(beta, Lambda, eps, n);
   auto hyb_coeffs               = itops.vals2coefs(hyb); // hybridization DLR coeffs
   auto hyb_refl_coeffs          = itops.vals2coefs(hyb_refl);
@@ -1594,10 +1594,12 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   auto itops  = imtime_ops(Lambda, dlr_rf);
 
   std::string filename          = "../test/c++/h5/spin_flip_fermion_all_sym.h5";
-  int n                         = 4; // 2 * number of orbitals
+  int n                         = 6; // 2 * number of orbitals
   auto [hyb, hyb_refl]          = discrete_bath_spin_flip_helper(beta, Lambda, eps, n);
+  std::cout << "hyb = " << hyb(0, _, _) << std::endl;
   auto hyb_coeffs               = itops.vals2coefs(hyb); // hybridization DLR coeffs
   auto hyb_refl_coeffs          = itops.vals2coefs(hyb_refl);
+  std::cout << "hyb_coeffs = " << hyb_coeffs(0, _, _) << std::endl;
   auto [Gt, Fq, sym_set_labels] = load_from_hdf5(filename, beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs);
   std::cout << std::setprecision(16) << std::endl;
 
@@ -1619,6 +1621,14 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
      spin_flip_fermion_dense_helper(beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs, "../test/c++/h5/spin_flip_fermion_all_sym.h5");
 
   DiagramEvaluator D2(beta, itops, hyb, hyb_refl, Gt_dense, Fset);
+  std::cout << "Fs(0) = " << Fset.Fs(0, _, _) << std::endl;
+  std::cout << "Fs(1) = " << Fset.Fs(1, _, _) << std::endl;
+  std::cout << "F_dags(0) = " << Fset.F_dags(0, _, _) << std::endl;
+  std::cout << "F_dags(1) = " << Fset.F_dags(1, _, _) << std::endl;
+  std::cout << "F_bars_refl(0) = " << Fset.F_bars_refl(0, 0, _, _) << std::endl;
+  std::cout << "F_bars_refl(1) = " << Fset.F_bars_refl(1, 0, _, _) << std::endl;
+  std::cout << "F_dag_bars(0) = " << Fset.F_dag_bars(0, 0, _, _) << std::endl;
+  std::cout << "F_dag_bars(1) = " << Fset.F_dag_bars(1, 0, _, _) << std::endl;
   start = std::chrono::high_resolution_clock::now();
   D2.eval_diagram_dense(B);
   end      = std::chrono::high_resolution_clock::now();
@@ -1649,6 +1659,7 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   int i = 0, s0 = 0, s1 = 0;
   for (nda::vector_view<unsigned long> subspace : subspaces) {
     s1 += subspace.size();
+    std::cout << "i = " << i << ", s0 = " << s0 << ", s1 = " << s1 << std::endl;
     ASSERT_LE(nda::max_element(nda::abs(result.get_block(i) - result_dense(_, range(s0, s1), range(s0, s1)))), 1e-10);
     i += 1;
     s0 = s1;
