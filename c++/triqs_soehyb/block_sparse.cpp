@@ -30,6 +30,24 @@ BlockDiagOpFun::BlockDiagOpFun(int r, nda::vector_const_view<int> block_sizes) :
   this->blocks = blocks;
 }
 
+BlockDiagOpFun &BlockDiagOpFun::operator+=(const BlockDiagOpFun &G) {
+  // BlockDiagOpFun addition-assignment operator
+
+  for (int i = 0; i < this->num_block_cols; i++) {
+    if (zero_block_indices(i) == -1) {
+      if (G.get_zero_block_index(i) != -1) {
+        this->blocks[i] = G.blocks[i];
+        zero_block_indices(i) = 0;
+      }
+    } else {
+      if (G.get_zero_block_index(i) != -1) {
+        this->blocks[i] += G.blocks[i]; 
+      }
+    }
+  }
+  return *this;
+}
+
 void BlockDiagOpFun::set_blocks(std::vector<nda::array<dcomplex, 3>> &blocks) {
 
   this->blocks       = blocks;
@@ -40,6 +58,17 @@ void BlockDiagOpFun::set_blocks(std::vector<nda::array<dcomplex, 3>> &blocks) {
 void BlockDiagOpFun::set_block(int i, nda::array_const_view<dcomplex, 3> block) {
   blocks[i]             = block;
   zero_block_indices(i) = 0;
+}
+
+void BlockDiagOpFun::set_zero_block_indices() {
+  // Set zero_block_indices according to current blocks
+  for (int i = 0; i < num_block_cols; i++) {
+    if (nda::max_element(nda::abs(blocks[i])) < 1e-16) {
+      zero_block_indices(i) = -1; // mark block as zero
+    } else {
+      zero_block_indices(i) = 0; // mark block as non-zero
+    }
+  }
 }
 
 const std::vector<nda::array<dcomplex, 3>> &BlockDiagOpFun::get_blocks() const { return blocks; }
@@ -71,7 +100,13 @@ int BlockDiagOpFun::get_num_time_nodes() const {
   return 0; // BlockDiagOpFun is all zeros anyways
 }
 
-void BlockDiagOpFun::add_block(int i, nda::array_const_view<dcomplex, 3> block) { blocks[i] = nda::make_regular(blocks[i] + block); }
+void BlockDiagOpFun::add_block(int i, nda::array_const_view<dcomplex, 3> block) { 
+  if (zero_block_indices(i) == -1) {
+    blocks[i] = block;
+  } else {
+    blocks[i] = nda::make_regular(blocks[i] + block); 
+  }
+}
 
 std::string BlockDiagOpFun::hdf5_format() { return "BlockDiagOpFun"; }
 
@@ -412,25 +447,6 @@ BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<
   }
 
   // compute F_dag_bars and F_bars_refl
-  /*
-  for (int i = 0; i < q; i++) {
-    int qi = Fs[i].get_size_sym_set();
-    for (int l = 0; l < r; l++) {
-      for (int lam = 0; lam < qi; lam++) {
-        for (int nu = 0; nu < qi; nu++) {
-          for (int b = 0; b < F_dags[i].get_num_block_cols(); b++) {
-            if (F_dags[i].get_block_index(b) != -1) {
-              F_dag_bars[i].add_block(b, lam, l, nda::make_regular(hyb_coeffs(l, sym_set_to_orb(nu), sym_set_to_orb(lam)) * F_dags[i].get_block(b)(nu, _, _)));
-            }
-            if (Fs[i].get_block_index(b) != -1) {
-              F_bars_refl[i].add_block(b, nu, l, nda::make_regular(hyb_refl_coeffs(l, nu, lam) * Fs[i].get_block(b)(lam, _, _)));
-            }
-          }
-        }
-      }
-    }
-  }
-  */
   for (int l = 0; l < r; l++) {
     for (int p_lam = 0; p_lam < q; p_lam++) {
       for (int p_nu = 0; p_nu < q; p_nu++) {
@@ -441,13 +457,11 @@ BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<
             for (int b = 0; b < F_dags[p_lam].get_num_block_cols(); b++) {
               if (F_dags[p_lam].get_block_index(b) != -1) {
                 F_dag_bars[p_lam].add_block(b, lam, l, nda::make_regular(hyb_coeffs(l, nu_orb, lam_orb) * F_dags[p_lam].get_block(b)(nu, _, _)));
-                // std::cout << "F_dag_bars[" << p_lam << "].get_block(" << b << ") = " << F_dag_bars[p_lam].get_block(b)(lam, l, _, _) << "\n";
               }
             }
             for (int b = 0; b < Fs[p_nu].get_num_block_cols(); b++) {
               if (Fs[p_nu].get_block_index(b) != -1) {
                 F_bars_refl[p_nu].add_block(b, nu, l, nda::make_regular(hyb_refl_coeffs(l, nu_orb, lam_orb) * Fs[p_nu].get_block(b)(lam, _, _)));
-                // std::cout << "F_bars_refl[" << p_nu << "].get_block(" << b << ") = " << F_bars_refl[p_nu].get_block(b)(nu, l, _, _) << "\n";
               }
             }
           }
@@ -509,6 +523,21 @@ BlockOp dagger_bs(BlockOp const &F) {
   }
   BlockOp F_dag(block_indices_dag, blocks_dag);
   return F_dag;
+}
+
+BlockDiagOpFun operator*(int i, BlockDiagOpFun const &D) {
+  // Compute a product between an integer and a BlockDiagOpFun
+  // @param[in] i integer
+  // @param[in] D BlockDiagOpFun
+
+  auto product = D;
+  for (int j = 0; j < D.get_num_block_cols(); j++) {
+    if (D.get_zero_block_index(j) != -1) {
+      auto prod_block = nda::make_regular(i * D.get_block(j));
+      product.set_block(j, prod_block);
+    }
+  }
+  return product;
 }
 
 BlockOp operator*(const dcomplex c, const BlockOp &F) {

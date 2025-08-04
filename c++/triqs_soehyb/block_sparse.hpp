@@ -25,6 +25,7 @@ class BlockDiagOpFun {
   BlockDiagOpFun &operator+=(const BlockDiagOpFun &G);
   void set_blocks(std::vector<nda::array<dcomplex, 3>> &blocks);
   void set_block(int i, nda::array_const_view<dcomplex, 3> block);
+  void set_zero_block_indices(); // set zero_block_indices according to current blocks
   const std::vector<nda::array<dcomplex, 3>> &get_blocks() const;
   nda::array_const_view<dcomplex, 3> get_block(int i) const;
   nda::vector<int> get_block_sizes() const;
@@ -298,6 +299,14 @@ std::ostream &operator<<(std::ostream &os, BlockOp &F);
  * @return F^dagger operator
  */
 BlockOp dagger_bs(BlockOp const &F);
+
+/**
+  * @brief Compute a product between an integer and a BlockDiagOpFun
+  * @param[in] i integer
+  * @param[in] D BlockDiagOpFun
+  * @return n * D
+  */
+BlockDiagOpFun operator*(int i, BlockDiagOpFun const &D);
 
 /**
  * @brief Compute a product between a scalar and a BlockOp

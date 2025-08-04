@@ -1214,6 +1214,8 @@ TEST(DenseBackbone, PYTHON_third_order) {
     else
       third_order_0314_result = eval;
     D.reset();
+    std::cout << "third order result partial sum" << std::endl;
+    std::cout << third_order_result(10, _, _) << std::endl;
   }
   auto end      = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
@@ -1526,11 +1528,14 @@ TEST(Backbone, spin_flip_fermion) {
   auto itops  = imtime_ops(Lambda, dlr_rf);
 
   std::string filename          = "../test/c++/h5/spin_flip_fermion.h5";
-  int n                         = 6; // 2 * number of orbitals
+  int n                         = 2 * 5; // 2 * number of orbitals
   auto [hyb, hyb_refl]          = discrete_bath_spin_flip_helper(beta, Lambda, eps, n);
   auto hyb_coeffs               = itops.vals2coefs(hyb); // hybridization DLR coeffs
   auto hyb_refl_coeffs          = itops.vals2coefs(hyb_refl);
   auto [Gt, Fq, sym_set_labels] = load_from_hdf5(filename, beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs);
+  for (int i = 0; i < 11; i++) {
+    std::cout << Fq.F_dag_bars[0].get_block(i).shape() << std::endl;
+  }
 
   // set up backbone and diagram evaluator
   nda::array<int, 2> topology = {{0, 2}, {1, 3}};
@@ -1594,16 +1599,13 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   auto itops  = imtime_ops(Lambda, dlr_rf);
 
   std::string filename          = "../test/c++/h5/spin_flip_fermion_all_sym.h5";
-  int n                         = 6; // 2 * number of orbitals
+  int n                         = 2 * 5; // 2 * number of orbitals
   auto [hyb, hyb_refl]          = discrete_bath_spin_flip_helper(beta, Lambda, eps, n);
-  std::cout << "hyb = " << hyb(0, _, _) << std::endl;
   auto hyb_coeffs               = itops.vals2coefs(hyb); // hybridization DLR coeffs
   auto hyb_refl_coeffs          = itops.vals2coefs(hyb_refl);
-  std::cout << "hyb_coeffs = " << hyb_coeffs(0, _, _) << std::endl;
   auto [Gt, Fq, sym_set_labels] = load_from_hdf5(filename, beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs);
-  std::cout << std::setprecision(16) << std::endl;
-
-  std::cout << "Fq size = " << Fq.Fs.size() << std::endl;
+  
+  std::cout << std::setprecision(16);
 
   // set up backbone and diagram evaluator
   nda::array<int, 2> topology = {{0, 2}, {1, 3}};
@@ -1613,7 +1615,7 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   D.eval_diagram_block_sparse(B);
   auto end                               = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> duration = end - start;
-  std::cout << std::setprecision(16) << "Block-sparse OCA evaluation for n = " << n << " took " << duration.count() << " seconds." << std::endl;
+  std::cout << "Block-sparse OCA evaluation for n = " << n << " took " << duration.count() << " seconds." << std::endl;
   auto result = D.Sigma;
 
   // compare to dense result
@@ -1621,14 +1623,6 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
      spin_flip_fermion_dense_helper(beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs, "../test/c++/h5/spin_flip_fermion_all_sym.h5");
 
   DiagramEvaluator D2(beta, itops, hyb, hyb_refl, Gt_dense, Fset);
-  std::cout << "Fs(0) = " << Fset.Fs(0, _, _) << std::endl;
-  std::cout << "Fs(1) = " << Fset.Fs(1, _, _) << std::endl;
-  std::cout << "F_dags(0) = " << Fset.F_dags(0, _, _) << std::endl;
-  std::cout << "F_dags(1) = " << Fset.F_dags(1, _, _) << std::endl;
-  std::cout << "F_bars_refl(0) = " << Fset.F_bars_refl(0, 0, _, _) << std::endl;
-  std::cout << "F_bars_refl(1) = " << Fset.F_bars_refl(1, 0, _, _) << std::endl;
-  std::cout << "F_dag_bars(0) = " << Fset.F_dag_bars(0, 0, _, _) << std::endl;
-  std::cout << "F_dag_bars(1) = " << Fset.F_dag_bars(1, 0, _, _) << std::endl;
   start = std::chrono::high_resolution_clock::now();
   D2.eval_diagram_dense(B);
   end      = std::chrono::high_resolution_clock::now();
@@ -1659,8 +1653,120 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   int i = 0, s0 = 0, s1 = 0;
   for (nda::vector_view<unsigned long> subspace : subspaces) {
     s1 += subspace.size();
-    std::cout << "i = " << i << ", s0 = " << s0 << ", s1 = " << s1 << std::endl;
     ASSERT_LE(nda::max_element(nda::abs(result.get_block(i) - result_dense(_, range(s0, s1), range(s0, s1)))), 1e-10);
+    i += 1;
+    s0 = s1;
+  }
+}
+
+TEST(Backbone, PYTHON_third_order) {
+  nda::array<int, 3> topologies = {{{0, 2}, {1, 4}, {3, 5}}, {{0, 3}, {1, 5}, {2, 4}}, {{0, 4}, {1, 3}, {2, 5}}, {{0, 3}, {1, 4}, {2, 5}}};
+  nda::vector<int> topo_sign{1, 1, 1, -1}; // topo_sign(i) = (-1)^{# of line crossings in topology i}
+
+  nda::array<int, 2> topology = {{0, 2}, {1, 3}};
+  int n = 4, N = 16;
+  double beta   = 2.0;
+  double Lambda = 10.0 * beta; // 1000.0*beta;
+  double eps    = 1.0e-10;
+
+  // generate creation/annihilation operators
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order, Fq] =
+     two_band_discrete_bath_helper_sym(beta, Lambda, eps);
+
+  // DLR generation
+  auto dlr_rf        = build_dlr_rf(Lambda, eps);
+  auto itops         = imtime_ops(Lambda, dlr_rf);
+  auto const &dlr_it = itops.get_itnodes();
+  auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
+  int r              = itops.rank();
+
+  // hybridization and DenseFSet
+  auto hyb_coeffs      = itops.vals2coefs(Deltat); // hybridization DLR coeffs
+  auto hyb_refl        = nda::make_regular(-itops.reflect(Deltat));
+  auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
+  auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
+
+  // compute NCA and OCA
+  auto NCA_result          = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
+  nda::array<int, 2> T_OCA = {{0, 2}, {1, 3}};
+  auto B_OCA               = Backbone(T_OCA, n);
+  auto D                   = DiagramBlockSparseEvaluator(beta, itops, Deltat, Deltat_refl, Gt, Fq); // create DiagramEvaluator object
+  D.eval_diagram_block_sparse(B_OCA);                                                                   // evaluate OCA diagram
+  auto OCA_result = D.Sigma;                                                                     // get the result from the DiagramEvaluator
+  D.reset();
+
+  BlockDiagOpFun third_order_result(r, Gt.get_block_sizes()); 
+  BlockDiagOpFun third_order_02_result(r, Gt.get_block_sizes()); 
+  BlockDiagOpFun third_order_0314_result(r, Gt.get_block_sizes());
+  BlockDiagOpFun third_order_0315_result(r, Gt.get_block_sizes());
+  BlockDiagOpFun third_order_04_result(r, Gt.get_block_sizes());
+
+  for (int i = 0; i < 4; i++) {
+    auto B = Backbone(topologies(i, _, _), n);
+    D.eval_diagram_block_sparse(B);
+    third_order_result += topo_sign(i) * D.Sigma; // accumulate results with sign
+    if (i == 0) {
+      third_order_02_result = topo_sign(i) * D.Sigma; // store results for specific topologies
+    } else if (i == 1) {
+      third_order_0315_result = topo_sign(i) * D.Sigma;
+    } else if (i == 2) {
+      third_order_04_result = topo_sign(i) * D.Sigma;
+    } else if (i == 3) {
+      third_order_0314_result = topo_sign(i) * D.Sigma;
+    }
+    D.reset(); // reset the DiagramEvaluator for the next topology
+  }
+  
+  // load results from a run of twoband.py
+  h5::file hfile("../test/c++/h5/two_band_py_Lambda10.h5", 'r');
+  h5::group hgroup(hfile);
+  nda::array<dcomplex, 3> NCA_py(r, N, N), OCA_py(r, N, N);
+  nda::array<dcomplex, 3> third_order_py(r, N, N);
+  nda::array<dcomplex, 3> third_order_py_02(r, N, N);
+  nda::array<dcomplex, 3> third_order_py_0314(r, N, N);
+  nda::array<dcomplex, 3> third_order_py_0315(r, N, N);
+  nda::array<dcomplex, 3> third_order_py_04(r, N, N);
+  h5::read(hgroup, "NCA", NCA_py);
+  h5::read(hgroup, "OCA", OCA_py);
+  OCA_py = OCA_py - NCA_py;
+
+  h5::read(hgroup, "third_order", third_order_py);
+  third_order_py = -third_order_py + OCA_py + NCA_py;
+  h5::read(hgroup, "third_order_[(0, 2), (1, 4), (3, 5)]", third_order_py_02);
+  h5::read(hgroup, "third_order_[(0, 3), (1, 4), (2, 5)]", third_order_py_0314);
+  h5::read(hgroup, "third_order_[(0, 3), (1, 5), (2, 4)]", third_order_py_0315);
+  h5::read(hgroup, "third_order_[(0, 4), (1, 3), (2, 5)]", third_order_py_04);
+
+  // permute twoband.py results to match block structure from atom_diag
+  auto NCA_py_perm              = nda::zeros<dcomplex>(r, 16, 16);
+  auto OCA_py_perm              = nda::zeros<dcomplex>(r, 16, 16);
+  auto third_order_py_perm      = nda::zeros<dcomplex>(r, 16, 16);
+  auto third_order_py_02_perm   = nda::zeros<dcomplex>(r, 16, 16);
+  auto third_order_py_0314_perm = nda::zeros<dcomplex>(r, 16, 16);
+  auto third_order_py_0315_perm = nda::zeros<dcomplex>(r, 16, 16);
+  auto third_order_py_04_perm   = nda::zeros<dcomplex>(r, 16, 16);
+  for (int t = 0; t < r; t++) {
+    for (int i = 0; i < 16; i++) {
+      for (int j = 0; j < 16; j++) {
+        NCA_py_perm(t, i, j)              = NCA_py(t, fock_state_order[i], fock_state_order[j]);
+        OCA_py_perm(t, i, j)              = OCA_py(t, fock_state_order[i], fock_state_order[j]);
+        third_order_py_perm(t, i, j)      = third_order_py(t, fock_state_order[i], fock_state_order[j]);
+        third_order_py_02_perm(t, i, j)   = third_order_py_02(t, fock_state_order[i], fock_state_order[j]);
+        third_order_py_0314_perm(t, i, j) = third_order_py_0314(t, fock_state_order[i], fock_state_order[j]);
+        third_order_py_0315_perm(t, i, j) = third_order_py_0315(t, fock_state_order[i], fock_state_order[j]);
+        third_order_py_04_perm(t, i, j)   = third_order_py_04(t, fock_state_order[i], fock_state_order[j]);
+      }
+    }
+  }
+
+  int i = 0, s0 = 0, s1 = 0;
+  for (auto subspace : subspaces) {
+    s1 += subspace.size();
+    std::cout << "third_order_result block " << i << std::endl;
+    std::cout << third_order_result.get_block(i)(10, _, _) << std::endl;
+    std::cout << "python third_order block " << i << std::endl;
+    std::cout << third_order_py_perm(10, range(s0, s1), range(s0, s1)) << std::endl;
+    ASSERT_LE(nda::max_element(nda::abs(third_order_result.get_block(i) - third_order_py_perm(_, range(s0, s1), range(s0, s1)))), 10 * eps);
     i += 1;
     s0 = s1;
   }
