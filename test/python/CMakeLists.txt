@@ -15,6 +15,7 @@ set(all_tests
   h5_io
   triqs_solver
   one_spinful_fermion
+  analytic_diagrams
   )
 
 foreach(test ${all_tests})
