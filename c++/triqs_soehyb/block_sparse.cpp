@@ -106,6 +106,7 @@ void BlockDiagOpFun::add_block(int i, nda::array_const_view<dcomplex, 3> block) 
   } else {
     blocks[i] = nda::make_regular(blocks[i] + block); 
   }
+  zero_block_indices(i) = 0; // mark block as non-zero
 }
 
 std::string BlockDiagOpFun::hdf5_format() { return "BlockDiagOpFun"; }

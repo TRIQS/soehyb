@@ -34,7 +34,7 @@ BlockDiagOpFun NCA_bs(nda::array_const_view<dcomplex, 3> hyb, nda::array_const_v
     // fb = 1 for forward line, 0 for backward line
     auto const &F1list = (fb) ? Fs : F_dags;
     auto const &F2list = (fb) ? F_dags : Fs;
-    int sfM            = -1; //(fb) ? -1 : 1;
+    int sfM            = -1; 
 
     for (int lam = 0; lam < num_Fs; lam++) {
       for (int kap = 0; kap < num_Fs; kap++) {
@@ -95,7 +95,7 @@ nda::array<dcomplex, 3> NCA_dense(nda::array_const_view<dcomplex, 3> hyb, nda::a
     // fb = 1 for forward line, 0 for backward line
     auto const &F1list = (fb) ? Fs : F_dags;
     auto const &F2list = (fb) ? F_dags : Fs;
-    int sfM            = -1; //(fb) ? -1 : 1;
+    int sfM            = -1;
 
     for (int lam = 0; lam < n; lam++) {
       for (int kap = 0; kap < n; kap++) {
@@ -197,14 +197,12 @@ void OCA_bs_left_in_place(double beta, imtime_ops &itops, nda::vector_const_view
     if (omega_l <= 0) {
       // 6. convolve by G
       Tin = itops.convolve(beta, Fermion, itops.vals2coefs(Gt), itops.vals2coefs(Tin), TIME_ORDERED);
-      std::cout << Tin(10, _, _) << std::endl; // debug output
       // 7. multiply by Fbar
       for (int t = 0; t < r; t++) { Tout(t, _, _) = nda::matmul(Fbar, Tin(t, _, _)); }
     } else {
       // 6. convolve by G K^+
       for (int t = 0; t < r; t++) { GKt(t, _, _) = k_it(dlr_it(t), omega_l) * Gt(t, _, _); }
       Tin = itops.convolve(beta, Fermion, itops.vals2coefs(GKt), itops.vals2coefs(Tin), TIME_ORDERED);
-      std::cout << Tin(10, _, _) << std::endl; // debug output
       // 7. multiply by Fbar
       for (int t = 0; t < r; t++) { Tout(t, _, _) = nda::matmul(Fbar, Tin(t, _, _)); }
     }
@@ -212,14 +210,12 @@ void OCA_bs_left_in_place(double beta, imtime_ops &itops, nda::vector_const_view
     if (omega_l >= 0) {
       // 6. convolve by G
       Tin = itops.convolve(beta, Fermion, itops.vals2coefs(Gt), itops.vals2coefs(Tin), TIME_ORDERED);
-      std::cout << Tin(10, _, _) << std::endl; // debug output
       // 7. multiply by Fbar
       for (int t = 0; t < r; t++) { Tout(t, _, _) = nda::matmul(Fbar, Tin(t, _, _)); }
     } else {
       // 6. convolve by G K^-
       for (int t = 0; t < r; t++) { GKt(t, _, _) = k_it(dlr_it(t), -omega_l) * Gt(t, _, _); }
       Tin = itops.convolve(beta, Fermion, itops.vals2coefs(GKt), itops.vals2coefs(Tin), TIME_ORDERED);
-      std::cout << Tin(10, _, _) << std::endl; // debug output
       // 7. multiply by Fbar
       for (int t = 0; t < r; t++) { Tout(t, _, _) = nda::matmul(Fbar, Tin(t, _, _)); }
     }
