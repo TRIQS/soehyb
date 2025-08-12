@@ -47,11 +47,11 @@ def test_triqs_solver_one_fermion(verbose):
 
     order = 1
 
-    H_loc = -mu * c_dag(0,0) * c(0,0)
+    H_loc = -mu * c_dag('bl',0) * c('bl',0)
 
     # -- Solve using Triqs solver API
     
-    TS = TriqsSolver(beta=beta, gf_struct=[(0, 1)], eps=eps, w_max=w_max)
+    TS = TriqsSolver(beta=beta, gf_struct=[('bl', 1)], eps=eps, w_max=w_max)
 
     for bidx, delta_tau in TS.Delta_tau:
         delta_w = make_gf_dlr_imfreq(delta_tau)
@@ -64,7 +64,7 @@ def test_triqs_solver_one_fermion(verbose):
 
     # -- Reference solution using low level numpy api
 
-    fundamental_operators = [ c(0,i) for i in range(1) ]
+    fundamental_operators = [ c('bl',i) for i in range(1) ]
 
     S = Solver(beta, lamb, eps, H_loc, fundamental_operators, verbose=True)
 
@@ -98,8 +98,8 @@ def test_triqs_solver_one_fermion(verbose):
 
     # -- Compare solution from Triqs solver and low level solver
     
-    np.testing.assert_array_almost_equal(TS.Delta_tau[0].data, delta_iaa)
-    np.testing.assert_array_almost_equal(TS.G_tau[0].data, g_iaa)
+    np.testing.assert_array_almost_equal(TS.Delta_tau['bl'].data, delta_iaa)
+    np.testing.assert_array_almost_equal(TS.G_tau['bl'].data, g_iaa)
         
 
 if __name__ == '__main__':
