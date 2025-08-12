@@ -737,6 +737,6 @@ dcomplex trace_matmul(nda::array_const_view<dcomplex, 2> M1, nda::array_const_vi
   int n        = M1.shape(0);
   auto M2_T    = transpose(M2);
   dcomplex res = 0;
-  for (int i = 0; i < n; ++i) { res += dot(M1(i, _), M2_T(i, _)); }
+  for (int i = 0; i < n; ++i) { res += linalg::dot(M1(i, _), M2_T(i, _)); }
   return res;
 }
