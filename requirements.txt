@@ -3,6 +3,7 @@ mako
 numpy
 scipy
 sympy
+h5py
 # For documentation builds we additionaly require
 #sphinx
 #numpydoc
