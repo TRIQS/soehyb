@@ -23,11 +23,11 @@ void BackboneVertex::set_orb(int i) { orb = i; }
 
 Backbone::Backbone(nda::array<int, 2> topology, int n)
    : topology(topology),
+     f_ix(0),
      m(topology.extent(0)),
      n(n),
      fb_ix_max(static_cast<int>(pow(2, m))),
-     o_ix_max(static_cast<int>(pow(n, m - 1))),
-     prefactor_sign(1) {
+     o_ix_max(static_cast<int>(pow(n, m - 1))), prefactor_sign(1) {
 
   prefactor_Ksigns = nda::vector<int>(m - 1, 0);
   prefactor_Kexps  = nda::vector<int>(m - 1, 0);
@@ -230,6 +230,37 @@ int Backbone::get_pole_ind(int i) { return pole_inds(i); }
 int Backbone::get_fb(int i) { return fb(i); }
 int Backbone::get_orb_ind(int i) { return orb_inds(i); }
 int Backbone::get_flat_index() { return f_ix; }
+
+void GreensFunctionBackbone::set_directions(int fb_ix) {
+
+  auto fb_vec = nda::vector<int>(m - 1);
+  for (int i = 0; i < m - 1; i++) {
+    fb_vec(i) = fb_ix % 2; // 0 for backward, 1 for forward
+    fb_ix /= 2;
+  }
+  set_directions(fb_vec);
+}
+
+void GreensFunctionBackbone::set_directions(nda::vector_const_view<int> fb) {
+  // @param[in] fb forward/backward line information
+  // same logic as the Backbone method, but no line connected to vertex 0 -- just the "for loop" part
+
+  this->fb(range(0, m - 1)) = fb;
+  this->fb(m - 1) = -1; // no line connected to vertex 0
+  if (m - 1 != fb.size()) { throw std::invalid_argument("fb must have m - 1 elements"); }
+
+  for (int i = 1; i < m; i++) {
+    vertices[topology(i, 0)].set_bar(false); // operator on vertex i has no bar
+    vertices[topology(i, 1)].set_bar(true);  // operator on vertex connected to i has a bar
+    if (fb(i - 1) == 1) {
+      vertices[topology(i, 0)].set_dag(false); // annihilation operator on vertex i
+      vertices[topology(i, 1)].set_dag(true);  // creation operator on vertex i
+    } else {
+      vertices[topology(i, 0)].set_dag(true);  // creation operator on vertex i
+      vertices[topology(i, 1)].set_dag(false); // annihilation operator on vertex i
+    }
+  }
+}
 
 std::ostream &operator<<(std::ostream &os, Backbone &B) {
 

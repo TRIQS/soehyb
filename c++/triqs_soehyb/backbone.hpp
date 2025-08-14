@@ -61,7 +61,6 @@ class BackboneVertex {
  */
 class Backbone {
   private:
-  nda::array<int, 2> topology;
 
   nda::vector<int> prefactor_Ksigns; // for each of m-1 pole indices (l, l`, ...), the sign on K_l^?(0)
   nda::vector<int> prefactor_Kexps;  // for each of m-1 pole_indices, the exponent on K_l(0)^?
@@ -84,15 +83,19 @@ class Backbone {
          2*m-2|   |    |     |    
          -------------------------
     */
-  nda::vector<int> fb;        // directions of the hybridization lines, 0 for backward, 1 for forward
   nda::vector<int> pole_inds; // values of the hybridization indices (i.e. values of l, l`, ...)
   nda::vector<int> orb_inds;  // orbital indices on the vertices, i.e., values of lambda, mu, ...
   int f_ix; // flat index
 
+  protected:
+  
+  nda::array<int, 2> topology;
+  nda::vector<int> fb;        // directions of the hybridization lines, 0 for backward, 1 for forward
+
   public:
 
-  void set_directions(int fb_ix); // set directions from a single integer index in [[0, 2^m-1]]
-  void set_directions(nda::vector_const_view<int> fb);
+  virtual void set_directions(int fb_ix); // set directions from a single integer index in [[0, 2^m-1]]
+  virtual void set_directions(nda::vector_const_view<int> fb);
   void reset_directions();
   void set_pole_inds(int p_ix, nda::vector_const_view<double> dlr_rf); // set pole indices from a single integer index in [[0, r^(m-1)-1]]
   void set_pole_inds(nda::vector_const_view<int> pole_inds, nda::vector_const_view<double> dlr_rf);
@@ -135,6 +138,8 @@ class Backbone {
    * @param[in] n number of orbital indices
    */
   Backbone(nda::array<int, 2> topology, int n);
+
+  virtual ~Backbone() = default; // virtual destructor for proper cleanup
 };
 
 /**
@@ -143,3 +148,24 @@ class Backbone {
  * @param[in] B Backbone
  */
 std::ostream &operator<<(std::ostream &os, Backbone &B);
+
+/**
+ * @class GreensFunctionBackbone
+ * @brief Abstract representation of a Green's function backbone diagram
+ * 
+ * This is a lightweight class used to represent a Green's function backbone
+ * diagram of a specific order and topology. It inherits from Backbone and ... TODO
+ */
+class GreensFunctionBackbone : public Backbone {
+  public:
+
+  void set_directions(int fb_ix) override; // one fewer hybridization edge - use only the first m-1 element of the edges array
+  void set_directions(nda::vector_const_view<int> fb) override;
+};
+
+/**
+ * @brief Print GreensFunctionBackbone to output stream
+ * @param[in] os output stream
+ * @param[in] B GreensFunctionBackbone
+ */
+std::ostream &operator<<(std::ostream &os, GreensFunctionBackbone &B);

@@ -1,12 +1,16 @@
+#include <cppdlr/dlr_kernels.hpp>
 #include <gtest/gtest.h>
+#include <nda/basic_functions.hpp>
 #include <nda/nda.hpp>
 #include <cppdlr/cppdlr.hpp>
 #include "block_sparse_utils.hpp"
+#include <set>
 #include <triqs_soehyb/block_sparse.hpp>
 #include <triqs_soehyb/block_sparse_manual.hpp>
 #include <triqs_soehyb/backbone.hpp>
 #include <triqs_soehyb/dense_backbone.hpp>
 #include <triqs_soehyb/block_sparse_backbone.hpp>
+#include <iomanip>
 
 TEST(BlockSparseOCAManual, single_exponential) {
   // DLR parameters
@@ -153,6 +157,217 @@ TEST(BlockSparseOCAManual, PYTHON_two_band_discrete_bath_dense) {
   ASSERT_LE(nda::max_element(nda::abs(OCA_dense_result - OCA_py_perm + NCA_py_perm)), eps);
 }
 
+TEST(BlockSparseOCAManual, PYTHON_two_band_semicircle_bath_dense_aaa) {
+  std::cout << std::setprecision(16);
+  // DLR parameters
+  double beta   = 8.0;
+  double Lambda = 10.0 * beta;
+  double eps    = 1.0e-6;
+
+  // DLR generation
+  auto dlr_rf = build_dlr_rf(Lambda, eps);
+  auto itops  = imtime_ops(Lambda, dlr_rf);
+  int r       = itops.rank();
+
+  // call two band helper just for Gt_dense, Fs_dense, F_dags_dense
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+     two_band_discrete_bath_helper(beta, Lambda, eps);
+
+  int p = 7;
+  int n = 4;
+  nda::array<dcomplex, 3> hyb(r, n, n), hyb_coeffs(p, n, n);
+  hyb        = {{{-0.4997496184487105, -0.4997496184487105, -0., -0.},
+                 {-0.4997496184487105, -0.4997496184487105, -0., -0.},
+                 {-0., -0., -0.4997496184487105, -0.4997496184487105},
+                 {-0., -0., -0.4997496184487105, -0.4997496184487105}},
+                {{-0.4867352379479528, -0.4867352379479528, -0., -0.},
+                 {-0.4867352379479528, -0.4867352379479528, -0., -0.},
+                 {-0., -0., -0.4867352379479528, -0.4867352379479528},
+                 {-0., -0., -0.4867352379479528, -0.4867352379479528}},
+                {{-0.4603465101833711, -0.4603465101833711, -0., -0.},
+                 {-0.4603465101833711, -0.4603465101833711, -0., -0.},
+                 {-0., -0., -0.4603465101833711, -0.4603465101833711},
+                 {-0., -0., -0.4603465101833711, -0.4603465101833711}},
+                {{-0.4239204950540695, -0.4239204950540695, -0., -0.},
+                 {-0.4239204950540695, -0.4239204950540695, -0., -0.},
+                 {-0., -0., -0.4239204950540695, -0.4239204950540695},
+                 {-0., -0., -0.4239204950540695, -0.4239204950540695}},
+                {{-0.3716597467714097, -0.3716597467714097, -0., -0.},
+                 {-0.3716597467714097, -0.3716597467714097, -0., -0.},
+                 {-0., -0., -0.3716597467714097, -0.3716597467714097},
+                 {-0., -0., -0.3716597467714097, -0.3716597467714097}},
+                {{-0.2884886574148449, -0.2884886574148449, -0., -0.},
+                 {-0.2884886574148449, -0.2884886574148449, -0., -0.},
+                 {-0., -0., -0.2884886574148449, -0.2884886574148449},
+                 {-0., -0., -0.2884886574148449, -0.2884886574148449}},
+                {{-0.2479810727230272, -0.2479810727230272, -0., -0.},
+                 {-0.2479810727230272, -0.2479810727230272, -0., -0.},
+                 {-0., -0., -0.2479810727230272, -0.2479810727230272},
+                 {-0., -0., -0.2479810727230272, -0.2479810727230272}},
+                {{-0.2065525284769785, -0.2065525284769785, -0., -0.},
+                 {-0.2065525284769785, -0.2065525284769785, -0., -0.},
+                 {-0., -0., -0.2065525284769785, -0.2065525284769785},
+                 {-0., -0., -0.2065525284769785, -0.2065525284769785}},
+                {{-0.1635819676241178, -0.1635819676241178, -0., -0.},
+                 {-0.1635819676241178, -0.1635819676241178, -0., -0.},
+                 {-0., -0., -0.1635819676241178, -0.1635819676241178},
+                 {-0., -0., -0.1635819676241178, -0.1635819676241178}},
+                {{-0.1326995066858671, -0.1326995066858671, -0., -0.},
+                 {-0.1326995066858671, -0.1326995066858671, -0., -0.},
+                 {-0., -0., -0.1326995066858671, -0.1326995066858671},
+                 {-0., -0., -0.1326995066858671, -0.1326995066858671}},
+                {{-0.1225444804140666, -0.1225444804140666, -0., -0.},
+                 {-0.1225444804140666, -0.1225444804140666, -0., -0.},
+                 {-0., -0., -0.1225444804140666, -0.1225444804140666},
+                 {-0., -0., -0.1225444804140666, -0.1225444804140666}},
+                {{-0.1282199855712255, -0.1282199855712255, -0., -0.},
+                 {-0.1282199855712255, -0.1282199855712255, -0., -0.},
+                 {-0., -0., -0.1282199855712255, -0.1282199855712255},
+                 {-0., -0., -0.1282199855712255, -0.1282199855712255}},
+                {{-0.1386184647087601, -0.1386184647087601, -0., -0.},
+                 {-0.1386184647087601, -0.1386184647087601, -0., -0.},
+                 {-0., -0., -0.1386184647087601, -0.1386184647087601},
+                 {-0., -0., -0.1386184647087601, -0.1386184647087601}},
+                {{-0.1720919948804938, -0.1720919948804938, -0., -0.},
+                 {-0.1720919948804938, -0.1720919948804938, -0., -0.},
+                 {-0., -0., -0.1720919948804938, -0.1720919948804938},
+                 {-0., -0., -0.1720919948804938, -0.1720919948804938}},
+                {{-0.2300400167898313, -0.2300400167898313, -0., -0.},
+                 {-0.2300400167898313, -0.2300400167898313, -0., -0.},
+                 {-0., -0., -0.2300400167898313, -0.2300400167898313},
+                 {-0., -0., -0.2300400167898313, -0.2300400167898313}},
+                {{-0.3000508284935615, -0.3000508284935615, -0., -0.},
+                 {-0.3000508284935615, -0.3000508284935615, -0., -0.},
+                 {-0., -0., -0.3000508284935615, -0.3000508284935615},
+                 {-0., -0., -0.3000508284935615, -0.3000508284935615}},
+                {{-0.3759657450111002, -0.3759657450111002, -0., -0.},
+                 {-0.3759657450111002, -0.3759657450111002, -0., -0.},
+                 {-0., -0., -0.3759657450111002, -0.3759657450111002},
+                 {-0., -0., -0.3759657450111002, -0.3759657450111002}},
+                {{-0.4545389745912252, -0.4545389745912252, -0., -0.},
+                 {-0.4545389745912252, -0.4545389745912252, -0., -0.},
+                 {-0., -0., -0.4545389745912252, -0.4545389745912252},
+                 {-0., -0., -0.4545389745912252, -0.4545389745912252}},
+                {{-0.4821599768174421, -0.4821599768174421, -0., -0.},
+                 {-0.4821599768174421, -0.4821599768174421, -0., -0.},
+                 {-0., -0., -0.4821599768174421, -0.4821599768174421},
+                 {-0., -0., -0.4821599768174421, -0.4821599768174421}},
+                {{-0.4997496184487105, -0.4997496184487105, -0., -0.},
+                 {-0.4997496184487105, -0.4997496184487105, -0., -0.},
+                 {-0., -0., -0.4997496184487105, -0.4997496184487105},
+                 {-0., -0., -0.4997496184487105, -0.4997496184487105}}};
+  hyb_coeffs = {{{0.0028042961182163, 0.0028042961182163, 0., 0.},
+                 {0.0028042961182163, 0.0028042961182163, 0., 0.},
+                 {0., 0., 0.0028042961182163, 0.0028042961182163},
+                 {0., 0., 0.0028042961182163, 0.0028042961182163}},
+                {{0.088487039172428, 0.088487039172428, 0., 0.},
+                 {0.088487039172428, 0.088487039172428, 0., 0.},
+                 {0., 0., 0.088487039172428, 0.088487039172428},
+                 {0., 0., 0.088487039172428, 0.088487039172428}},
+                {{0.1575418229076625, 0.1575418229076625, 0., 0.},
+                 {0.1575418229076625, 0.1575418229076625, 0., 0.},
+                 {0., 0., 0.1575418229076625, 0.1575418229076625},
+                 {0., 0., 0.1575418229076625, 0.1575418229076625}},
+                {{0.1953880665937937, 0.1953880665937937, 0., 0.},
+                 {0.1953880665937937, 0.1953880665937937, 0., 0.},
+                 {0., 0., 0.1953880665937937, 0.1953880665937937},
+                 {0., 0., 0.1953880665937937, 0.1953880665937937}},
+                {{0.2145207908265103, 0.2145207908265103, 0., 0.},
+                 {0.2145207908265103, 0.2145207908265103, 0., 0.},
+                 {0., 0., 0.2145207908265103, 0.2145207908265103},
+                 {0., 0., 0.2145207908265103, 0.2145207908265103}},
+                {{0.1832496441339733, 0.1832496441339733, 0., 0.},
+                 {0.1832496441339733, 0.1832496441339733, 0., 0.},
+                 {0., 0., 0.1832496441339733, 0.1832496441339733},
+                 {0., 0., 0.1832496441339733, 0.1832496441339733}},
+                {{0.1580088741667851, 0.1580088741667851, 0., 0.},
+                 {0.1580088741667851, 0.1580088741667851, 0., 0.},
+                 {0., 0., 0.1580088741667851, 0.1580088741667851},
+                 {0., 0., 0.1580088741667851, 0.1580088741667851}}};
+  auto hyb_refl = nda::make_regular(hyb);
+  nda::array<dcomplex, 3> hyb_refl_coeffs(p, n, n);
+  hyb_refl_coeffs = hyb_coeffs;
+
+  nda::vector<double> hyb_poles(p);
+  hyb_poles = {-2.537191963500981,  1.7111725610238615, -1.514666605887425, 1.04941790134832,
+               -0.7410379494142222, 0.3763525311836938, -0.1312888711963961};
+  hyb_poles = hyb_poles * beta; 
+
+  auto OCA_dense_result = OCA_dense(hyb, hyb_coeffs, hyb_refl, hyb_refl_coeffs, hyb_poles, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
+  // auto OCA_dense_dlr    = OCA_dense(hyb, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
+  std::cout << OCA_dense_result(10, _, _) << std::endl;
+
+  // load NCA and OCA results from twoband.py
+  h5::file Gtfile("../test/c++/h5/two_band_py_semic.h5", 'r');
+  h5::group Gtgroup(Gtfile);
+  auto NCA_py = nda::zeros<dcomplex>(r, 16, 16);
+  h5::read(Gtgroup, "NCA", NCA_py);
+  auto OCA_py = nda::zeros<dcomplex>(r, 16, 16);
+  h5::read(Gtgroup, "OCA", OCA_py);
+  // OCA_py = OCA_py - NCA_py; // subtract off NCA
+
+  // permute twoband.py results to match block structure from atom_diag
+  auto NCA_py_perm = nda::zeros<dcomplex>(r, 16, 16);
+  auto OCA_py_perm = nda::zeros<dcomplex>(r, 16, 16);
+  for (int t = 0; t < r; t++) {
+    for (int i = 0; i < 16; i++) {
+      for (int j = 0; j < 16; j++) {
+        NCA_py_perm(t, i, j) = NCA_py(t, fock_state_order[i], fock_state_order[j]);
+        OCA_py_perm(t, i, j) = OCA_py(t, fock_state_order[i], fock_state_order[j]);
+      }
+    }
+  }
+  std::cout << "OCA py perm slice = " << OCA_py_perm(10, _, _) << std::endl;
+
+  /*
+  // Zhen's code from C++
+  auto Deltadlr                            = itops.vals2coefs(hyb); //obtain dlr coefficient of Delta(t)
+  nda::vector<double> dlr_rf_reflect       = -dlr_rf;
+  nda::array<dcomplex, 3> Deltadlr_reflect = Deltadlr * 1.0;
+  for (int i = 0; i < Deltadlr.shape(0); ++i) Deltadlr_reflect(i, _, _) = transpose(Deltadlr(i, _, _));
+  auto Delta_decomp         = hyb_decomp(Deltadlr, dlr_rf, eps);                 //decomposition of Delta(t) using DLR coefficient
+  auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect, dlr_rf_reflect, eps); // decomposition of Delta(-t) using DLR coefficient
+  int dim                   = hyb.shape(1);
+  hyb_F Delta_F(16, r, dim);
+  hyb_F Delta_F_reflect(16, r, dim);
+  auto dlr_it = itops.get_itnodes();
+  std::cout << "dlr_it = " << dlr_it << std::endl;
+  Delta_F.update_inplace(Delta_decomp, dlr_rf, dlr_it, Fs_dense, F_dags_dense); // Compression of Delta(t) and F, F_dag matrices
+  Delta_F_reflect.update_inplace(Delta_decomp_reflect, dlr_rf_reflect, dlr_it, F_dags_dense, Fs_dense);
+  auto fb                  = nda::vector<int>(2);
+  fb(1)                    = 0;
+  auto OCA_forward_forward = -Sigma_OCA_calc(Delta_F, hyb, hyb_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, false);
+  std::cout << "OCA forward forward slice = " << OCA_forward_forward(10, _, _) << std::endl;
+  //this is result of Delta(t-t1) forward, which is the sum of Delta(t2,t0) being forward and backward
+  auto OCA_forward = Sigma_OCA_calc(Delta_F, hyb, hyb_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, true);
+  // another way to calculate the same thing
+  nda::array<int, 2> D2{{0, 2}, {1, 3}};
+  auto OCA_forward2 = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D2, hyb, hyb_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb, true);
+
+  //Get Delta(t-t1) forward Delta(t2,t0) backward result via subtraction:
+  auto OCA_forward_backward = OCA_forward - OCA_forward_forward;
+
+  // Get Delta(t-t1) backward Delta(t2,t0) forward
+  auto fb2 = nda::vector<int>(2);
+  fb2(1)   = 1;
+  auto OCA_backward_forward =
+     Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D2, hyb, hyb_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb2, false);
+
+  //Get Delta(t-t1) backward Delta(t2,t0) backward, from subtraction
+  auto OCA_backward = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D2, hyb, hyb_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb2, true);
+  auto OCA_backward_backward = OCA_backward - OCA_backward_forward;
+
+  auto OCA_Zhen = nda::make_regular(-OCA_forward - OCA_backward);
+
+  std::cout << "OCA Zhen slice = " << OCA_Zhen(10, _, _) << std::endl;
+  std::cout << "OCA Zhen forward = " << OCA_forward(10, _, _) << std::endl;
+  std::cout << "OCA Zhen backward = " << OCA_backward(10, _, _) << std::endl;
+  */
+  
+  // check that dense OCA calculation agree with twoband.py
+  ASSERT_LE(nda::max_element(nda::abs(OCA_dense_result - OCA_py_perm + NCA_py_perm)), eps);
+}
+
 TEST(BlockSparseOCAManual, two_band_discrete_bath_bs_vs_dense) {
   // DLR parameters
   double beta   = 2.0;
@@ -219,70 +434,5 @@ TEST(BlockSparseOCAManual, PYTHON_two_band_discrete_bath_tpz) {
     ASSERT_LE(nda::max_element(nda::abs(OCA_result_block_eq - OCA_tpz_result(_, range(s0, s1), range(s0, s1)))), 2e-4);
     s0 = s1;
     if (i < num_blocks - 1) s1 += subspaces[i + 1].size();
-  }
-}
-
-TEST(DenseBackbone, one_vertex_and_edge) {
-  nda::array<int, 2> topology = {{0, 2}, {1, 4}, {3, 5}};
-  int n = 4, N = 16;
-  double beta   = 2.0;
-  double Lambda = 100.0 * beta;
-  double eps    = 1.0e-6;
-  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
-     two_band_discrete_bath_helper(beta, Lambda, eps);
-  // DLR generation
-  auto dlr_rf        = build_dlr_rf(Lambda, eps);
-  auto itops         = imtime_ops(Lambda, dlr_rf);
-  auto const &dlr_it = itops.get_itnodes();
-  auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
-  int r              = itops.rank();
-
-  // create cre/ann operators
-  auto hyb_coeffs      = itops.vals2coefs(Deltat); // hybridization DLR coeffs
-  auto hyb_refl        = nda::make_regular(-itops.reflect(Deltat));
-  auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
-  auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
-
-  auto D = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset);
-  for (int fb1 = 0; fb1 <= 1; fb1++) {
-    // initialize backbone
-    auto B = Backbone(topology, n);
-
-    // set line directions
-    nda::vector<int> fb = {1, fb1, 0};
-    B.set_directions(fb);
-
-    // set pole indices
-    nda::vector<int> pole_inds = {0, r - 1};
-    B.set_pole_inds(pole_inds, dlr_rf);
-
-    // set orbital indices
-    nda::vector<int> orb_inds = {1, 0, 1, 2, 0, 2};
-    B.set_orb_inds(orb_inds);
-
-    // multiply T by vertex 1
-    for (int t = 0; t < r; t++) D.T(t, _, _) = nda::eye<dcomplex>(N);
-    D.multiply_vertex_dense(B, 1);
-    std::cout << B << std::endl;
-
-    // do the same multiplication manually
-    nda::array<dcomplex, 3> Tact(r, N, N);
-    if (fb1 == 1) {
-      for (int t = 0; t < r; t++) Tact(t, _, _) = k_it(dlr_it(t), -dlr_rf(pole_inds(0))) * Fs_dense(0, _, _);
-    } else {
-      for (int t = 0; t < r; t++) Tact(t, _, _) = F_dags_dense(0, _, _);
-    }
-    ASSERT_LE(nda::max_element(nda::abs(D.T - Tact)), 1e-12);
-
-    // check that convolution with function on first edge is correct
-    D.compose_with_edge_dense(B, 1);
-    if (fb1 == 1) {
-      Tact = itops.convolve(beta, Fermion, itops.vals2coefs(Gt_dense), itops.vals2coefs(Tact), TIME_ORDERED);
-    } else {
-      nda::array<dcomplex, 3> GKt_act(r, N, N);
-      for (int t = 0; t < r; t++) GKt_act(t, _, _) = k_it(dlr_it(t), -dlr_rf(pole_inds(0))) * Gt_dense(t, _, _);
-      Tact = itops.convolve(beta, Fermion, itops.vals2coefs(GKt_act), itops.vals2coefs(Tact), TIME_ORDERED);
-    }
-    ASSERT_LE(nda::max_element(nda::abs(D.T - Tact)), 1e-12);
   }
 }

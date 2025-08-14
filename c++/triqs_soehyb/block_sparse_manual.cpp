@@ -5,7 +5,9 @@
 #include <h5/format.hpp>
 #include <cppdlr/dlr_kernels.hpp>
 #include <iomanip>
+#include <iostream>
 #include <nda/algorithms.hpp>
+#include <nda/blas/tools.hpp>
 #include <nda/declarations.hpp>
 #include <nda/basic_functions.hpp>
 #include <nda/layout_transforms.hpp>
@@ -34,7 +36,7 @@ BlockDiagOpFun NCA_bs(nda::array_const_view<dcomplex, 3> hyb, nda::array_const_v
     // fb = 1 for forward line, 0 for backward line
     auto const &F1list = (fb) ? Fs : F_dags;
     auto const &F2list = (fb) ? F_dags : Fs;
-    int sfM            = -1; 
+    int sfM            = -1;
 
     for (int lam = 0; lam < num_Fs; lam++) {
       for (int kap = 0; kap < num_Fs; kap++) {
@@ -418,7 +420,7 @@ void OCA_dense_middle_in_place(bool forward, nda::array_const_view<dcomplex, 3> 
                                nda::array_const_view<dcomplex, 3> Fkaps, nda::array_const_view<dcomplex, 3> Fmus, nda::array_view<dcomplex, 3> T,
                                nda::array_view<dcomplex, 4> Tkaps, nda::array_view<dcomplex, 3> Tmu) {
   int num_Fs = Fkaps.extent(0);
-  int r      = hyb.extent(0);
+  int r      = Tmu.extent(0);
   // 3. for each kappa, multiply by F_kappa from right
   for (int kap = 0; kap < num_Fs; kap++) {
     for (int t = 0; t < r; t++) { Tkaps(kap, t, _, _) = nda::matmul(T(t, _, _), Fkaps(kap, _, _)); }
@@ -502,9 +504,16 @@ nda::array<dcomplex, 3> OCA_dense(nda::array_const_view<dcomplex, 3> hyb, imtime
   int N = Gt.extent(1);
 
   auto hyb_coeffs      = itops.vals2coefs(hyb); // hybridization DLR coeffs
-  auto hyb_refl        = nda::make_regular(-itops.reflect(hyb));
-  auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
+  // auto hyb_refl        = nda::make_regular(-itops.reflect(hyb));
+  auto hyb_refl        = itops.reflect(hyb);
+  // auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
+  auto hyb_refl_coeffs = hyb_coeffs; 
   int num_Fs           = Fs.extent(0);
+  std::cout << "hyb = " << nda::make_regular(nda::real(hyb(_, 0, 0))) << std::endl;
+  std::cout << "hyb_refl = " << nda::make_regular(nda::real(hyb_refl(_, 0, 0))) << std::endl;
+  std::cout << "hyb_coeffs = " << nda::make_regular(nda::real(hyb_coeffs(_, 0, 0))) << std::endl;
+  std::cout << "hyb_refl_coeffs = " << nda::make_regular(nda::real(hyb_refl_coeffs(_, 0, 0))) << std::endl;
+  std::cout << "dlr_rf = " << dlr_rf << std::endl;
 
   // compute Fbars and Fdagbars
   auto Fdagbars  = nda::array<dcomplex, 4>(num_Fs, r, N, N);
@@ -534,7 +543,7 @@ nda::array<dcomplex, 3> OCA_dense(nda::array_const_view<dcomplex, 3> hyb, imtime
       auto const &F2list     = (fb2 == 1) ? Fs(_, _, _) : F_dags(_, _, _);
       auto const &F3list     = (fb1 == 1) ? F_dags(_, _, _) : Fs(_, _, _);
       auto const &Fbar_array = (fb2 == 1) ? Fdagbars(_, _, _, _) : Fbarsrefl(_, _, _, _);
-      int sfM                = (fb1 ^ fb2) ? 1 : -1; // sign
+      int sfM                = -1; // (fb1 ^ fb2) ? 1 : -1; // sign
 
       for (int l = 0; l < r; l++) {
         Sigma_l = 0;
@@ -560,6 +569,82 @@ nda::array<dcomplex, 3> OCA_dense(nda::array_const_view<dcomplex, 3> hyb, imtime
             Sigma_l = Sigma_l / k_it(0, dlr_rf(l));
           } else {
             Sigma_l = Sigma_l / k_it(0, -dlr_rf(l));
+          }
+        }
+        Sigma += sfM * Sigma_l;
+      } // sum over l
+    } // sum over fb2
+  } // sum over fb1
+  return Sigma;
+}
+
+nda::array<dcomplex, 3> OCA_dense(nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_coeffs,
+                                  nda::array_const_view<dcomplex, 3> hyb_refl, nda::array_const_view<dcomplex, 3> hyb_refl_coeffs,
+                                  nda::vector_const_view<double> hyb_poles, imtime_ops &itops, double beta, nda::array_const_view<dcomplex, 3> Gt,
+                                  nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags) {
+
+  nda::vector_const_view<double> dlr_it = itops.get_itnodes();
+  // number of imaginary time nodes
+  int r = dlr_it.extent(0);
+  int p = hyb_poles.extent(0);
+  int N = Gt.extent(1);
+  int n = Fs.extent(0);
+
+  // compute Fbars and Fdagbars
+  auto Fdagbars  = nda::array<dcomplex, 4>(n, p, N, N);
+  auto Fbarsrefl = nda::array<dcomplex, 4>(n, p, N, N);
+  for (int lam = 0; lam < n; lam++) {
+    for (int l = 0; l < p; l++) {
+      for (int nu = 0; nu < n; nu++) {
+        Fdagbars(lam, l, _, _) += hyb_coeffs(l, nu, lam) * F_dags(nu, _, _);
+        Fbarsrefl(nu, l, _, _) += hyb_refl_coeffs(l, nu, lam) * Fs(lam, _, _);
+      }
+    }
+  }
+
+  // initialize self-energy
+  // TODO check r or p 
+  nda::array<dcomplex, 3> Sigma(r, N, N);
+
+  // preallocate intermediate arrays
+  nda::array<dcomplex, 3> Sigma_l(r, N, N), T(r, N, N), Tmu(r, N, N), GKt(r, N, N);
+  nda::array<dcomplex, 4> Tkaps(n, r, N, N);
+  // Sigma_l = term of self-energy assoc'd with pole l, rest are placeholders
+  // loop over hybridization lines
+  for (int fb1 = 0; fb1 <= 1; fb1++) {
+    for (int fb2 = 0; fb2 <= 1; fb2++) {
+      // fb = 1 for forward line, else = 0
+      // fb1 corresponds with line from 0 to tau_2
+      auto const &F1list     = (fb1 == 1) ? Fs(_, _, _) : F_dags(_, _, _);
+      auto const &F2list     = (fb2 == 1) ? Fs(_, _, _) : F_dags(_, _, _);
+      auto const &F3list     = (fb1 == 1) ? F_dags(_, _, _) : Fs(_, _, _);
+      auto const &Fbar_array = (fb2 == 1) ? Fdagbars(_, _, _, _) : Fbarsrefl(_, _, _, _);
+      int sfM                = -1; // (fb1 ^ fb2) ? 1 : -1; // sign
+
+      for (int l = 0; l < p; l++) {
+        Sigma_l = 0;
+        // initialize summand assoc'd with index l
+        for (int lam = 0; lam < n; lam++) {
+          OCA_dense_right_in_place(beta, itops, dlr_it, hyb_poles(l), (fb2 == 1), Gt, F2list(lam, _, _), T);
+          OCA_dense_middle_in_place((fb1 == 1), hyb, hyb_refl, F1list, F3list, T, Tkaps, Tmu);
+          OCA_dense_left_in_place(beta, itops, dlr_it, hyb_poles(l), (fb2 == 1), Gt, Fbar_array(lam, l, _, _), T, GKt);
+          Sigma_l += T;
+        } // sum over lambda
+
+        // prefactor with Ks
+        if (fb2 == 1) {
+          if (hyb_poles(l) <= 0) {
+            for (int t = 0; t < r; t++) { Sigma_l(t, _, _) = k_it(dlr_it(t), hyb_poles(l)) * Sigma_l(t, _, _); }
+            Sigma_l = Sigma_l / k_it(0, -hyb_poles(l));
+          } else {
+            Sigma_l = Sigma_l / k_it(0, hyb_poles(l));
+          }
+        } else {
+          if (hyb_poles(l) >= 0) {
+            for (int t = 0; t < r; t++) { Sigma_l(t, _, _) = k_it(dlr_it(t), -hyb_poles(l)) * Sigma_l(t, _, _); }
+            Sigma_l = Sigma_l / k_it(0, hyb_poles(l));
+          } else {
+            Sigma_l = Sigma_l / k_it(0, -hyb_poles(l));
           }
         }
         Sigma += sfM * Sigma_l;
