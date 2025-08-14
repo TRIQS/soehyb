@@ -157,7 +157,7 @@ void OCA_bs_middle_in_place(bool forward, nda::array_const_view<dcomplex, 3> hyb
                             nda::array_view<dcomplex, 3> Tout, nda::array_view<dcomplex, 4> Tkaps, nda::array_view<dcomplex, 3> Tmu) {
 
   int num_Fs = Fkaps.extent(0);
-  int r      = hyb.extent(0);
+  int r      = Tmu.extent(0);
   // 3. for each kappa, multiply by F_kappa from right
   // auto Tkap = nda::zeros<dcomplex>(num_Fs, r, T.extent(1), Fkaps.extent(2));
   for (int kap = 0; kap < num_Fs; kap++) {
@@ -242,8 +242,8 @@ BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex, 3> hyb, imtime_ops &itops,
   int r = dlr_it.shape(0);
 
   auto hyb_coeffs      = itops.vals2coefs(hyb); // hybridization DLR coeffs
-  auto hyb_refl        = nda::make_regular(-itops.reflect(hyb));
-  auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
+  auto hyb_refl        = itops.reflect(hyb);
+  auto hyb_refl_coeffs = hyb_coeffs;
 
   // get F^dagger operators
   int num_Fs  = Fs.size();
@@ -284,7 +284,7 @@ BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex, 3> hyb, imtime_ops &itops,
       auto const &F2list    = (fb2) ? Fs : F_dags;
       auto const &F3list    = (fb1) ? F_dags : Fs;
       auto const Fbar_array = (fb2) ? Fdagbars : Fbarsrefl;
-      int sfM               = (fb1 ^ fb2) ? 1 : -1; // sign
+      int sfM               = -1; // (fb1 ^ fb2) ? 1 : -1; // sign
 
       for (int i = 0; i < num_block_cols; i++) {
 
@@ -370,6 +370,151 @@ BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex, 3> hyb, imtime_ops &itops,
                 Sigma_l = Sigma_l / k_it(0, dlr_rf(l));
               } else {
                 Sigma_l = Sigma_l / k_it(0, -dlr_rf(l));
+              }
+            }
+            Sigma_block_i += nda::make_regular(sfM * Sigma_l);
+          } // sum over l
+          Sigma.add_block(i, Sigma_block_i);
+        } // end if(path_all_nonzero)
+      } // end loop over i
+    } // end loop over fb2
+  } // end loop over fb1
+  return Sigma;
+}
+
+BlockDiagOpFun OCA_bs(nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_coeffs,
+                      nda::array_const_view<dcomplex, 3> hyb_refl, nda::array_const_view<dcomplex, 3> hyb_refl_coeffs,
+                      nda::vector_const_view<double> hyb_poles, imtime_ops &itops, double beta, const BlockDiagOpFun &Gt,
+                      const std::vector<BlockOp> &Fs) {
+
+  nda::vector_const_view<double> dlr_it = itops.get_itnodes();
+  int r = dlr_it.extent(0);
+  int p = hyb_poles.extent(0);
+  int n = Fs.size();
+
+  auto F_dags = Fs;
+  for (int i = 0; i < n; ++i) { F_dags[i] = dagger_bs(Fs[i]); }
+
+  // compute Fbars and Fdagbars
+  auto Fbar_indices    = Fs[0].get_block_indices();
+  auto Fbar_sizes      = Fs[0].get_block_sizes();
+  auto Fdagbar_indices = F_dags[0].get_block_indices();
+  auto Fdagbar_sizes   = F_dags[0].get_block_sizes();
+  std::vector<std::vector<BlockOp>> Fdagbars(n, std::vector<BlockOp>(p, BlockOp(Fdagbar_indices, Fdagbar_sizes)));
+  std::vector<std::vector<BlockOp>> Fbarsrefl(n, std::vector<BlockOp>(p, BlockOp(Fbar_indices, Fbar_sizes)));
+  for (int lam = 0; lam < n; lam++) {
+    for (int l = 0; l < p; l++) {
+      for (int nu = 0; nu < n; nu++) {
+        Fdagbars[lam][l] += hyb_coeffs(l, nu, lam) * F_dags[nu];
+        Fbarsrefl[lam][l] += hyb_refl_coeffs(l, lam, nu) * Fs[nu];
+      }
+    }
+  }
+
+  // initialize self-energy
+  BlockDiagOpFun Sigma = BlockDiagOpFun(r, Gt.get_block_sizes());
+  int num_block_cols   = Gt.get_num_block_cols();
+
+  // preallocation
+  bool path_all_nonzero;
+  nda::vector<int> ind_path(3);
+  nda::vector<int> block_dims(5); // intermediate block dimensions
+
+  // loop over hybridization lines
+  for (int fb1 = 0; fb1 <= 1; fb1++) {
+    for (int fb2 = 0; fb2 <= 1; fb2++) {
+      // fb = 1 for forward line, else = 0
+      // fb1 corresponds with line from 0 to tau_2
+      auto const &F1list    = (fb1) ? Fs : F_dags;
+      auto const &F2list    = (fb2) ? Fs : F_dags;
+      auto const &F3list    = (fb1) ? F_dags : Fs;
+      auto const Fbar_array = (fb2) ? Fdagbars : Fbarsrefl;
+      int sfM               = -1; // (fb1 ^ fb2) ? 1 : -1; // sign
+
+      for (int i = 0; i < num_block_cols; i++) {
+
+        // "backwards pass"
+        //
+        // for each self-energy block, find contributing blocks of factors
+        //
+        // paths_all_nonzero: false if for i-th block of
+        // Sigma, factors assoc'd with lambda, mu, kappa don't contribute
+        //
+        // ind_path: a vector of column indices of the
+        // blocks of the factors that contribute. if paths_all_nonzero is
+        // false at this index, values in ind_path are garbage.
+        //
+        // ATTN: assumes all BlockOps in F(1,2,3)list have the same structure
+        // i.e, index path is independent of kappa, mu
+        path_all_nonzero   = true;
+        auto Sigma_block_i = nda::make_regular(0 * Sigma.get_block(i));
+
+        ind_path(0) = F1list[0].get_block_index(i);
+        if (ind_path(0) == -1 || Gt.get_zero_block_index(ind_path(0)) == -1) {
+          path_all_nonzero = false;
+        } else {
+          block_dims(0) = F1list[0].get_block_size(i, 1);
+          block_dims(1) = F1list[0].get_block_size(i, 0);
+          ind_path(1)   = F2list[0].get_block_index(ind_path(0));
+          if (ind_path(1) == -1 || Gt.get_zero_block_index(ind_path(1)) == -1) {
+            path_all_nonzero = false;
+          } else {
+            block_dims(2) = F2list[0].get_block_size(ind_path(0), 0);
+            ind_path(2)   = F3list[0].get_block_index(ind_path(1));
+            if (ind_path(2) == -1 || Gt.get_zero_block_index(ind_path(2)) == -1 || Fbar_array[0][0].get_block_index(ind_path(2)) == -1) {
+              path_all_nonzero = false;
+            } else {
+              block_dims(3) = F3list[0].get_block_size(ind_path(1), 0);
+              block_dims(4) = Fbar_array[0][0].get_block_size(ind_path(2), 0);
+            }
+          }
+        }
+
+        // matmuls and convolutions
+        if (path_all_nonzero) {
+          // preallocate for i-th block
+          auto Sigma_l = nda::make_regular(0 * Sigma.get_block(i));
+          // sizes of intermediate matrices are known
+          nda::array<dcomplex, 3> Tright(r, block_dims(2), block_dims(1));        // output of OCA_bs_right
+          nda::array<dcomplex, 3> Tmid(r, block_dims(3), block_dims(0));          // output of OCA_bs_middle
+          nda::array<dcomplex, 4> Tkaps(n, r, block_dims(2), block_dims(0)); // storage in OCA_bs_middle
+          nda::array<dcomplex, 3> Tmu(r, block_dims(2), block_dims(0));           // storage in OCA_bs_middle
+          nda::array<dcomplex, 3> Tleft(r, block_dims(4), block_dims(0));         // output of OCA_bs_left
+          nda::array<dcomplex, 3> GKt(r, block_dims(3), block_dims(3));           // storage in OCA_bs_left
+
+          // TODO: make Fs have blocks that are 3D nda::array?
+          auto Fkaps = nda::zeros<dcomplex>(n, F1list[0].get_block_size(i, 0), F1list[0].get_block_size(i, 1));
+          auto Fmus  = nda::zeros<dcomplex>(n, F3list[0].get_block_size(ind_path(1), 0), F3list[0].get_block_size(ind_path(1), 1));
+          for (int j = 0; j < n; j++) {
+            Fkaps(j, _, _) = F1list[j].get_block(i);
+            Fmus(j, _, _)  = F3list[j].get_block(ind_path(1));
+          }
+
+          for (int l = 0; l < p; l++) {
+            Sigma_l = 0;
+            for (int lam = 0; lam < n; lam++) {
+              OCA_bs_right_in_place(beta, itops, dlr_it, hyb_poles(l), (fb2 == 1), Gt.get_block(ind_path(0)), Gt.get_block(ind_path(1)),
+                                    F2list[lam].get_block(ind_path(0)), Tright);
+              OCA_bs_middle_in_place((fb1 == 1), hyb, hyb_refl, Fkaps, Fmus, Tright, Tmid, Tkaps, Tmu);
+              OCA_bs_left_in_place(beta, itops, dlr_it, hyb_poles(l), (fb2 == 1), Gt.get_block(ind_path(2)), Fbar_array[lam][l].get_block(ind_path(2)),
+                                   Tmid, Tleft, GKt);
+              Sigma_l += Tleft;
+            } // sum over lambda
+
+            // prefactor with Ks
+            if (fb2 == 1) {
+              if (hyb_poles(l) <= 0) {
+                for (int t = 0; t < r; t++) { Sigma_l(t, _, _) = k_it(dlr_it(t), hyb_poles(l)) * Sigma_l(t, _, _); }
+                Sigma_l = Sigma_l / k_it(0, -hyb_poles(l));
+              } else {
+                Sigma_l = Sigma_l / k_it(0, hyb_poles(l));
+              }
+            } else {
+              if (hyb_poles(l) >= 0) {
+                for (int t = 0; t < r; t++) { Sigma_l(t, _, _) = k_it(dlr_it(t), -hyb_poles(l)) * Sigma_l(t, _, _); }
+                Sigma_l = Sigma_l / k_it(0, hyb_poles(l));
+              } else {
+                Sigma_l = Sigma_l / k_it(0, -hyb_poles(l));
               }
             }
             Sigma_block_i += nda::make_regular(sfM * Sigma_l);
@@ -504,16 +649,9 @@ nda::array<dcomplex, 3> OCA_dense(nda::array_const_view<dcomplex, 3> hyb, imtime
   int N = Gt.extent(1);
 
   auto hyb_coeffs      = itops.vals2coefs(hyb); // hybridization DLR coeffs
-  // auto hyb_refl        = nda::make_regular(-itops.reflect(hyb));
   auto hyb_refl        = itops.reflect(hyb);
-  // auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
   auto hyb_refl_coeffs = hyb_coeffs; 
   int num_Fs           = Fs.extent(0);
-  std::cout << "hyb = " << nda::make_regular(nda::real(hyb(_, 0, 0))) << std::endl;
-  std::cout << "hyb_refl = " << nda::make_regular(nda::real(hyb_refl(_, 0, 0))) << std::endl;
-  std::cout << "hyb_coeffs = " << nda::make_regular(nda::real(hyb_coeffs(_, 0, 0))) << std::endl;
-  std::cout << "hyb_refl_coeffs = " << nda::make_regular(nda::real(hyb_refl_coeffs(_, 0, 0))) << std::endl;
-  std::cout << "dlr_rf = " << dlr_rf << std::endl;
 
   // compute Fbars and Fdagbars
   auto Fdagbars  = nda::array<dcomplex, 4>(num_Fs, r, N, N);
@@ -584,7 +722,6 @@ nda::array<dcomplex, 3> OCA_dense(nda::array_const_view<dcomplex, 3> hyb, nda::a
                                   nda::array_const_view<dcomplex, 3> Fs, nda::array_const_view<dcomplex, 3> F_dags) {
 
   nda::vector_const_view<double> dlr_it = itops.get_itnodes();
-  // number of imaginary time nodes
   int r = dlr_it.extent(0);
   int p = hyb_poles.extent(0);
   int N = Gt.extent(1);

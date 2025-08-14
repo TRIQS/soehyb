@@ -157,7 +157,7 @@ TEST(BlockSparseOCAManual, PYTHON_two_band_discrete_bath_dense) {
   ASSERT_LE(nda::max_element(nda::abs(OCA_dense_result - OCA_py_perm + NCA_py_perm)), eps);
 }
 
-TEST(BlockSparseOCAManual, PYTHON_two_band_semicircle_bath_dense_aaa) {
+TEST(BlockSparseOCAManual, PYTHON_two_band_semicircle_bath_aaa) {
   std::cout << std::setprecision(16);
   // DLR parameters
   double beta   = 8.0;
@@ -294,8 +294,6 @@ TEST(BlockSparseOCAManual, PYTHON_two_band_semicircle_bath_dense_aaa) {
   hyb_poles = hyb_poles * beta; 
 
   auto OCA_dense_result = OCA_dense(hyb, hyb_coeffs, hyb_refl, hyb_refl_coeffs, hyb_poles, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
-  // auto OCA_dense_dlr    = OCA_dense(hyb, itops, beta, Gt_dense, Fs_dense, F_dags_dense);
-  std::cout << OCA_dense_result(10, _, _) << std::endl;
 
   // load NCA and OCA results from twoband.py
   h5::file Gtfile("../test/c++/h5/two_band_py_semic.h5", 'r');
@@ -304,7 +302,6 @@ TEST(BlockSparseOCAManual, PYTHON_two_band_semicircle_bath_dense_aaa) {
   h5::read(Gtgroup, "NCA", NCA_py);
   auto OCA_py = nda::zeros<dcomplex>(r, 16, 16);
   h5::read(Gtgroup, "OCA", OCA_py);
-  // OCA_py = OCA_py - NCA_py; // subtract off NCA
 
   // permute twoband.py results to match block structure from atom_diag
   auto NCA_py_perm = nda::zeros<dcomplex>(r, 16, 16);
@@ -317,55 +314,23 @@ TEST(BlockSparseOCAManual, PYTHON_two_band_semicircle_bath_dense_aaa) {
       }
     }
   }
-  std::cout << "OCA py perm slice = " << OCA_py_perm(10, _, _) << std::endl;
-
-  /*
-  // Zhen's code from C++
-  auto Deltadlr                            = itops.vals2coefs(hyb); //obtain dlr coefficient of Delta(t)
-  nda::vector<double> dlr_rf_reflect       = -dlr_rf;
-  nda::array<dcomplex, 3> Deltadlr_reflect = Deltadlr * 1.0;
-  for (int i = 0; i < Deltadlr.shape(0); ++i) Deltadlr_reflect(i, _, _) = transpose(Deltadlr(i, _, _));
-  auto Delta_decomp         = hyb_decomp(Deltadlr, dlr_rf, eps);                 //decomposition of Delta(t) using DLR coefficient
-  auto Delta_decomp_reflect = hyb_decomp(Deltadlr_reflect, dlr_rf_reflect, eps); // decomposition of Delta(-t) using DLR coefficient
-  int dim                   = hyb.shape(1);
-  hyb_F Delta_F(16, r, dim);
-  hyb_F Delta_F_reflect(16, r, dim);
-  auto dlr_it = itops.get_itnodes();
-  std::cout << "dlr_it = " << dlr_it << std::endl;
-  Delta_F.update_inplace(Delta_decomp, dlr_rf, dlr_it, Fs_dense, F_dags_dense); // Compression of Delta(t) and F, F_dag matrices
-  Delta_F_reflect.update_inplace(Delta_decomp_reflect, dlr_rf_reflect, dlr_it, F_dags_dense, Fs_dense);
-  auto fb                  = nda::vector<int>(2);
-  fb(1)                    = 0;
-  auto OCA_forward_forward = -Sigma_OCA_calc(Delta_F, hyb, hyb_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, false);
-  std::cout << "OCA forward forward slice = " << OCA_forward_forward(10, _, _) << std::endl;
-  //this is result of Delta(t-t1) forward, which is the sum of Delta(t2,t0) being forward and backward
-  auto OCA_forward = Sigma_OCA_calc(Delta_F, hyb, hyb_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, true);
-  // another way to calculate the same thing
-  nda::array<int, 2> D2{{0, 2}, {1, 3}};
-  auto OCA_forward2 = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D2, hyb, hyb_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb, true);
-
-  //Get Delta(t-t1) forward Delta(t2,t0) backward result via subtraction:
-  auto OCA_forward_backward = OCA_forward - OCA_forward_forward;
-
-  // Get Delta(t-t1) backward Delta(t2,t0) forward
-  auto fb2 = nda::vector<int>(2);
-  fb2(1)   = 1;
-  auto OCA_backward_forward =
-     Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D2, hyb, hyb_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb2, false);
-
-  //Get Delta(t-t1) backward Delta(t2,t0) backward, from subtraction
-  auto OCA_backward = Sigma_Diagram_calc(Delta_F, Delta_F_reflect, D2, hyb, hyb_refl, Gt_dense, itops, beta, Fs_dense, F_dags_dense, fb2, true);
-  auto OCA_backward_backward = OCA_backward - OCA_backward_forward;
-
-  auto OCA_Zhen = nda::make_regular(-OCA_forward - OCA_backward);
-
-  std::cout << "OCA Zhen slice = " << OCA_Zhen(10, _, _) << std::endl;
-  std::cout << "OCA Zhen forward = " << OCA_forward(10, _, _) << std::endl;
-  std::cout << "OCA Zhen backward = " << OCA_backward(10, _, _) << std::endl;
-  */
   
   // check that dense OCA calculation agree with twoband.py
   ASSERT_LE(nda::max_element(nda::abs(OCA_dense_result - OCA_py_perm + NCA_py_perm)), eps);
+
+  // block-sparse NCA and OCA computations
+  auto OCA_bs_result = OCA_bs(hyb, hyb_coeffs, hyb_refl, hyb_refl_coeffs, hyb_poles, itops, beta, Gt, Fs);
+
+  // check that block-sparse OCA calculation agrees with twoband.py
+  int s0 = 0;
+  int s1 = subspaces[0].size();
+  for (int i = 0; i < num_blocks; i++) { // compare each block
+    ASSERT_LE(nda::max_element(
+                 nda::abs(OCA_bs_result.get_block(i) - OCA_py_perm(_, range(s0, s1), range(s0, s1)) + NCA_py_perm(_, range(s0, s1), range(s0, s1)))),
+              eps);
+    s0 = s1;
+    if (i < num_blocks - 1) s1 += subspaces[i + 1].size();
+  }
 }
 
 TEST(BlockSparseOCAManual, two_band_discrete_bath_bs_vs_dense) {
