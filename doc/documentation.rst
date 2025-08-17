@@ -3,23 +3,30 @@
 Documentation
 *************
 
+Background
+----------
 
+.. toctree::
+   :maxdepth: 1
+
+   background/ppsc
+
+User guide
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   user_guide/Step by step.ipynb
+
+   
 Tutorials
 ---------
 
 .. toctree::
    :maxdepth: 1
 
-   user_guides/Semi infinite chain.ipynb
-
-
-C++ reference manual
---------------------
-
-.. toctree::
-   :maxdepth: 5
-
-   cpp2rst_generated/contents
+   tutorials/Semi infinite chain.ipynb
 
 
 Python reference manual
