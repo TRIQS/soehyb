@@ -80,6 +80,51 @@ from triqs_soehyb.solver import Solver, is_root
 from triqs_soehyb.triqs_solver import TriqsSolver
 
 
+class AnalyticDiagrams:
+
+    def __init__(self, n, N, tau, beta):
+
+        print(f'n = {n}, N = {N}')
+
+        I_n = np.eye(n)[None, :, :] 
+        I_N = np.eye(N)[None, :, :]
+
+        tau = tau[:, None, None]
+
+        alpha = np.log(N) / beta    
+        self.G0_iaa = -np.exp(-alpha * tau) * I_N
+
+        self.Sigma_iaa_nca = -1 * (-0.5) * self.G0_iaa * n
+
+        self.dSigma_iaa_oca = (-0.5)**2 * (tau**2/2) * self.G0_iaa * n * (n - 1)    
+        self.dSigma_iaa_tca = (-0.5)**3 * tau**4/24 * self.G0_iaa * (-self.__func_K(n))
+
+        self.Sigma_iaa_oca = self.Sigma_iaa_nca + self.dSigma_iaa_oca
+        self.Sigma_iaa_tca = self.Sigma_iaa_oca + self.dSigma_iaa_tca
+
+        self.g_iaa_nca = -0.5 * I_n + 0 * tau
+
+        self.dg_iaa_oca = - 0.5 * (beta - tau) * (tau - 0) * (n - 1) / 2 * I_n
+
+        C_1 = 0.5 * self.__func_C_1(n)
+        C_2 = 0.5 * self.__func_C_2(n)
+        C_3 = C_2
+
+        g_tca_contrib_1 = (beta**2 - 2*beta*tau + tau**2) * tau**2/4 * C_1
+        g_tca_contrib_2 = (beta**3 - 3*beta**2*tau + 3*beta*tau**2 - tau**3) * tau / 6 * C_2 
+        g_tca_contrib_3 = (beta - tau) * tau**3 / 6 * C_3
+
+        self.dg_iaa_tca = - (0.5)**2 * ( g_tca_contrib_1 + g_tca_contrib_2 + g_tca_contrib_3) * I_n
+
+        self.g_iaa_oca = self.g_iaa_nca + self.dg_iaa_oca
+        self.g_iaa_tca = self.g_iaa_oca + self.dg_iaa_tca
+
+
+    def __func_K(self, n): return n * (4*n**2 - 9*n + 4)
+    def __func_C_1(self, n): return (n - 2) * (n + 0) + (n - 1) * (n - 2)     
+    def __func_C_2(self, n): return (n - 1) * (n - 1)
+
+        
 def test_n_fermions(n, verbose):
 
     gf_struct = [('0', n)]
@@ -130,45 +175,11 @@ def analytic_diagram_cf(h_int, gf_struct, verbose):
         test_equal_diagonal(arr)
     
     # -- Analytic solution
-    
+
     n = len(S.S.fundamental_operators)
     N = S.S.H_mat.shape[0]
-
-    print(f'n = {n}, N = {N}')
-
-    I_n = np.eye(n)[None, :, :] 
-    I_N = np.eye(N)[None, :, :]
     
-    beta = S.beta
-    tau = S.S.tau_i[:, None, None]
-
-    alpha = np.log(N) / beta    
-    G0_iaa_ref = -np.exp(-alpha * tau) * I_N
-
-    Sigma_iaa_nca_ref = -1 * (-0.5) * G0_iaa_ref * n
-
-    dSigma_iaa_oca_ref = (-0.5)**2 * (tau**2/2) * G0_iaa_ref * n * (n - 1)    
-    dSigma_iaa_tca_ref = (-0.5)**3 * tau**4/24 * G0_iaa_ref * (-func_K(n))
-    
-    Sigma_iaa_oca_ref = Sigma_iaa_nca_ref + dSigma_iaa_oca_ref
-    Sigma_iaa_tca_ref = Sigma_iaa_oca_ref + dSigma_iaa_tca_ref
-    
-    g_iaa_nca_ref = -0.5 * I_n + 0 * tau
-
-    dg_iaa_oca_ref = - 0.5 * (beta - tau) * (tau - 0) * (n - 1) / 2 * I_n
-        
-    C_1 = 0.5 * func_C_1(n)
-    C_2 = 0.5 * func_C_2(n)
-    C_3 = C_2
-
-    g_tca_contrib_1 = (beta**2 - 2*beta*tau + tau**2) * tau**2/4 * C_1
-    g_tca_contrib_2 = (beta**3 - 3*beta**2*tau + 3*beta*tau**2 - tau**3) * tau / 6 * C_2 
-    g_tca_contrib_3 = (beta - tau) * tau**3 / 6 * C_3
-    
-    dg_iaa_tca_ref = - (0.5)**2 * ( g_tca_contrib_1 + g_tca_contrib_2 + g_tca_contrib_3) * I_n
-
-    g_iaa_oca_ref = g_iaa_nca_ref + dg_iaa_oca_ref
-    g_iaa_tca_ref = g_iaa_oca_ref + dg_iaa_tca_ref
+    ref = AnalyticDiagrams(n, N, S.S.tau_i, S.beta)
     
     
     if verbose and is_root():
@@ -191,7 +202,7 @@ def analytic_diagram_cf(h_int, gf_struct, verbose):
         #for i in range(N):
         for i in [0]:
             plt.plot(S.S.tau_i, S.S.G0_iaa[:, i, i].real, 'x-', label='G0')
-            plt.plot(S.S.tau_i, G0_iaa_ref[:, i, i].real, '+-', label='G0 ref')
+            plt.plot(S.S.tau_i, ref.G0_iaa[:, i, i].real, '+-', label='G0 ref')
 
         plt.legend(loc='best')
         plt.ylabel(r'$\hat{G}(\tau)$')
@@ -203,7 +214,7 @@ def analytic_diagram_cf(h_int, gf_struct, verbose):
         #for i in range(n):
         for i in [0]:
             plt.plot(S.S.tau_i, g_iaa_nca[:, i, i].flatten().real, '-', label='nca')
-            plt.plot(S.S.tau_i, g_iaa_nca_ref[:, i, i].flatten().real, 'x', label='nca (ref)')
+            plt.plot(S.S.tau_i, ref.g_iaa_nca[:, i, i].flatten().real, 'x', label='nca (ref)')
 
         plt.legend(loc='best')
         #plt.ylim([-.75, 0])
@@ -214,7 +225,7 @@ def analytic_diagram_cf(h_int, gf_struct, verbose):
         #for i in range(n):
         for i in [0]:
             plt.plot(S.S.tau_i, dg_iaa_oca[:, i, i].flatten().real, '-', label='oca')
-            plt.plot(S.S.tau_i, dg_iaa_oca_ref[:, i, i].flatten().real, '+', label='oca (ref)')
+            plt.plot(S.S.tau_i, ref.dg_iaa_oca[:, i, i].flatten().real, '+', label='oca (ref)')
 
         plt.legend(loc='best')
         #plt.ylim([-.75, 0])
@@ -225,7 +236,7 @@ def analytic_diagram_cf(h_int, gf_struct, verbose):
         #for i in range(n):
         for i in [0]:
             plt.plot(S.S.tau_i, dg_iaa_tca[:, i, i].flatten().real, '-', label='tca')
-            plt.plot(S.S.tau_i, dg_iaa_tca_ref[:, i, i].flatten().real, '+', label='tca (ref)')
+            plt.plot(S.S.tau_i, ref.dg_iaa_tca[:, i, i].flatten().real, '+', label='tca (ref)')
 
         plt.legend(loc='best')
         #plt.ylim([-.75, 0])
@@ -236,7 +247,7 @@ def analytic_diagram_cf(h_int, gf_struct, verbose):
         #for i in range(N):
         for i in [0]:
             plt.plot(S.S.tau_i, Sigma_iaa_nca[:, i, i].real, 'x-', label='nca')
-            plt.plot(S.S.tau_i, Sigma_iaa_nca_ref[:, i, i].real, '+-', label='nca ref')
+            plt.plot(S.S.tau_i, ref.Sigma_iaa_nca[:, i, i].real, '+-', label='nca ref')
             #plt.plot(TS.S.tau_i, TS.G_tau[0].data.flatten().real, 'x-', label='triqs')
         plt.legend(loc='best')
         plt.ylabel(r'$\hat{\Sigma}(\tau)$')
@@ -246,7 +257,7 @@ def analytic_diagram_cf(h_int, gf_struct, verbose):
         #for i in range(N):
         for i in [0]:
             plt.plot(S.S.tau_i, dSigma_iaa_oca[:, i, i].real, 'x-', label='oca')
-            plt.plot(S.S.tau_i, dSigma_iaa_oca_ref[:, i, i].real, '+-', label='oca ref')
+            plt.plot(S.S.tau_i, ref.dSigma_iaa_oca[:, i, i].real, '+-', label='oca ref')
             
         plt.legend(loc='best')
         plt.ylabel(r'$\hat{\Sigma}_{OCA}(\tau)$')
@@ -256,7 +267,7 @@ def analytic_diagram_cf(h_int, gf_struct, verbose):
         #for i in range(N):
         for i in [0]:
             plt.plot(S.S.tau_i, dSigma_iaa_tca[:, i, i].real, 'x-', label='tca')
-            plt.plot(S.S.tau_i, dSigma_iaa_tca_ref[:, i, i].real, '+-', label='tca ref')
+            plt.plot(S.S.tau_i, ref.dSigma_iaa_tca[:, i, i].real, '+-', label='tca ref')
             
         plt.legend(loc='best')
         plt.ylabel(r'$\hat{\Sigma}_{TCA}(\tau)$')
@@ -267,27 +278,16 @@ def analytic_diagram_cf(h_int, gf_struct, verbose):
 
     if is_root():
         np.testing.assert_array_almost_equal(S.S.G0_iaa, S.S.G_iaa)
-        np.testing.assert_array_almost_equal(G0_iaa_ref, S.S.G0_iaa)
+        np.testing.assert_array_almost_equal(ref.G0_iaa, S.S.G0_iaa)
 
-        np.testing.assert_array_almost_equal(Sigma_iaa_nca, Sigma_iaa_nca_ref)
-        np.testing.assert_array_almost_equal(Sigma_iaa_oca, Sigma_iaa_oca_ref)
-        np.testing.assert_array_almost_equal(Sigma_iaa_tca, Sigma_iaa_tca_ref)
+        np.testing.assert_array_almost_equal(Sigma_iaa_nca, ref.Sigma_iaa_nca)
+        np.testing.assert_array_almost_equal(Sigma_iaa_oca, ref.Sigma_iaa_oca)
+        np.testing.assert_array_almost_equal(Sigma_iaa_tca, ref.Sigma_iaa_tca)
 
-        np.testing.assert_array_almost_equal(g_iaa_nca, g_iaa_nca_ref)
-        np.testing.assert_array_almost_equal(g_iaa_oca, g_iaa_oca_ref)        
-        np.testing.assert_array_almost_equal(g_iaa_tca, g_iaa_tca_ref)
+        np.testing.assert_array_almost_equal(g_iaa_nca, ref.g_iaa_nca)
+        np.testing.assert_array_almost_equal(g_iaa_oca, ref.g_iaa_oca) 
+        np.testing.assert_array_almost_equal(g_iaa_tca, ref.g_iaa_tca)
 
-
-def func_K(n):
-    return n * (4*n**2 - 9*n + 4)
-    
-
-def func_C_1(n):
-    return (n - 2) * (n + 0) + (n - 1) * (n - 2) 
-
-
-def func_C_2(n):
-    return (n - 1) * (n - 1)
 
         
 def test_prefactors():
