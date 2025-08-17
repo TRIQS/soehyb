@@ -37,4 +37,4 @@ Python reference manual
    :template: autosummary_module_template.rst
    :recursive:
 
-   triqs_soehyb
+   triqs_soehyb.triqs_solver
