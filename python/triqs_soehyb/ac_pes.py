@@ -200,7 +200,7 @@ def polefitting(Deltaiw, Z, Deltat,tgrid, Deltat_dense, tgrid_dense,beta, Np_max
         pol = np.real(pol)
         weight, _, residue = get_weight_t(pol, tgrid, Deltat,beta)
         pol, weight = aaa_reduce(pol, weight,eps)
-        fhere = lambda pole: erroreval_t(pol, tgrid, Deltat,beta)
+        fhere = lambda pole: erroreval_t(pole, tgrid, Deltat,beta)
         if len(pol) > 0:
             res = scipy.optimize.minimize(fhere,pol, method='L-BFGS-B', jac=True,options= {"disp" :False,"gtol":1e-14,"ftol":1e-14})
             x = res.x
