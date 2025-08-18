@@ -19,7 +19,7 @@ where :math:`G_0(\tau)` is the atomic many-body propagator and :math:`\Sigma(\ta
 
 Once convergence is reached physical response functions like the single particle Green's function :math:`g(\tau) = \rangle \mathcal{T} c(\tau) c^\dagger(0) \rangle` can be evaluted by a separate diagrammatic series (similar to :math:`\Sigma`).
 
-The ``triqs_soehyb`` solver implements the bold hybridization expansion using the Discrete Lehmann Representation (DLR) [#dlr, #cppdlr]_ for compact representation of propagators in imaginary time :math:`\tau` and a separate hybridization function compression approach [#soehyb]_ (based on the famous AAA algorithm) to evaluate the diagram series for :math:`\Sigma` with lower computational complexity than standard quadrature integration. [#dlrhyb]_
+The ``triqs_soehyb`` solver implements the bold hybridization expansion using the Discrete Lehmann Representation (DLR) [#dlr]_ [#cppdlr]_ for compact representation of propagators in imaginary time :math:`\tau` and a separate hybridization function compression approach [#soehyb]_ (based on the famous AAA algorithm) to evaluate the diagram series for :math:`\Sigma` with lower computational complexity than standard quadrature integration. [#dlrhyb]_
 
 
 .. [#ppscintro] `M. Eckstein, P. Werner, Phys. Rev. B 82, 115115 (2010) <https://doi.org/10.1103/PhysRevB.82.115115>`_
