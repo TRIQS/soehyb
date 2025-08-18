@@ -173,7 +173,7 @@ TEST(Backbone, OCA) {
   auto hyb_refl        = nda::make_regular(-itops.reflect(Deltat));
   auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
   auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
-  DiagramEvaluator D2(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset);
+  DiagramEvaluator D2(beta, itops, Deltat, Deltat_refl, dlr_rf, Gt_dense, Fset);
   start = std::chrono::high_resolution_clock::now();
   D2.eval_diagram_dense(B);
   end                   = std::chrono::high_resolution_clock::now();
@@ -248,7 +248,7 @@ TEST(Backbone, spin_flip_fermion) {
   auto [Gt_dense, Fset, subspaces] =
      spin_flip_fermion_dense_helper(beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs, "../test/c++/h5/spin_flip_fermion.h5");
 
-  DiagramEvaluator D2(beta, itops, hyb, hyb_refl, Gt_dense, Fset);
+  DiagramEvaluator D2(beta, itops, hyb, hyb_refl, dlr_rf, Gt_dense, Fset);
   start = std::chrono::high_resolution_clock::now();
   D2.eval_diagram_dense(B);
   end      = std::chrono::high_resolution_clock::now();
@@ -318,7 +318,7 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   auto [Gt_dense, Fset, subspaces] =
      spin_flip_fermion_dense_helper(beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs, "../test/c++/h5/spin_flip_fermion_all_sym.h5");
 
-  DiagramEvaluator D2(beta, itops, hyb, hyb_refl, Gt_dense, Fset);
+  DiagramEvaluator D2(beta, itops, hyb, hyb_refl, dlr_rf, Gt_dense, Fset);
   start = std::chrono::high_resolution_clock::now();
   D2.eval_diagram_dense(B);
   end      = std::chrono::high_resolution_clock::now();

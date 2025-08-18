@@ -28,7 +28,7 @@ TEST(DenseBackbone, one_vertex_and_edge) {
   auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
   auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
 
-  auto D = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset);
+  auto D = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, dlr_rf, Gt_dense, Fset);
   for (int fb1 = 0; fb1 <= 1; fb1++) {
     // initialize backbone
     auto B = Backbone(topology, n);
@@ -90,14 +90,14 @@ TEST(DenseBackbone, OCA) {
 
   // compute Fbars and Fdagbars and store in Fset
   auto hyb_coeffs      = itops.vals2coefs(Deltat); // hybridization DLR coeffs
-  auto hyb_refl        = nda::make_regular(-itops.reflect(Deltat));
-  auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
+  auto hyb_refl        = nda::make_regular(-Deltat);
+  auto hyb_refl_coeffs = nda::make_regular(-hyb_coeffs); // itops.vals2coefs(hyb_refl);
   auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
 
   // initialize Backbone and DiagramEvaluator
   nda::array<int, 2> topology = {{0, 2}, {1, 3}};
   auto B                      = Backbone(topology, n);
-  auto D                      = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset);
+  auto D                      = DiagramEvaluator(beta, itops, Deltat, hyb_refl, dlr_rf, Gt_dense, Fset);
 
   // evaluate OCA self-energy contribution
   D.eval_diagram_dense(B);
@@ -133,7 +133,7 @@ TEST(DenseBackbone, PYTHON_OCA) {
   // initialize Backbone and DiagramEvaluator
   nda::array<int, 2> topology = {{0, 2}, {1, 3}};
   auto B                      = Backbone(topology, n);
-  auto D                      = DiagramEvaluator(beta, itops, Deltat, hyb_refl, Gt_dense, Fset);
+  auto D                      = DiagramEvaluator(beta, itops, Deltat, hyb_refl, dlr_rf, Gt_dense, Fset);
 
   // evaluate OCA self-energy contribution
   D.eval_diagram_dense(B);
@@ -194,7 +194,7 @@ TEST(DenseBackbone, third_order_manual) {
   nda::vector<int> fb{1, 1, 1}, pole_inds{7, 9};
   B.set_directions(fb);
   B.set_pole_inds(pole_inds, dlr_rf);
-  auto D = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset);
+  auto D = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, dlr_rf, Gt_dense, Fset);
 
   // perform the same calculation using the a routine called by eval_diagram_dense()
   nda::array<dcomplex, 3> T(r, N, N), GKt(r, N, N), Tmu(r, N, N), Sigma_generic(r, N, N);
@@ -243,7 +243,7 @@ TEST(DenseBackbone, PYTHON_third_order) {
   nda::array<int, 2> T_OCA = {{0, 2}, {1, 3}};
   auto B_OCA               = Backbone(T_OCA, n);
   // auto D                   = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset); // create DiagramEvaluator object
-  auto D                   = DiagramEvaluator(beta, itops, Deltat, hyb_refl, Gt_dense, Fset);
+  auto D                   = DiagramEvaluator(beta, itops, Deltat, hyb_refl, dlr_rf, Gt_dense, Fset);
   D.eval_diagram_dense(B_OCA);                                                                   // evaluate OCA diagram
   auto OCA_result = D.Sigma;                                                                     // get the result from the DiagramEvaluator
   D.reset();

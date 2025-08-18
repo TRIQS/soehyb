@@ -25,7 +25,8 @@ class DiagramEvaluator {
   nda::array<dcomplex, 3> Gt;       // Green's function at imaginary time nodes
   DenseFSet Fset;                   // DenseFSet (cre/ann operators with and without bars)
   nda::vector<double> dlr_it;       // DLR imaginary time nodes in relative ordering
-  nda::vector<double> dlr_rf;       // DLR frequency nodes
+  int r;                            // DLR rank
+  nda::vector<double> hyb_poles;    // hybridization poles
   nda::array<dcomplex, 3> Sigma;    // array for storing self-energy contribution (final result)
   nda::array<dcomplex, 3> T;        // array for storing intermediate result
   nda::array<dcomplex, 3> GKt;      // array for storing result of edge computation
@@ -54,5 +55,5 @@ class DiagramEvaluator {
    * @param[in] Fset DenseFSet (cre/ann operators with and without bars)
    */
   DiagramEvaluator(double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl,
-                   nda::array_const_view<dcomplex, 3> Gt, DenseFSet &Fset);
+                   nda::vector_const_view<double> hyb_poles, nda::array_const_view<dcomplex, 3> Gt, DenseFSet &Fset);
 };

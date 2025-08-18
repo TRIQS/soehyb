@@ -87,12 +87,12 @@ void Backbone::reset_directions() {
   }
 }
 
-void Backbone::set_pole_inds(nda::vector_const_view<int> pole_inds, nda::vector_const_view<double> dlr_rf) {
+void Backbone::set_pole_inds(nda::vector_const_view<int> pole_inds, nda::vector_const_view<double> hyb_poles) {
 
   this->pole_inds = pole_inds; // values of l, l`, etc.
   for (int i = 1; i < m; i++) {
     if (fb(i) == 1) { // line i is forward
-      if (dlr_rf(pole_inds(i - 1)) <= 0) {
+      if (hyb_poles(pole_inds(i - 1)) <= 0) {
         // step 4(a)
         // place K^-_l F_nu at the right vertex
         vertices[topology(i, 0)].set_hyb_ind(i - 1);
@@ -114,7 +114,7 @@ void Backbone::set_pole_inds(nda::vector_const_view<int> pole_inds, nda::vector_
         prefactor_Kexps(i - 1)  = topology(i, 1) - topology(i, 0) - 1;
       }
     } else { // line i is backward
-      if (dlr_rf(pole_inds(i - 1)) >= 0) {
+      if (hyb_poles(pole_inds(i - 1)) >= 0) {
         // step 4(a)
         // place K^+_l F^dag_pi at the right vertex
         vertices[topology(i, 0)].set_hyb_ind(i - 1);
@@ -142,15 +142,15 @@ void Backbone::set_pole_inds(nda::vector_const_view<int> pole_inds, nda::vector_
   }
 }
 
-void Backbone::set_pole_inds(int p_ix, nda::vector_const_view<double> dlr_rf) {
+void Backbone::set_pole_inds(int p_ix, nda::vector_const_view<double> hyb_poles) {
 
-  int r          = dlr_rf.size();
+  int p          = hyb_poles.size();
   auto pole_inds = nda::vector<int>(m - 1);
   for (int i = 0; i < m - 1; i++) {
-    pole_inds(i) = p_ix % r;
-    p_ix /= r;
+    pole_inds(i) = p_ix % p;
+    p_ix /= p;
   }
-  set_pole_inds(pole_inds, dlr_rf);
+  set_pole_inds(pole_inds, hyb_poles);
 }
 
 void Backbone::reset_pole_inds() {
@@ -193,21 +193,21 @@ void Backbone::reset_orb_inds() {
   for (int i = 0; i < 2 * m; i++) vertices[i].set_orb(0);
 }
 
-void Backbone::set_flat_index(int f_ix, nda::vector_const_view<double> dlr_rf) {
+void Backbone::set_flat_index(int f_ix, nda::vector_const_view<double> hyb_poles) {
   // set directions, pole indices, and orbital indices from a single integer index.
   // In terms of fb_ix, p_ix, and o_ix,
   // f_ix = o_ix + n^(m-1) * p_ix + (n * r)^(m-1) * fb_ix, where r is the number of hybridization indices.
 
   this->f_ix = f_ix; 
-  int r    = dlr_rf.size();
+  int p   = hyb_poles.size();
   int o_ix = f_ix % o_ix_max; // orbital indices
   f_ix /= o_ix_max;
-  int p_ix_max = static_cast<int>(pow(r, m - 1)); 
+  int p_ix_max = static_cast<int>(pow(p, m - 1)); 
   int p_ix = f_ix % p_ix_max; // pole indices
   int fb_ix = f_ix / p_ix_max; // directions
 
   set_directions(fb_ix);
-  set_pole_inds(p_ix, dlr_rf);
+  set_pole_inds(p_ix, hyb_poles);
   set_orb_inds(o_ix);
 }
 
