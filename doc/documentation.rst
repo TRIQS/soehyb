@@ -27,6 +27,7 @@ Tutorials
    :maxdepth: 1
 
    tutorials/Semi infinite chain.ipynb
+   tutorials/Metal insulator transition.ipynb
 
 
 Python reference manual
