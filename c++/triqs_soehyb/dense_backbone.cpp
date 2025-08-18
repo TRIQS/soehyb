@@ -11,22 +11,22 @@ DiagramEvaluator::DiagramEvaluator(double beta, imtime_ops &itops, nda::array_co
   dlr_rf = itops.get_rfnodes();
 
   // allocate arrays
-  int r  = dlr_it.extent(0);
-  int n  = hyb.extent(1);
-  int N  = Gt.extent(1);
-  T      = nda::zeros<dcomplex>(r, N, N);
-  GKt    = nda::zeros<dcomplex>(r, N, N);
-  Tkaps  = nda::zeros<dcomplex>(n, r, N, N);
-  Tmu    = nda::zeros<dcomplex>(r, N, N);
-  Sigma  = nda::zeros<dcomplex>(r, N, N);
+  int r = dlr_it.extent(0);
+  int n = hyb.extent(1);
+  int N = Gt.extent(1);
+  T     = nda::zeros<dcomplex>(r, N, N);
+  GKt   = nda::zeros<dcomplex>(r, N, N);
+  Tkaps = nda::zeros<dcomplex>(n, r, N, N);
+  Tmu   = nda::zeros<dcomplex>(r, N, N);
+  Sigma = nda::zeros<dcomplex>(r, N, N);
 }
 
 void DiagramEvaluator::reset() {
-  T      = 0;
-  GKt    = 0;
-  Tkaps  = 0;
-  Tmu    = 0;
-  Sigma  = 0;
+  T     = 0;
+  GKt   = 0;
+  Tkaps = 0;
+  Tmu   = 0;
+  Sigma = 0;
 }
 
 void DiagramEvaluator::multiply_vertex_dense(Backbone &backbone, int v_ix) {
@@ -112,7 +112,7 @@ void DiagramEvaluator::eval_diagram_dense(Backbone &backbone) {
   for (int f_ix = 0; f_ix < f_ix_max; f_ix++) {
     backbone.set_flat_index(f_ix, dlr_rf);       // set directions, pole indices, and orbital indices from a single integer index
     eval_backbone_fixed_indices_dense(backbone); // evaluate the diagram with these directions, poles, and orbital indices
-    backbone.reset_all_inds(); // reset directions, pole indices, and orbital indices for the next iteration
+    backbone.reset_all_inds();                   // reset directions, pole indices, and orbital indices for the next iteration
   }
 }
 
@@ -149,6 +149,7 @@ void DiagramEvaluator::eval_backbone_fixed_indices_dense(Backbone &backbone) {
     }
   }
   int diag_order_sign = (m % 2 == 0) ? -1 : 1;
+  if (backbone.get_fb(0) == 0) diag_order_sign *= -1;
   T *= diag_order_sign * backbone.prefactor_sign;
   Sigma += T;
 }

@@ -108,6 +108,62 @@ TEST(DenseBackbone, OCA) {
   ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_dense_result)), eps);
 }
 
+TEST(DenseBackbone, PYTHON_OCA) {
+  int n         = 4;
+  double beta   = 2.0;
+  double Lambda = 10.0 * beta;
+  double eps    = 1.0e-10;
+
+  // load in functions from two_band.py
+  auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order] =
+     two_band_discrete_bath_helper(beta, Lambda, eps);
+
+  // DLR generation
+  auto dlr_rf        = build_dlr_rf(Lambda, eps);
+  auto itops         = imtime_ops(Lambda, dlr_rf);
+  auto const &dlr_it = itops.get_itnodes();
+  auto dlr_it_abs    = cppdlr::rel2abs(dlr_it);
+
+  // compute Fbars and Fdagbars and store in Fset
+  auto hyb_coeffs      = itops.vals2coefs(Deltat);       // hybridization DLR coeffs
+  auto hyb_refl        = nda::make_regular(-Deltat);     // nda::make_regular(-itops.reflect(Deltat));
+  auto hyb_refl_coeffs = nda::make_regular(-hyb_coeffs); // itops.vals2coefs(hyb_refl);
+  auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
+
+  // initialize Backbone and DiagramEvaluator
+  nda::array<int, 2> topology = {{0, 2}, {1, 3}};
+  auto B                      = Backbone(topology, n);
+  auto D                      = DiagramEvaluator(beta, itops, Deltat, hyb_refl, Gt_dense, Fset);
+
+  // evaluate OCA self-energy contribution
+  D.eval_diagram_dense(B);
+  auto OCA_result = D.Sigma;
+
+  int r = itops.rank(), N = 16;
+  h5::file hfile("../test/c++/h5/two_band_py_Lambda10.h5", 'r');
+  h5::group hgroup(hfile);
+  nda::array<dcomplex, 3> NCA_py(r, N, N), OCA_py(r, N, N);
+  h5::read(hgroup, "NCA", NCA_py);
+  h5::read(hgroup, "OCA", OCA_py);
+  OCA_py = OCA_py - NCA_py;
+
+  std::cout << "OCA result: " << OCA_result(10, _, _) << std::endl;
+  // permute twoband.py results to match block structure from atom_diag
+  auto NCA_py_perm = nda::zeros<dcomplex>(r, 16, 16);
+  auto OCA_py_perm = nda::zeros<dcomplex>(r, 16, 16);
+  for (int t = 0; t < r; t++) {
+    for (int i = 0; i < 16; i++) {
+      for (int j = 0; j < 16; j++) {
+        NCA_py_perm(t, i, j) = NCA_py(t, fock_state_order[i], fock_state_order[j]);
+        OCA_py_perm(t, i, j) = OCA_py(t, fock_state_order[i], fock_state_order[j]);
+      }
+    }
+  }
+  std::cout << "OCA py result: " << OCA_py_perm(10, _, _) << std::endl;
+
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result - OCA_py_perm)), eps);
+}
+
 TEST(DenseBackbone, third_order_manual) {
   int n = 4, N = 16;
   double beta   = 2.0;
@@ -177,16 +233,17 @@ TEST(DenseBackbone, PYTHON_third_order) {
   int r              = itops.rank();
 
   // compute Fbars and Fdagbars
-  auto hyb_coeffs      = itops.vals2coefs(Deltat); // hybridization DLR coeffs
-  auto hyb_refl        = nda::make_regular(-itops.reflect(Deltat));
-  auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
+  auto hyb_coeffs      = itops.vals2coefs(Deltat);       // hybridization DLR coeffs
+  auto hyb_refl        = nda::make_regular(-Deltat);     // nda::make_regular(-itops.reflect(Deltat));
+  auto hyb_refl_coeffs = nda::make_regular(-hyb_coeffs); // itops.vals2coefs(hyb_refl);
   auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
 
   // compute NCA and OCA
   auto NCA_result          = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
   nda::array<int, 2> T_OCA = {{0, 2}, {1, 3}};
   auto B_OCA               = Backbone(T_OCA, n);
-  auto D                   = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset); // create DiagramEvaluator object
+  // auto D                   = DiagramEvaluator(beta, itops, Deltat, Deltat_refl, Gt_dense, Fset); // create DiagramEvaluator object
+  auto D                   = DiagramEvaluator(beta, itops, Deltat, hyb_refl, Gt_dense, Fset);
   D.eval_diagram_dense(B_OCA);                                                                   // evaluate OCA diagram
   auto OCA_result = D.Sigma;                                                                     // get the result from the DiagramEvaluator
   D.reset();
