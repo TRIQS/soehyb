@@ -284,9 +284,9 @@ TEST(BlockSparseOCAManual, PYTHON_two_band_semicircle_bath_aaa) {
                  {0.1580088741667851, 0.1580088741667851, 0., 0.},
                  {0., 0., 0.1580088741667851, 0.1580088741667851},
                  {0., 0., 0.1580088741667851, 0.1580088741667851}}};
-  auto hyb_refl = nda::make_regular(hyb);
+  auto hyb_refl = nda::make_regular(-hyb);
   nda::array<dcomplex, 3> hyb_refl_coeffs(p, n, n);
-  hyb_refl_coeffs = hyb_coeffs;
+  hyb_refl_coeffs = nda::make_regular(hyb_coeffs);
 
   nda::vector<double> hyb_poles(p);
   hyb_poles = {-2.537191963500981,  1.7111725610238615, -1.514666605887425, 1.04941790134832,

@@ -756,7 +756,7 @@ nda::array<dcomplex, 3> OCA_dense(nda::array_const_view<dcomplex, 3> hyb, nda::a
       auto const &F2list     = (fb2 == 1) ? Fs(_, _, _) : F_dags(_, _, _);
       auto const &F3list     = (fb1 == 1) ? F_dags(_, _, _) : Fs(_, _, _);
       auto const &Fbar_array = (fb2 == 1) ? Fdagbars(_, _, _, _) : Fbarsrefl(_, _, _, _);
-      int sfM                = -1; // (fb1 ^ fb2) ? 1 : -1; // sign
+      int sfM                = (fb1 ^ fb2) ? 1 : -1; // sign
 
       for (int l = 0; l < p; l++) {
         Sigma_l = 0;
