@@ -33,9 +33,5 @@ Tutorials
 Python reference manual
 -----------------------
 
-.. autosummary::
-   :toctree: _autosummary
-   :template: autosummary_module_template.rst
-   :recursive:
-
-   triqs_soehyb.triqs_solver
+.. autoclass:: triqs_soehyb.triqs_solver.TriqsSolver
+   :members:   
