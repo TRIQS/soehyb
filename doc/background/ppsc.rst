@@ -3,7 +3,7 @@
 A word on the algorithm
 =======================
 
-The hybridization expansion approach to solving generalized Anderson impurity models has been combined with a plethora of numerical methods. One of these methods is the bold hybridization expansion [#ppscintro]_ in terms of the local atomic propagator :math`G(\tau)`, often referred to as the pseudo-particle approach, since it can be derived by introducing a pseudo particle for each many-body state in the impurity local Hilbert space.
+The hybridization expansion approach to solving generalized Anderson impurity models has been combined with a plethora of numerical methods. One of these methods is the bold hybridization expansion [#ppscintro]_ in terms of the local atomic propagator :math:`G(\tau)`, often referred to as the pseudo-particle approach, since it can be derived by introducing a pseudo particle for each many-body state in the impurity local Hilbert space.
 
 In the bold formulation :math:`G(\tau)` is self-consistently computed using the Dyson equation
 
