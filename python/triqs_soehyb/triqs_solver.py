@@ -32,6 +32,31 @@ from triqs_soehyb.solver import Solver, is_root
 
 class TriqsSolver:
 
+    r""" TRIQS Sum-Of-Exponentials bold HYBridization expansion impurity solver (triqs_soehyb)
+
+    Parameters
+    ----------
+
+    beta : double
+        inverse temperature
+
+    gf_struct : list of pairs [ (str,int), ...]
+        Structure of the Green's functions. It must be a
+        list of pairs, each containing the name of the
+        Green's function block as a string and the size of that block.
+        For example: ``[ ('up', 3), ('down', 3) ]``.
+
+    eps : double
+        Accuracy of the Discrete Lehmann Representation (DLR) imaginary time basis
+
+    w_max : double
+        Energy cut-off of the of the Discrete Lehmann Representation (DLR) imaginary time basis
+
+    verbose : bool, optional
+        Verbose printouts (default: `True`)
+
+    """
+
     def __init__(self, beta, gf_struct, eps, w_max, verbose=True):
 
         self.verbose = verbose
@@ -62,6 +87,38 @@ class TriqsSolver:
 
 
     def solve(self, h_int, order, **kwargs):
+
+        r""" Self-consistent solution of the pseudo-particle Green's function
+        and pseudo-particle self-energy.
+
+        Parameters
+        ----------
+
+        h_int : Triqs Operator
+            Local many-body Hamiltonian of the impurity problem
+
+        order : int
+            Expansion order of the bold hybridization expansion
+
+        tol : float, optional
+            Pseudo-particle self-consistency convergence tolerance (default: `1e-9`)
+
+        maxiter : int, optional
+            Maximal number of self-consistent iterations (default: `10`)
+
+        update_eta_exact : bool, optional
+            Pseudo-particle energy shift update strategy (default: `True`)
+
+        mix : float, optional
+            Linear mixing ratio in the range [0, 1] (default: `1.0`)
+
+        verbose : bool, optional
+            Verbose printouts (default: `True`)
+
+        G0_iaa : ndarray/None, optional
+            Initial guess for the pseudo-particle propagator (default: `None`)
+
+        """
         
         self.order = order
         self.h_int = h_int
