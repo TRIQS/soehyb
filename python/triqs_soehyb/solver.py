@@ -519,7 +519,13 @@ class Solver(object):
         return diff
 
 
-    def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True, mix=1.0, verbose=False, G0_iaa=None):
+    def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True, mix=1.0, verbose=True, G0_iaa=None):
+
+        if verbose == False:
+            verbose = 0
+            
+        if verbose == True:
+            verbose = 1
 
         if G0_iaa is not None:
             assert( type(G0_iaa) == np.ndarray )
@@ -531,7 +537,7 @@ class Solver(object):
         self.G0_iaa = self.fd.free_greens_ppsc(self.beta, self.H_mat)        
         self.G0_xaa = self.ito.vals2coefs(self.G0_iaa)
 
-        if is_root():
+        if is_root() and verbose > 0:
             print()
             print(" iter |   conv   |    Z-1    ")
             print("------+----------+-----------")
@@ -539,7 +545,7 @@ class Solver(object):
         for iter in range(1, maxiter+1):
             
             #Sigma_iaa = Sigma_calc_loop(self.fd, self.G_iaa, max_order, verbose=verbose)
-            Sigma_iaa = self.calc_Sigma(max_order, verbose=verbose)
+            Sigma_iaa = self.calc_Sigma(max_order, verbose=verbose > 1)
 
             if is_root() and verbose:
                 dyson_start_time = time.time()
@@ -547,7 +553,7 @@ class Solver(object):
             if update_eta_exact:
                 #self.eta = self.energyshift_newton(Sigma_iaa, tol=0.1*diff, verbose=verbose)
                 #self.eta = self.energyshift_bisection(Sigma_iaa, tol=tol, verbose=verbose)
-                self.eta = self.energyshift_newton(Sigma_iaa, tol=tol, verbose=verbose)
+                self.eta = self.energyshift_newton(Sigma_iaa, tol=tol, verbose=verbose > 1)
                 G_iaa_new = self.solve_dyson(Sigma_iaa, self.eta, tol, dmu=self.dmu)
                 
             else:
@@ -555,10 +561,10 @@ class Solver(object):
                 Z = self.partition_function(G_iaa_new)
                 deta = np.log(np.abs(Z)) / self.beta
                 G_iaa_new[:] *= np.exp(-self.tau_i * deta)[:, None, None]
-                if is_root(): print(f'deta = {deta}, eta = {self.eta}')
+                if is_root() and verbose > 1: print(f'deta = {deta}, eta = {self.eta}')
                 self.eta += deta
 
-            if is_root() and verbose:
+            if is_root() and verbose > 1:
                 dyson_end_time = time.time()
                 dyson_elapsed_time = dyson_end_time - dyson_start_time
                 print(f"PPSC: Dyson time {dyson_elapsed_time:2.2E}s.")
@@ -571,12 +577,12 @@ class Solver(object):
             #self.G_iaa = make_hermitian(self.G_iaa)
             self.Sigma_iaa = Sigma_iaa
 
-            if is_root():
+            if is_root() and verbose > 0:
                 #print(f"PPSC: Z-1 = {Z-1:+2.2E}")
                 print(f' {iter:4d} | {diff:2.2E} | {Z-1:+2.2E}')
             if diff < tol: break
 
-        if is_root() and verbose:
+        if is_root() and verbose > 0:
             print(); self.timer.write()
 
         return diff

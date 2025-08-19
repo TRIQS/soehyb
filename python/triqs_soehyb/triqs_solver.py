@@ -119,6 +119,11 @@ class TriqsSolver:
             Initial guess for the pseudo-particle propagator (default: `None`)
 
         """
+
+        if hasattr(kwargs, 'verbose'):
+            verbose = kwargs['verbose']
+        else:
+            verbose = False
         
         self.order = order
         self.h_int = h_int
@@ -127,19 +132,19 @@ class TriqsSolver:
         self.S.G_iaa = self.S.G0_iaa.copy() # Fixme: use S.__setup_initial_guess?
 
         self.delta_iaa = self.__from_blockgf_to_array(self.Delta_tau)
-        self.S.set_hybridization(self.delta_iaa, compress=True)
+        self.S.set_hybridization(self.delta_iaa, compress=True, verbose=verbose)
 
-        if is_root():
+        if is_root() and hasattr(kwargs, 'verbose') and kwargs['verbose']:
             order_n_diags = [ (o, self.S.fd.number_of_diagrams(o)) for o in range(1,order+1) ]
             print(f'(Order, N_Diags) = {order_n_diags}')
             print(f'max_order = {order}')
         
         self.S.solve(order, **kwargs)
 
-        self.g_iaa = self.S.calc_spgf(order, verbose=False)
+        self.g_iaa = self.S.calc_spgf(order, verbose=verbose > 1)
         self.G_tau = self.__from_array_to_blockgf(self.g_iaa)
 
-        if is_root():
+        if is_root() and hasattr(kwargs, 'verbose') and kwargs['verbose']:
             print(); self.S.timer.write()      
 
                 
