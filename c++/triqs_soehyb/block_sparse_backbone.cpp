@@ -4,13 +4,16 @@
 #include <cppdlr/utils.hpp>
 #include <iomanip>
 #include <iostream>
+#include <nda/algorithms.hpp>
 #include <nda/declarations.hpp>
+#include <nda/mapped_functions.hxx>
 #include <nda/nda.hpp>
 #include <triqs_soehyb/block_sparse.hpp>
 #include <triqs_soehyb/block_sparse_backbone.hpp>
 
 DiagramBlockSparseEvaluator::DiagramBlockSparseEvaluator(double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb,
-                                                         nda::array_const_view<dcomplex, 3> hyb_refl, BlockDiagOpFun &Gt, BlockOpSymQuartet &Fq)
+                                                         nda::array_const_view<dcomplex, 3> hyb_refl, nda::vector_const_view<double> hyb_poles,
+                                                         BlockDiagOpFun &Gt, BlockOpSymQuartet &Fq)
    : beta(beta),
      r(itops.rank()),
      n(hyb.extent(1)),
@@ -21,16 +24,16 @@ DiagramBlockSparseEvaluator::DiagramBlockSparseEvaluator(double beta, imtime_ops
      hyb_refl(hyb_refl),
      Gt(Gt),
      Fq(Fq),
+     hyb_poles(hyb_poles),
      Sigma(itops.rank(), Gt.get_block_sizes()) {
 
   dlr_it = itops.get_itnodes();
-  dlr_rf = itops.get_rfnodes();
 
   // allocate arrays
-  T      = nda::zeros<dcomplex>(r, Nmax, Nmax);
-  GKt    = nda::zeros<dcomplex>(r, Nmax, Nmax);
-  Tkaps  = nda::zeros<dcomplex>(n, r, Nmax, Nmax);
-  Tmu    = nda::zeros<dcomplex>(r, Nmax, Nmax);
+  T     = nda::zeros<dcomplex>(r, Nmax, Nmax);
+  GKt   = nda::zeros<dcomplex>(r, Nmax, Nmax);
+  Tkaps = nda::zeros<dcomplex>(n, r, Nmax, Nmax);
+  Tmu   = nda::zeros<dcomplex>(r, Nmax, Nmax);
 }
 
 void DiagramBlockSparseEvaluator::multiply_vertex_block(Backbone &backbone, int v_ix, nda::vector_const_view<int> ind_path,
@@ -72,7 +75,7 @@ void DiagramBlockSparseEvaluator::multiply_vertex_block(Backbone &backbone, int 
 
   // K factor
   int bv      = backbone.get_vertex_Ksign(v_ix); // sign on K
-  double pole = dlr_rf(l_ix);
+  double pole = hyb_poles(l_ix);
   if (bv != 0) {
     for (int t = 0; t < r; t++) {
       T(t, range(0, block_dims(v_ix + 1)), range(0, n_col_r)) = k_it(dlr_it(t), bv * pole) * T(t, range(0, block_dims(v_ix + 1)), range(0, n_col_r));
@@ -93,7 +96,7 @@ void DiagramBlockSparseEvaluator::compose_with_edge_block(Backbone &backbone, in
     if (be != 0) {
       for (int t = 0; t < r; t++) {
         GKt(t, range(0, block_dims(e_ix + 1)), range(0, block_dims(e_ix + 1))) =
-           k_it(dlr_it(t), be * dlr_rf(backbone.get_pole_ind(x))) * GKt(t, range(0, block_dims(e_ix + 1)), range(0, block_dims(e_ix + 1)));
+           k_it(dlr_it(t), be * hyb_poles(backbone.get_pole_ind(x))) * GKt(t, range(0, block_dims(e_ix + 1)), range(0, block_dims(e_ix + 1)));
       }
     }
   }
@@ -119,7 +122,8 @@ void DiagramBlockSparseEvaluator::multiply_zero_vertex_block(Backbone &backbone,
       for (int kap = 0; kap < Fq.sym_set_sizes(p_kap); kap++) {
         for (int t = 0; t < r; t++) {
           Tmu(t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0))) +=
-             hyb(t, Fq.sym_set_to_orb(p_mu, mu), Fq.sym_set_to_orb(p_kap, kap)) * Tkaps(kap, t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0)));
+             hyb(t, Fq.sym_set_to_orb(p_mu, mu), Fq.sym_set_to_orb(p_kap, kap))
+             * Tkaps(kap, t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0)));
         }
       }
       for (int t = 0; t < r; t++) {
@@ -140,22 +144,25 @@ void DiagramBlockSparseEvaluator::multiply_zero_vertex_block(Backbone &backbone,
       for (int kap = 0; kap < Fq.sym_set_sizes(p_kap); kap++) {
         for (int t = 0; t < r; t++) {
           Tmu(t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0))) +=
-             hyb_refl(t, Fq.sym_set_to_orb(p_mu, mu), Fq.sym_set_to_orb(p_kap, kap)) * Tkaps(kap, t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0)));
+             hyb_refl(t, Fq.sym_set_to_orb(p_mu, mu), Fq.sym_set_to_orb(p_kap, kap))
+             * Tkaps(kap, t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0)));
         }
+        if (backbone.get_flat_index() == 0) std::cout << "hyb_refl: " << hyb_refl(_, Fq.sym_set_to_orb(p_mu, mu), Fq.sym_set_to_orb(p_kap, kap)) << std::endl;
       }
       for (int t = 0; t < r; t++) {
         T(t, range(0, block_dims(backbone.get_topology(0, 1) + 1)), range(0, block_dims(0))) +=
            nda::matmul(Fq.Fs[p_mu].get_block(b_ix_mu)(mu, _, _), Tmu(t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0))));
       }
+      if (backbone.get_flat_index() == 0) std::cout << "in multiply_zero_vertex_block: T = " << T(10, _, _) << std::endl;
     }
   }
 }
 
 void DiagramBlockSparseEvaluator::reset() {
-  T      = 0;
-  GKt    = 0;
-  Tkaps  = 0;
-  Tmu    = 0;
+  T     = 0;
+  GKt   = 0;
+  Tkaps = 0;
+  Tmu   = 0;
   for (int i = 0; i < Sigma.get_num_block_cols(); i++) {
     Sigma.set_block(i, nda::zeros<dcomplex>(r, Sigma.get_block_size(i), Sigma.get_block_size(i)));
   }
@@ -174,9 +181,9 @@ void DiagramBlockSparseEvaluator::eval_diagram_block_sparse(Backbone &backbone) 
   // nda::array<int, 2> block_dims_forks(2 * m - backbone.get_topology(0, 1), q);
 
   // loop over all flat indices
-  int f_ix_max = static_cast<int>(backbone.fb_ix_max * backbone.o_ix_max * pow(dlr_rf.size(), m - 1));
+  int f_ix_max = static_cast<int>(backbone.fb_ix_max * backbone.o_ix_max * pow(hyb_poles.size(), m - 1));
   for (int f_ix = 0; f_ix < f_ix_max; f_ix++) {
-    backbone.set_flat_index(f_ix, dlr_rf);       // set directions, pole indices, and orbital indices from a single integer index
+    backbone.set_flat_index(f_ix, hyb_poles); // set directions, pole indices, and orbital indices from a single integer index
     /*  Example of block_dims for m = 2 (OCA): each number is an index of block_dims, and each square represents a block of a matrix 
             3            3            2            2            1            1            0
         --------     --------     --------     --------     --------     --------     --------
@@ -186,7 +193,7 @@ void DiagramBlockSparseEvaluator::eval_diagram_block_sparse(Backbone &backbone) 
     */
     // ind_path can diverge at the vertex connected to vertex 0
     for (int b_ix = 0; b_ix < Gt.get_num_block_cols(); b_ix++) { // loop over blocks of self-energy
-      for (int p_kap = 0; p_kap < q; p_kap++) { // loop over symmetry sets on the zero vertex
+      for (int p_kap = 0; p_kap < q; p_kap++) {                  // loop over symmetry sets on the zero vertex
         bool path_all_nonzero = true;
         int w = 0, ip = 0; // w loops over the vertices and edges, ip is the current block index
 
@@ -231,7 +238,7 @@ void DiagramBlockSparseEvaluator::eval_diagram_block_sparse(Backbone &backbone) 
         if (path_all_nonzero) {
           for (int p_mu = 0; p_mu < q; p_mu++) {
             bool fork_all_nonzero = true;
-            w = backbone.get_topology(0, 1); // reset w to the vertex connected to vertex 0
+            w                     = backbone.get_topology(0, 1); // reset w to the vertex connected to vertex 0
             // save block_dims(backbone.get_topology(0, 1) + 1)
             block_dims(w + 1) = (backbone.has_vertex_dag(w)) ? Fq.F_dags[p_mu].get_block_size(ip1, 0) : Fq.Fs[p_mu].get_block_size(ip1, 0);
             ip                = (backbone.has_vertex_dag(w)) ? Fq.F_dags[p_mu].get_block_index(ip1) :
@@ -273,29 +280,44 @@ void DiagramBlockSparseEvaluator::eval_backbone_fixed_indices_block_sparse(Backb
 
   int m = backbone.m;
 
+  // std::cout << "flat index = " << backbone.get_flat_index() << ", ind_path: " << ind_path << ", block_dims: " << block_dims << std::endl;
   T(_, range(0, block_dims(1)), range(0, block_dims(1))) = Gt.get_block(ind_path(0));
+  if (backbone.get_flat_index() == 0) std::cout << T(10, _, _) << std::endl;
   for (int v = 1; v < backbone.get_topology(0, 1); v++) {
     multiply_vertex_block(backbone, v, ind_path, block_dims);
     compose_with_edge_block(backbone, v, ind_path, block_dims);
   }
+  if (backbone.get_flat_index() == 0) std::cout << T(10, _, _) << std::endl;
 
   multiply_zero_vertex_block(backbone, (not backbone.has_vertex_dag(0)), b_ix, p_kap, p_mu, ind_path, block_dims);
+  if (backbone.get_flat_index() == 0) std::cout << T(10, _, _) << std::endl;
 
   for (int v = backbone.get_topology(0, 1) + 1; v < 2 * m; v++) {
     compose_with_edge_block(backbone, v - 1, ind_path, block_dims);
     multiply_vertex_block(backbone, v, ind_path, block_dims);
   }
+  if (backbone.get_flat_index() == 0) std::cout << T(10, _, _) << std::endl;
 
-  for (int p = 0; p < m - 1; p++) {
-    int exp = backbone.get_prefactor_Kexp(p);
+  for (int m_ix = 0; m_ix < m - 1; m_ix++) {
+    int exp = backbone.get_prefactor_Kexp(m_ix);
     if (exp != 0) {
-      int Ksign = backbone.get_prefactor_Ksign(p);
-      double om = dlr_rf(backbone.get_pole_ind(p));
+      int Ksign = backbone.get_prefactor_Ksign(m_ix);
+      double om = hyb_poles(backbone.get_pole_ind(m_ix));
       double k  = k_it(0, Ksign * om);
       for (int x = 0; x < exp; x++) T(_, range(0, block_dims(2 * m)), range(0, block_dims(0))) /= k;
     }
   }
   int diag_order_sign = (m % 2 == 0) ? -1 : 1;
+  if (backbone.get_fb(0) == 0) diag_order_sign *= -1;
   T(_, range(0, block_dims(2 * m)), range(0, block_dims(0))) *= diag_order_sign * backbone.prefactor_sign;
-  Sigma.add_block(b_ix, T(_, range(0, block_dims(2 * m)), range(0, block_dims(0))));
+  std::cout << "b_ix = " << b_ix << ", " << block_dims << std::endl;
+  if ((b_ix == 3 || b_ix == 5) && backbone.get_flat_index() == 0) {
+    std::cout << "Sigma block before: " << Sigma.get_block(b_ix)(10, _, _) << std::endl;
+    std::cout << "T: " << T(10, range(0, block_dims(2 * m)), range(0, block_dims(0))) << std::endl;
+  }
+  // TODO: temporary fix: have backward pass consider sparsity of hybridization function (hyb, hyb_refl) during zero vertex
+  if (nda::max_element(nda::abs(T(_, range(0, block_dims(2 * m)), range(0, block_dims(0))))) > 1e-16) Sigma.add_block(b_ix, T(_, range(0, block_dims(2 * m)), range(0, block_dims(0))));
+  if ((b_ix == 3 || b_ix == 5) && backbone.get_flat_index() == 0) {
+    std::cout << "Sigma block after: " << Sigma.get_block(b_ix)(10, _, _) << std::endl;
+  }
 }

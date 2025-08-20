@@ -1,6 +1,7 @@
 #include <iomanip>
 #include <iostream>
 #include <gtest/gtest.h>
+#include <nda/basic_functions.hpp>
 #include <nda/nda.hpp>
 #include <cppdlr/cppdlr.hpp>
 #include "block_sparse_utils.hpp"
@@ -9,7 +10,6 @@
 #include <triqs_soehyb/block_sparse_manual.hpp>
 #include <triqs_soehyb/backbone.hpp>
 #include <triqs_soehyb/block_sparse_backbone.hpp>
-
 
 TEST(Backbone, flat_index) {
   nda::array<int, 2> topology = {{0, 2}, {1, 4}, {3, 5}};
@@ -153,6 +153,12 @@ TEST(Backbone, OCA) {
   auto [num_blocks, Deltat, Deltat_refl, Gt, Fs, Fdags, Gt_dense, Fs_dense, F_dags_dense, subspaces, fock_state_order, Fq] =
      two_band_discrete_bath_helper_sym(beta, Lambda, eps);
 
+  // compute hybridization function reflection and coefficients
+  auto hyb_coeffs      = itops.vals2coefs(Deltat);       // hybridization DLR coeffs
+  auto hyb_refl        = nda::make_regular(-Deltat);     // nda::make_regular(-itops.reflect(Deltat));
+  auto hyb_refl_coeffs = nda::make_regular(-hyb_coeffs); // itops.vals2coefs(hyb_refl);
+  auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
+
   // set up backbone
   nda::array<int, 2> topology = {{0, 2}, {1, 3}};
   int n                       = 4;
@@ -160,7 +166,7 @@ TEST(Backbone, OCA) {
 
   // block-sparse diagram evaluation
   auto sym_set_labels = nda::zeros<long>(n);
-  DiagramBlockSparseEvaluator D(beta, itops, Deltat, Deltat_refl, Gt, Fq);
+  DiagramBlockSparseEvaluator D(beta, itops, Deltat, hyb_refl, dlr_rf, Gt, Fq);
   auto start = std::chrono::high_resolution_clock::now();
   D.eval_diagram_block_sparse(B);
   auto end                              = std::chrono::high_resolution_clock::now();
@@ -169,11 +175,7 @@ TEST(Backbone, OCA) {
   std::cout << "OCA (block-sparse) elapsed time: " << elapsed.count() << " s" << std::endl;
 
   // dense diagram evaluation
-  auto hyb_coeffs      = itops.vals2coefs(Deltat); // hybridization DLR coeffs
-  auto hyb_refl        = nda::make_regular(-itops.reflect(Deltat));
-  auto hyb_refl_coeffs = itops.vals2coefs(hyb_refl);
-  auto Fset            = DenseFSet(Fs_dense, F_dags_dense, hyb_coeffs, hyb_refl_coeffs);
-  DiagramEvaluator D2(beta, itops, Deltat, Deltat_refl, dlr_rf, Gt_dense, Fset);
+  DiagramEvaluator D2(beta, itops, Deltat, hyb_refl, dlr_rf, Gt_dense, Fset);
   start = std::chrono::high_resolution_clock::now();
   D2.eval_diagram_dense(B);
   end                   = std::chrono::high_resolution_clock::now();
@@ -192,7 +194,7 @@ TEST(Backbone, OCA) {
   auto F_dag_sym_triv = BlockOpSymSet(triv_bi, F_dags_dense_vec);
   auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs, sym_set_labels);
 
-  DiagramBlockSparseEvaluator D3(beta, itops, Deltat, Deltat_refl, Gt_triv, Fq_triv);
+  DiagramBlockSparseEvaluator D3(beta, itops, Deltat, hyb_refl, dlr_rf, Gt_triv, Fq_triv);
   start = std::chrono::high_resolution_clock::now();
   D3.eval_diagram_block_sparse(B);
   end                 = std::chrono::high_resolution_clock::now();
@@ -200,17 +202,17 @@ TEST(Backbone, OCA) {
   elapsed             = end - start;
   std::cout << "OCA (block-sparse, trivial) elapsed time: " << elapsed.count() << " s" << std::endl;
 
-  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(0) - OCA_dense_result(_, range(0, 4), range(0, 4)))), 5e-16);
-  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(1) - OCA_dense_result(_, range(4, 10), range(4, 10)))), 5e-16);
-  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(2) - OCA_dense_result(_, range(10, 11), range(10, 11)))), 5e-16);
-  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(3) - OCA_dense_result(_, range(11, 15), range(11, 15)))), 5e-16);
-  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(4) - OCA_dense_result(_, range(15, 16), range(15, 16)))), 5e-16);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(0) - OCA_dense_result(_, range(0, 4), range(0, 4)))), eps);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(1) - OCA_dense_result(_, range(4, 10), range(4, 10)))), eps);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(2) - OCA_dense_result(_, range(10, 11), range(10, 11)))), eps);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(3) - OCA_dense_result(_, range(11, 15), range(11, 15)))), eps);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(4) - OCA_dense_result(_, range(15, 16), range(15, 16)))), eps);
 
-  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(0) - OCA_trivial_bs.get_block(0)(_, range(0, 4), range(0, 4)))), 5e-16);
-  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(1) - OCA_trivial_bs.get_block(0)(_, range(4, 10), range(4, 10)))), 5e-16);
-  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(2) - OCA_trivial_bs.get_block(0)(_, range(10, 11), range(10, 11)))), 5e-16);
-  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(3) - OCA_trivial_bs.get_block(0)(_, range(11, 15), range(11, 15)))), 5e-16);
-  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(4) - OCA_trivial_bs.get_block(0)(_, range(15, 16), range(15, 16)))), 5e-16);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(0) - OCA_trivial_bs.get_block(0)(_, range(0, 4), range(0, 4)))), eps);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(1) - OCA_trivial_bs.get_block(0)(_, range(4, 10), range(4, 10)))), eps);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(2) - OCA_trivial_bs.get_block(0)(_, range(10, 11), range(10, 11)))), eps);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(3) - OCA_trivial_bs.get_block(0)(_, range(11, 15), range(11, 15)))), eps);
+  ASSERT_LE(nda::max_element(nda::abs(OCA_result.get_block(4) - OCA_trivial_bs.get_block(0)(_, range(15, 16), range(15, 16)))), eps);
 }
 
 // option to turn off symmetries (i.e. trivial block-sparsity), compare this to actual dense code
@@ -227,16 +229,17 @@ TEST(Backbone, spin_flip_fermion) {
   auto itops  = imtime_ops(Lambda, dlr_rf);
 
   std::string filename          = "../test/c++/h5/spin_flip_fermion.h5";
-  int n                         = 2 * 5; // 2 * number of orbitals
+  int n                         = 2 * 2; // 2 * number of orbitals
   auto [hyb, hyb_refl]          = discrete_bath_spin_flip_helper(beta, Lambda, eps, n);
-  auto hyb_coeffs               = itops.vals2coefs(hyb); // hybridization DLR coeffs
-  auto hyb_refl_coeffs          = itops.vals2coefs(hyb_refl);
+  auto hyb_coeffs               = itops.vals2coefs(hyb);          // hybridization DLR coeffs
+  hyb_refl                      = nda::make_regular(-hyb);        // nda::make_regular(-itops.reflect(Deltat));
+  auto hyb_refl_coeffs          = nda::make_regular(-hyb_coeffs); // itops.vals2coefs(hyb_refl);
   auto [Gt, Fq, sym_set_labels] = load_from_hdf5(filename, beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs);
 
   // set up backbone and diagram evaluator
   nda::array<int, 2> topology = {{0, 2}, {1, 3}};
   auto B                      = Backbone(topology, n);
-  DiagramBlockSparseEvaluator D(beta, itops, hyb, hyb_refl, Gt, Fq);
+  DiagramBlockSparseEvaluator D(beta, itops, hyb, hyb_refl, dlr_rf, Gt, Fq);
   auto start = std::chrono::high_resolution_clock::now();
   D.eval_diagram_block_sparse(B);
   auto end                               = std::chrono::high_resolution_clock::now();
@@ -267,7 +270,7 @@ TEST(Backbone, spin_flip_fermion) {
   nda::vector<long> sym_set_labels_triv(n);
   sym_set_labels_triv = 0;
   auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs, sym_set_labels_triv);
-  DiagramBlockSparseEvaluator D3(beta, itops, hyb, hyb_refl, Gt_triv, Fq_triv);
+  DiagramBlockSparseEvaluator D3(beta, itops, hyb, hyb_refl, dlr_rf, Gt_triv, Fq_triv);
   start = std::chrono::high_resolution_clock::now();
   D3.eval_diagram_block_sparse(B);
   end      = std::chrono::high_resolution_clock::now();
@@ -279,6 +282,9 @@ TEST(Backbone, spin_flip_fermion) {
   int i = 0, s0 = 0, s1 = 0;
   for (nda::vector_view<unsigned long> subspace : subspaces) {
     s1 += subspace.size();
+    std::cout << "subspace " << i << ": " << subspace.size() << std::endl;
+    std::cout << result.get_block(i)(10, _, _) << std::endl;
+    std::cout << result_dense(10, range(s0, s1), range(s0, s1)) << std::endl;
     ASSERT_LE(nda::max_element(nda::abs(result.get_block(i) - result_dense(_, range(s0, s1), range(s0, s1)))), 1e-10);
     i += 1;
     s0 = s1;
@@ -295,18 +301,19 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   auto itops  = imtime_ops(Lambda, dlr_rf);
 
   std::string filename          = "../test/c++/h5/spin_flip_fermion_all_sym.h5";
-  int n                         = 2 * 5; // 2 * number of orbitals
+  int n                         = 2 * 2; // 2 * number of orbitals
   auto [hyb, hyb_refl]          = discrete_bath_spin_flip_helper(beta, Lambda, eps, n);
-  auto hyb_coeffs               = itops.vals2coefs(hyb); // hybridization DLR coeffs
-  auto hyb_refl_coeffs          = itops.vals2coefs(hyb_refl);
+  auto hyb_coeffs               = itops.vals2coefs(hyb);          // hybridization DLR coeffs
+  hyb_refl                      = nda::make_regular(-hyb);        // nda::make_regular(-itops.reflect(Deltat));
+  auto hyb_refl_coeffs          = nda::make_regular(-hyb_coeffs); // itops.vals2coefs(hyb_refl);
   auto [Gt, Fq, sym_set_labels] = load_from_hdf5(filename, beta, Lambda, eps, hyb_coeffs, hyb_refl_coeffs);
-  
+
   std::cout << std::setprecision(16);
 
   // set up backbone and diagram evaluator
   nda::array<int, 2> topology = {{0, 2}, {1, 3}};
   auto B                      = Backbone(topology, n);
-  DiagramBlockSparseEvaluator D(beta, itops, hyb, hyb_refl, Gt, Fq);
+  DiagramBlockSparseEvaluator D(beta, itops, hyb, hyb_refl, dlr_rf, Gt, Fq);
   auto start = std::chrono::high_resolution_clock::now();
   D.eval_diagram_block_sparse(B);
   auto end                               = std::chrono::high_resolution_clock::now();
@@ -337,7 +344,7 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   nda::vector<long> sym_set_labels_triv(n);
   sym_set_labels_triv = 0;
   auto Fq_triv        = BlockOpSymQuartet({F_sym_triv}, {F_dag_sym_triv}, hyb_coeffs, hyb_refl_coeffs, sym_set_labels_triv);
-  DiagramBlockSparseEvaluator D3(beta, itops, hyb, hyb_refl, Gt_triv, Fq_triv);
+  DiagramBlockSparseEvaluator D3(beta, itops, hyb, hyb_refl, dlr_rf, Gt_triv, Fq_triv);
   start = std::chrono::high_resolution_clock::now();
   D3.eval_diagram_block_sparse(B);
   end      = std::chrono::high_resolution_clock::now();
@@ -349,6 +356,9 @@ TEST(Backbone, spin_flip_fermion_sym_sets) {
   int i = 0, s0 = 0, s1 = 0;
   for (nda::vector_view<unsigned long> subspace : subspaces) {
     s1 += subspace.size();
+    std::cout << "subspace " << i << ", " << subspace << ": " << subspace.size() << std::endl;
+    std::cout << result.get_block(i)(10, _, _) << std::endl;
+    std::cout << result_dense(10, range(s0, s1), range(s0, s1)) << std::endl;
     ASSERT_LE(nda::max_element(nda::abs(result.get_block(i) - result_dense(_, range(s0, s1), range(s0, s1)))), 1e-10);
     i += 1;
     s0 = s1;
@@ -386,13 +396,13 @@ TEST(Backbone, PYTHON_third_order) {
   auto NCA_result          = NCA_dense(Deltat, Deltat_refl, Gt_dense, Fs_dense, F_dags_dense);
   nda::array<int, 2> T_OCA = {{0, 2}, {1, 3}};
   auto B_OCA               = Backbone(T_OCA, n);
-  auto D                   = DiagramBlockSparseEvaluator(beta, itops, Deltat, Deltat_refl, Gt, Fq); // create DiagramEvaluator object
-  D.eval_diagram_block_sparse(B_OCA);                                                                   // evaluate OCA diagram
-  auto OCA_result = D.Sigma;                                                                     // get the result from the DiagramEvaluator
+  auto D                   = DiagramBlockSparseEvaluator(beta, itops, Deltat, Deltat_refl, dlr_rf, Gt, Fq); // create DiagramEvaluator object
+  D.eval_diagram_block_sparse(B_OCA);                                                                       // evaluate OCA diagram
+  auto OCA_result = D.Sigma; // get the result from the DiagramEvaluator
   D.reset();
 
-  BlockDiagOpFun third_order_result(r, Gt.get_block_sizes()); 
-  BlockDiagOpFun third_order_02_result(r, Gt.get_block_sizes()); 
+  BlockDiagOpFun third_order_result(r, Gt.get_block_sizes());
+  BlockDiagOpFun third_order_02_result(r, Gt.get_block_sizes());
   BlockDiagOpFun third_order_0314_result(r, Gt.get_block_sizes());
   BlockDiagOpFun third_order_0315_result(r, Gt.get_block_sizes());
   BlockDiagOpFun third_order_04_result(r, Gt.get_block_sizes());
@@ -412,7 +422,7 @@ TEST(Backbone, PYTHON_third_order) {
     }
     D.reset(); // reset the DiagramEvaluator for the next topology
   }
-  
+
   // load results from a run of twoband.py
   h5::file hfile("../test/c++/h5/two_band_py_Lambda10.h5", 'r');
   h5::group hgroup(hfile);

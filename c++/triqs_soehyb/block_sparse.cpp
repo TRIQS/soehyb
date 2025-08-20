@@ -319,11 +319,11 @@ DenseFSet::DenseFSet(nda::array_const_view<dcomplex, 3> Fs, nda::array_const_vie
 
   int n       = Fs.extent(0);
   int N       = Fs.extent(1);
-  int r       = hyb_coeffs.extent(0);
-  F_dag_bars  = nda::array<dcomplex, 4>(n, r, N, N);
-  F_bars_refl = nda::array<dcomplex, 4>(n, r, N, N);
+  int p       = hyb_coeffs.extent(0);
+  F_dag_bars  = nda::array<dcomplex, 4>(n, p, N, N);
+  F_bars_refl = nda::array<dcomplex, 4>(n, p, N, N);
   for (int lam = 0; lam < n; lam++) {
-    for (int l = 0; l < r; l++) {
+    for (int l = 0; l < p; l++) {
       for (int nu = 0; nu < n; nu++) {
         F_dag_bars(lam, l, _, _) += hyb_coeffs(l, nu, lam) * F_dags(nu, _, _);
         F_bars_refl(nu, l, _, _) += hyb_refl_coeffs(l, nu, lam) * Fs(lam, _, _);
@@ -427,11 +427,11 @@ BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<
   if (k != F_dags.size()) { throw std::invalid_argument("Fs and F_dags must have the same number of entries"); }
 
   // initialize F_dag_bars and F_bars_refl
-  int r = hyb_coeffs.extent(0);
+  int p = hyb_coeffs.extent(0);
   std::vector<BlockOpSymSetBar> F_dag_bars, F_bars_refl;
   for (int i = 0; i < k; i++) {
-    F_dag_bars.emplace_back(F_dags[i].get_size_sym_set(), r, F_dags[i].get_block_indices(), F_dags[i].get_block_sizes());
-    F_bars_refl.emplace_back(Fs[i].get_size_sym_set(), r, Fs[i].get_block_indices(), Fs[i].get_block_sizes());
+    F_dag_bars.emplace_back(F_dags[i].get_size_sym_set(), p, F_dags[i].get_block_indices(), F_dags[i].get_block_sizes());
+    F_bars_refl.emplace_back(Fs[i].get_size_sym_set(), p, Fs[i].get_block_indices(), Fs[i].get_block_sizes());
   }
 
   // calculate symmetry set indices
@@ -448,7 +448,7 @@ BlockOpSymQuartet::BlockOpSymQuartet(std::vector<BlockOpSymSet> Fs, std::vector<
   }
 
   // compute F_dag_bars and F_bars_refl
-  for (int l = 0; l < r; l++) {
+  for (int l = 0; l < p; l++) {
     for (int p_lam = 0; p_lam < q; p_lam++) {
       for (int p_nu = 0; p_nu < q; p_nu++) {
         for (int lam = 0; lam < sym_set_sizes(p_lam); lam++) {

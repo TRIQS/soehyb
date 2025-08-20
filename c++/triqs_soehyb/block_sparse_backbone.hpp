@@ -17,23 +17,23 @@ using namespace nda;
  */
 class DiagramBlockSparseEvaluator {
   public:
-  double beta;                        // inverse temperature
-  int r;                              // rank of the DLR imaginary time object
-  int n;                              // number of orbitals
-  int q;                              // number of symmetry sets
-  int Nmax;                           // maximum block size in the Green's function
-  imtime_ops itops;                   // DLR imaginary time object
-  nda::array<dcomplex, 3> hyb;        // hybridization function at imaginary time nodes
-  nda::array<dcomplex, 3> hyb_refl;   // hybridization function at (beta - tau) nodes
-  BlockDiagOpFun Gt;                  // Green's function at imaginary time nodes
-  BlockOpSymQuartet Fq;               // BlockOpSymQuartet (cre/ann operators with and without bars)
-  nda::vector<double> dlr_it;         // DLR imaginary time nodes in relative ordering
-  nda::vector<double> dlr_rf;         // DLR frequency nodes
-  BlockDiagOpFun Sigma;               // array for storing self-energy contribution (final result)
-  nda::array<dcomplex, 3> T;          // array for storing intermediate result
-  nda::array<dcomplex, 3> GKt;        // array for storing result of edge computation
-  nda::array<dcomplex, 4> Tkaps;      // intermediate storage array
-  nda::array<dcomplex, 3> Tmu;        // intermediate storage array
+  double beta;                      // inverse temperature
+  int r;                            // rank of the DLR imaginary time object
+  int n;                            // number of orbitals
+  int q;                            // number of symmetry sets
+  int Nmax;                         // maximum block size in the Green's function
+  imtime_ops itops;                 // DLR imaginary time object
+  nda::array<dcomplex, 3> hyb;      // hybridization function at imaginary time nodes
+  nda::array<dcomplex, 3> hyb_refl; // hybridization function at (beta - tau) nodes
+  BlockDiagOpFun Gt;                // Green's function at imaginary time nodes
+  BlockOpSymQuartet Fq;             // BlockOpSymQuartet (cre/ann operators with and without bars)
+  nda::vector<double> dlr_it;       // DLR imaginary time nodes in relative ordering
+  nda::vector<double> hyb_poles;    // hybridization poles
+  BlockDiagOpFun Sigma;             // array for storing self-energy contribution (final result)
+  nda::array<dcomplex, 3> T;        // array for storing intermediate result
+  nda::array<dcomplex, 3> GKt;      // array for storing result of edge computation
+  nda::array<dcomplex, 4> Tkaps;    // intermediate storage array
+  nda::array<dcomplex, 3> Tmu;      // intermediate storage array
 
   void multiply_vertex_block(
      Backbone &backbone, int v_ix, nda::vector_const_view<int> ind_path,
@@ -60,5 +60,5 @@ class DiagramBlockSparseEvaluator {
    * @param[in] Fset BlockOpSymQuartet (cre/ann operators with and without bars)
    */
   DiagramBlockSparseEvaluator(double beta, imtime_ops &itops, nda::array_const_view<dcomplex, 3> hyb, nda::array_const_view<dcomplex, 3> hyb_refl,
-                              BlockDiagOpFun &Gt, BlockOpSymQuartet &Fq);
+                              nda::vector_const_view<double> hyb_poles, BlockDiagOpFun &Gt, BlockOpSymQuartet &Fq);
 };
