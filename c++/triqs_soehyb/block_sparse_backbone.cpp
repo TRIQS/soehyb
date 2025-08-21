@@ -147,13 +147,11 @@ void DiagramBlockSparseEvaluator::multiply_zero_vertex_block(Backbone &backbone,
              hyb_refl(t, Fq.sym_set_to_orb(p_mu, mu), Fq.sym_set_to_orb(p_kap, kap))
              * Tkaps(kap, t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0)));
         }
-        if (backbone.get_flat_index() == 0) std::cout << "hyb_refl: " << hyb_refl(_, Fq.sym_set_to_orb(p_mu, mu), Fq.sym_set_to_orb(p_kap, kap)) << std::endl;
       }
       for (int t = 0; t < r; t++) {
         T(t, range(0, block_dims(backbone.get_topology(0, 1) + 1)), range(0, block_dims(0))) +=
            nda::matmul(Fq.Fs[p_mu].get_block(b_ix_mu)(mu, _, _), Tmu(t, range(0, block_dims(backbone.get_topology(0, 1))), range(0, block_dims(0))));
       }
-      if (backbone.get_flat_index() == 0) std::cout << "in multiply_zero_vertex_block: T = " << T(10, _, _) << std::endl;
     }
   }
 }
@@ -280,23 +278,18 @@ void DiagramBlockSparseEvaluator::eval_backbone_fixed_indices_block_sparse(Backb
 
   int m = backbone.m;
 
-  // std::cout << "flat index = " << backbone.get_flat_index() << ", ind_path: " << ind_path << ", block_dims: " << block_dims << std::endl;
   T(_, range(0, block_dims(1)), range(0, block_dims(1))) = Gt.get_block(ind_path(0));
-  if (backbone.get_flat_index() == 0) std::cout << T(10, _, _) << std::endl;
   for (int v = 1; v < backbone.get_topology(0, 1); v++) {
     multiply_vertex_block(backbone, v, ind_path, block_dims);
     compose_with_edge_block(backbone, v, ind_path, block_dims);
   }
-  if (backbone.get_flat_index() == 0) std::cout << T(10, _, _) << std::endl;
 
   multiply_zero_vertex_block(backbone, (not backbone.has_vertex_dag(0)), b_ix, p_kap, p_mu, ind_path, block_dims);
-  if (backbone.get_flat_index() == 0) std::cout << T(10, _, _) << std::endl;
 
   for (int v = backbone.get_topology(0, 1) + 1; v < 2 * m; v++) {
     compose_with_edge_block(backbone, v - 1, ind_path, block_dims);
     multiply_vertex_block(backbone, v, ind_path, block_dims);
   }
-  if (backbone.get_flat_index() == 0) std::cout << T(10, _, _) << std::endl;
 
   for (int m_ix = 0; m_ix < m - 1; m_ix++) {
     int exp = backbone.get_prefactor_Kexp(m_ix);
@@ -310,14 +303,6 @@ void DiagramBlockSparseEvaluator::eval_backbone_fixed_indices_block_sparse(Backb
   int diag_order_sign = (m % 2 == 0) ? -1 : 1;
   if (backbone.get_fb(0) == 0) diag_order_sign *= -1;
   T(_, range(0, block_dims(2 * m)), range(0, block_dims(0))) *= diag_order_sign * backbone.prefactor_sign;
-  std::cout << "b_ix = " << b_ix << ", " << block_dims << std::endl;
-  if ((b_ix == 3 || b_ix == 5) && backbone.get_flat_index() == 0) {
-    std::cout << "Sigma block before: " << Sigma.get_block(b_ix)(10, _, _) << std::endl;
-    std::cout << "T: " << T(10, range(0, block_dims(2 * m)), range(0, block_dims(0))) << std::endl;
-  }
   // TODO: temporary fix: have backward pass consider sparsity of hybridization function (hyb, hyb_refl) during zero vertex
   if (nda::max_element(nda::abs(T(_, range(0, block_dims(2 * m)), range(0, block_dims(0))))) > 1e-16) Sigma.add_block(b_ix, T(_, range(0, block_dims(2 * m)), range(0, block_dims(0))));
-  if ((b_ix == 3 || b_ix == 5) && backbone.get_flat_index() == 0) {
-    std::cout << "Sigma block after: " << Sigma.get_block(b_ix)(10, _, _) << std::endl;
-  }
 }

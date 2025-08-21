@@ -4,14 +4,41 @@ from triqs.atom_diag import AtomDiag
 from h5 import HDFArchive
 import atom_diag_utils as utils
 
+from triqs.operators.util.U_matrix import U_matrix_kanamori
+from triqs.operators.util.hamiltonians import h_int_kanamori
+from itertools import product
+
+def construct_impurity_Hamiltonian(norbI, U, J, mu):
+
+    spin_names = ('up','do')
+    orb_names = list(range(norbI))
+    
+    fundamental_operators = [ c(sn,on) for sn,on in product(spin_names, orb_names)]
+    
+    KanMat1, KanMat2 = U_matrix_kanamori(norbI, U, J)
+    H = h_int_kanamori(spin_names, norbI, KanMat1, KanMat2, J, off_diag = True)
+
+    N_up = n('up',0) + n('up',1)
+    N_do = n('do',0) + n('do',1)
+    H -= mu *(N_up + N_do)
+    return H,  fundamental_operators
+
 if __name__ == "__main__":
-    # parameters to tune 
+    h5_fname = "two_band_ad_semic.h5"
+
     norb = 2
-    all_sym = True  # True for all symmetries, False for just particle number symmetry
-    if all_sym:
-        h5_fname = "spin_flip_fermion_all_sym.h5"
-    else:
-        h5_fname = "spin_flip_fermion.h5"
+    U = 2.0
+    J = 0.2
+    dmu = -1.5
+    mu = (3 * U - 5 * J) / 2 + dmu
+
+    H, _ = construct_impurity_Hamiltonian(norb, U, J, mu)
+
+    fops = []
+    for i in range(0, norb):
+        fops += [ ('do', i) ]
+    for i in range(0, norb):
+        fops += [ ('up', i)]
 
     N = 0
     for kap in range(norb):
@@ -20,25 +47,7 @@ if __name__ == "__main__":
 
     sym_ops = [N]
 
-    # fixed parameters
-    beta = 2.0
-    mu = 0.25
-    U = 1.0
-    V = 0.1
-
-    # construct Hamiltonian, fundamental operator set, AtomDiag object
-    H = 0
-    fops = []
-    for i in range(0, norb):
-        H += U * n('up', i) * n('do', i) + mu * ( n('up', i) + n('do', i) ) + \
-            V * ( c_dag('up', i) * c('do', i) + c_dag('do', i) * c('up', i) )
-        fops += [ ('do', i) ]
-    for i in range(0, norb):
-        fops += [ ('up', i)]
-    if all_sym:
-        ad = AtomDiag(H, fops)
-    else:
-        ad = AtomDiag(H, fops, sym_ops)
+    ad = AtomDiag(H, fops, sym_ops)
 
     # look at c_connection and cdag_connection of ad
     # find groups that are the same
