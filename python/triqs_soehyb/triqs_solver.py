@@ -86,7 +86,7 @@ class TriqsSolver:
         np.testing.assert_array_almost_equal(self.tmesh.values(), self.S.tau_i)
 
 
-    def solve(self, h_int, order, **kwargs):
+    def solve(self, h_int, order, compress_hybridization=True, **kwargs):
 
         r""" Self-consistent solution of the pseudo-particle Green's function
         and pseudo-particle self-energy.
@@ -99,6 +99,10 @@ class TriqsSolver:
 
         order : int
             Expansion order of the bold hybridization expansion
+
+        compress_hybridization : bool, optional
+            Use AAA compression of the hybridization function (default: `True`)
+            (If `False` the DLR basis is used to represent the hybridization function.)
 
         tol : float, optional
             Pseudo-particle self-consistency convergence tolerance (default: `1e-9`)
@@ -123,7 +127,8 @@ class TriqsSolver:
         if hasattr(kwargs, 'verbose'):
             verbose = kwargs['verbose']
         else:
-            verbose = False
+            verbose = True
+            kwargs['verbose'] = verbose
         
         self.order = order
         self.h_int = h_int
@@ -132,7 +137,7 @@ class TriqsSolver:
         self.S.G_iaa = self.S.G0_iaa.copy() # Fixme: use S.__setup_initial_guess?
 
         self.delta_iaa = self.__from_blockgf_to_array(self.Delta_tau)
-        self.S.set_hybridization(self.delta_iaa, compress=True, verbose=verbose)
+        self.S.set_hybridization(self.delta_iaa, compress=compress_hybridization, verbose=verbose)
 
         if is_root() and hasattr(kwargs, 'verbose') and kwargs['verbose']:
             order_n_diags = [ (o, self.S.fd.number_of_diagrams(o)) for o in range(1,order+1) ]

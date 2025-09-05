@@ -267,9 +267,13 @@ class Solver(object):
             eps_svd = 0.0
         else:
             eps_svd = fittingeps/delta_iaa.shape[1]
+
         if compress == False:        
             self.fd.hyb_init(delta_iaa, poledlrflag=True)
             self.fd.hyb_decomposition(poledlrflag=True, eps=eps_svd)
+
+            if is_root() and verbose:
+                print(f"AdaPol: Hybridization using all {self.ito.rank()} DLR poles.")
             
         else:
             # decomposition and reflection of Delta(t) using aaa poles
@@ -519,7 +523,9 @@ class Solver(object):
         return diff
 
 
-    def solve(self, max_order, tol=1e-9, maxiter=10, update_eta_exact=True, mix=1.0, verbose=True, G0_iaa=None):
+    def solve(self, max_order, tol=1e-9, maxiter=100, update_eta_exact=True, mix=1.0, verbose=True, G0_iaa=None):
+
+        self.timer = Timer() # Reset timer for each solve call
 
         if verbose == False:
             verbose = 0
