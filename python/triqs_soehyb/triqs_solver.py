@@ -129,7 +129,28 @@ class TriqsSolver:
         else:
             verbose = True
             kwargs['verbose'] = verbose
-        
+
+        if is_root() and verbose:
+
+            print(f'max_order = {order}')
+
+            def n_hybcomb(order):
+                """ Number of hybridization function combinations at a given expansion order. """
+                return self.S.fd.number_of_diagrams(order)
+
+            def n_topologies(order):
+                """ Number of diagram topologies for a given expansion order, """
+                from .diag import all_connected_pairings
+                num = 0
+                for sign, diag in all_connected_pairings(order):
+                    num += 1
+                return num
+
+            # -- Display number of topologies and hybridization combinations per order
+
+            order_n_diags = [ (o, n_topologies(o), n_hybcomb(o)) for o in range(1,order+1) ]
+            print(f'(Order, N_Topo, N_HybComb) = {order_n_diags}')
+
         self.order = order
         self.h_int = h_int
         
@@ -138,11 +159,6 @@ class TriqsSolver:
 
         self.delta_iaa = self.__from_blockgf_to_array(self.Delta_tau)
         self.S.set_hybridization(self.delta_iaa, compress=compress_hybridization, verbose=verbose)
-
-        if is_root() and hasattr(kwargs, 'verbose') and kwargs['verbose']:
-            order_n_diags = [ (o, self.S.fd.number_of_diagrams(o)) for o in range(1,order+1) ]
-            print(f'(Order, N_Diags) = {order_n_diags}')
-            print(f'max_order = {order}')
         
         self.S.solve(order, **kwargs)
 
