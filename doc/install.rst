@@ -15,6 +15,8 @@ Prerequisites
 
 #. The :ref:`TRIQS <triqslibs:welcome>` library, see :ref:`TRIQS installation instruction <triqslibs:triqs_install>`.
    In the following, we assume that TRIQS is installed in the directory ``path_to_triqs``.
+   
+   We are currently depending on the `unstable` development version of TRIQS (that will be released as version 4.0 in the end of 2025). However, for a smoother installation experience we provide tested branches with the naming pattern `triqs/DEV_PPSC_*` (as of writing `triqs/DEV_PPSC_20250912`) that trail the `triqs/unstable` branch with fixed versions of all subpackages (e.g. `itertools`, `mpi`, `h5`, `nda`, etc.). Long story short. **Please install TRIQS on the latest `triqs/DEV_PPSC_*` branch.**
 
 #. The `pyed <https://github.com/HugoStrand/pyed>`_ package (PYED: Exact diagonalization for finite quantum systems) has to be available in the python environment. This can be tested by running::
 
