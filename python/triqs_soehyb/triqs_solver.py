@@ -108,7 +108,7 @@ class TriqsSolver:
             Pseudo-particle self-consistency convergence tolerance (default: `1e-9`)
 
         maxiter : int, optional
-            Maximal number of self-consistent iterations (default: `10`)
+            Maximal number of self-consistent iterations (default: `100`)
 
         update_eta_exact : bool, optional
             Pseudo-particle energy shift update strategy (default: `True`)
