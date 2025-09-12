@@ -2,6 +2,9 @@
 
 ## TRIQS Sum-Of-Exponentials bold HYBridization expansion impurity solver
 
+Disclaimer: This code is under active development, with new features and documentation being
+added regularly. Until a stable release is announced, use at your own risk!
+
 ### Documentation
 
 For documentation and installation instructions see [triqs.github.io/soehyb](https://triqs.github.io/soehyb).
