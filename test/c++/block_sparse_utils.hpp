@@ -9,19 +9,11 @@ using triqs_xca::block_sparse::BlockDiagOpFun;
 using triqs_xca::block_sparse::BlockOpSymQuartet;
 
 struct FermionModelData {
-  nda::array<dcomplex, 3> hyb_coeffs;
-  nda::vector<double> hyb_poles;
-  triqs::atom_diag::atom_diag<true> ad;
-  triqs::gfs::block_gf<triqs::mesh::dlr_imtime> G_ppsc;
-  BlockDiagOpFun G_bdof;
-};
-
-struct OneFermionModelData {
     nda::array<dcomplex, 3> hyb_coeffs;
     nda::vector<double> hyb_poles;
     triqs::atom_diag::atom_diag<false> ad;
-    triqs::gfs::block_gf<triqs::mesh::dlr_imtime> G0_ppsc;
-    BlockDiagOpFun G0_bdof;
+    triqs::gfs::block_gf<triqs::mesh::dlr_imtime> G_ppsc;
+    BlockDiagOpFun G_bdof;
 };
 
 /**
@@ -30,9 +22,9 @@ struct OneFermionModelData {
  * @param[in] Lambda DLR cutoff parameter
  * @param[in] eps DLR epsilon parameter
  * @param[in] hyb_pole Pole value for the single-pole hybridization decomposition
- * @return OneFermionModelData containing hybridization coefficients/poles, atom_diag object, and non-interacting propagators
+ * @return FermionModelData containing hybridization coefficients/poles, atom_diag object, and non-interacting propagators
  */
-OneFermionModelData one_fermion_model_helper(double beta, double Lambda, double eps, double hyb_pole = 0.0);
+FermionModelData one_fermion_model_helper(double beta, double Lambda, double eps, double hyb_pole = 0.0);
 
 /**
  * @brief Helper function for setting up a two-fermion model with interaction U * n0 * n1 and one-pole hybridization
@@ -44,7 +36,8 @@ OneFermionModelData one_fermion_model_helper(double beta, double Lambda, double 
  * @param[in] hyb_pole Pole value for the single-pole hybridization decomposition
  * @return FermionModelData containing hybridization coefficients/poles, atom_diag object, and non-interacting propagator
  */
-FermionModelData two_fermion_model_helper(double beta, double Lambda, double eps, double U = 3.0, double mu = 0.0, double hyb_pole = -1.5);
+FermionModelData two_fermion_model_helper(double beta, double Lambda, double eps, double U = 3.0, double mu = 0.0,
+                                          double hyb_pole = -1.5);
 
 /**
  * @brief Convert a Hamiltonian matrix to a non-interacting Green's function matrix in dense storage
@@ -99,14 +92,3 @@ std::tuple<nda::array<dcomplex, 3>, nda::array<dcomplex, 3>, nda::array<dcomplex
  */
 std::tuple<BlockDiagOpFun, BlockOpSymQuartet, nda::vector<int>> two_band_helper(double beta, double Lambda, double eps,
                                                                                 nda::array_const_view<dcomplex, 3> hyb_coeffs);
-
-/**
- * @brief Reference implementation of one third-order self-energy diagram topology, evaluated densely.
- *
- * @details Formerly triqs_xca::block_sparse::third_order_dense_partial. It has no callers outside the
- * tests, so it lives here rather than in the library. Evaluates the topology with all forward
- * hybridization lines and fixed poles, for comparison against DenseDiagramEvaluator.
- */
-nda::array<dcomplex, 3> third_order_dense_partial(nda::array_const_view<dcomplex, 3> hyb, cppdlr::imtime_ops &itops, double beta,
-                                                  nda::array_const_view<dcomplex, 3> Gt, nda::array_const_view<dcomplex, 3> Fs,
-                                                  nda::array_const_view<dcomplex, 3> F_dags);
