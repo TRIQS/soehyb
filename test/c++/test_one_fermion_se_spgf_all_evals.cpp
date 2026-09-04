@@ -614,7 +614,7 @@ TEST(one_fermion, const_hyb_spgf) {
   // unlike OCA_tpz and third_order_tpz, the *_gf_tpz routines want DLR coefficients rather than values, and
   // they do not build the reflected hybridization themselves, so the -reflect(hyb) convention is applied here
   auto hyb_coeffs      = s.itops.vals2coefs(hyb);
-  auto hyb_refl_coeffs = s.itops.vals2coefs(nda::make_regular(-s.itops.reflect(hyb)));
+  auto hyb_refl_coeffs = s.itops.vals2coefs(s.itops.reflect(hyb));
   auto Gt_coeffs       = s.itops.vals2coefs(s.Gt_dense);
 
   // ----- NCA -----
@@ -711,7 +711,7 @@ TEST(one_fermion, one_hyb_pole_spgf) {
   // unlike OCA_tpz and third_order_tpz, the *_gf_tpz routines want DLR coefficients rather than values, and
   // they do not build the reflected hybridization themselves, so the -reflect(hyb) convention is applied here
   auto hyb_coeffs      = s.itops.vals2coefs(hyb);
-  auto hyb_refl_coeffs = s.itops.vals2coefs(nda::make_regular(-s.itops.reflect(hyb)));
+  auto hyb_refl_coeffs = s.itops.vals2coefs(s.itops.reflect(hyb));
   auto Gt_coeffs       = s.itops.vals2coefs(s.Gt_dense);
 
   // ----- NCA -----
@@ -809,7 +809,7 @@ TEST(one_fermion, two_hyb_poles_spgf) {
   // unlike OCA_tpz and third_order_tpz, the *_gf_tpz routines want DLR coefficients rather than values, and
   // they do not build the reflected hybridization themselves, so the -reflect(hyb) convention is applied here
   auto hyb_coeffs      = s.itops.vals2coefs(hyb);
-  auto hyb_refl_coeffs = s.itops.vals2coefs(nda::make_regular(-s.itops.reflect(hyb)));
+  auto hyb_refl_coeffs = s.itops.vals2coefs(s.itops.reflect(hyb));
   auto Gt_coeffs       = s.itops.vals2coefs(s.Gt_dense);
 
   // ----- NCA -----
