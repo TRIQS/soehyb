@@ -157,6 +157,12 @@ def make_hermitian(A_iaa):
 
 class Solver(object):
 
+    # Application-prefixed hdf5 format tag, following the convention used by the
+    # C++ solvers (cthyb: CTHYB_SolverCore, ctint: CTINT_SolverCore). Without it
+    # the tag would default to the class name "Solver", which is not unique
+    # across the TRIQS ecosystem.
+    _hdf5_format_ = "XCA_Solver"
+
     def __init__(self, beta, lamb, eps,
                  H_loc, fundamental_operators,
                  ntau=100, timer=None, G_iaa=None, eta=None, verbose=True):
@@ -786,4 +792,4 @@ class Solver(object):
 # -- Register Solver in Triqs formats
 
 from h5.formats import register_class 
-register_class(Solver)    
+register_class(Solver)
