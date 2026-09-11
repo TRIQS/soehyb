@@ -58,7 +58,7 @@ FermionModelData two_fermion_model_helper(double beta, double Lambda, double eps
   fop_set.insert("1", 0);
 
   std::vector<many_body_operator_complex> sym_ops = {Nop};
-  auto ad                                          = triqs::atom_diag::atom_diag<true>(H, fop_set, sym_ops);
+  auto ad                                         = triqs::atom_diag::atom_diag<true>(H, fop_set, sym_ops);
 
   int p    = 1;
   int norb = 2;
@@ -130,7 +130,7 @@ DenseFermionModelData one_fermion_model_dense_helper(double beta, double Lambda,
 
   std::vector<triqs::gfs::gf<triqs::mesh::dlr_imtime>> gf_block(1);
   triqs::mesh::dlr_imtime tau_mesh(beta, triqs::mesh::Fermion, Lambda / beta, eps, false);
-  gf_block[0] = triqs::gfs::gf<triqs::mesh::dlr_imtime>(tau_mesh, Gt_dense);
+  gf_block[0]       = triqs::gfs::gf<triqs::mesh::dlr_imtime>(tau_mesh, Gt_dense);
   auto G_ppsc_dense = triqs::gfs::block_gf<triqs::mesh::dlr_imtime>(gf_block);
 
   return {.hyb_coeffs = hyb_coeffs, .hyb_poles = hyb_poles, .ad = ad, .G_ppsc_dense = G_ppsc_dense, .Fset_dense = Fset_dense};
